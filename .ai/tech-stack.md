@@ -70,6 +70,13 @@ Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline�
 - **uv** lub **poetry**: zarządzanie zależnościami Python.
 - **Makefile**: wygodne taski (build, render, run, migrate).
 
+### Uwaga: macOS (Apple Silicon, M2) i odporność na zmiany sprzętowe
+Jeśli głównym celem jest stabilność środowiska na macOS ARM64 oraz dostępność bibliotek (Skia/Cairo/FFmpeg), pełna konteneryzacja może nie pomóc, bo Docker działa w VM z Linuksem i nie zapewnia macOS-owych zależności. Zalecane podejście:
+- **Usługi infrastrukturalne w Compose** (Postgres/Redis/MinIO).
+- **Renderer i FFmpeg natywnie na macOS** z twardo przypiętymi wersjami.
+- **Pinning zależności**: `pyproject` + lock (`uv`/`poetry`), opcjonalnie `constraints.txt`.
+- **Bootstrap środowiska**: `Brewfile` + `scripts/setup-macos.sh` dla powtarzalnego setupu.
+
 ## Rekomendowany minimalny zestaw (start MVP)
 1. Python + FastAPI + RQ + Redis
 2. Postgres + Alembic

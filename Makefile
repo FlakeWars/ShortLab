@@ -1,0 +1,173 @@
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
+
+PROJECT := shortlab
+PYTHON ?= python3
+VENV_DIR ?= .venv
+VENV_BIN := $(VENV_DIR)/bin
+PIP := $(VENV_BIN)/pip
+UV := $(VENV_BIN)/uv
+POETRY := $(VENV_BIN)/poetry
+
+# Optional paths (adjust when code exists)
+BACKEND_DIR ?= backend
+FRONTEND_DIR ?= frontend
+DOCKER_COMPOSE ?= docker compose
+
+.PHONY: help
+help: ## Show available targets
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "%-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# --- Bootstrap / setup ---
+.PHONY: setup-macos
+setup-macos: ## Run macOS bootstrap (Homebrew + tools)
+	@./scripts/setup-macos.sh
+
+.PHONY: bootstrap
+bootstrap: setup-macos venv ## Prepare local environment (bootstrap)
+	@echo "Bootstrap complete"
+
+.PHONY: verify
+verify: ## Verify local environment against pinned versions
+	@./scripts/verify-env.sh
+
+.PHONY: venv
+venv: ## Create Python venv
+	@$(PYTHON) -m venv $(VENV_DIR)
+	@$(PIP) install --upgrade pip
+
+.PHONY: deps-py-uv
+deps-py-uv: venv ## Install Python deps with uv (if lock exists)
+	@if [ -f pyproject.toml ]; then \
+		$(UV) pip install -r requirements.txt 2>/dev/null || true; \
+		$(UV) pip install -e . 2>/dev/null || true; \
+	else \
+		echo "pyproject.toml not found"; \
+	fi
+
+.PHONY: deps-py-poetry
+deps-py-poetry: venv ## Install Python deps with poetry (if lock exists)
+	@if [ -f pyproject.toml ]; then \
+		$(POETRY) install; \
+	else \
+		echo "pyproject.toml not found"; \
+	fi
+
+.PHONY: deps-frontend
+deps-frontend: ## Install frontend deps (if frontend exists)
+	@if [ -d $(FRONTEND_DIR) ]; then \
+		cd $(FRONTEND_DIR) && npm install; \
+	else \
+		echo "$(FRONTEND_DIR) not found"; \
+	fi
+
+# --- Infra (Postgres/Redis/MinIO) ---
+.PHONY: infra-up
+infra-up: ## Start infra services via docker compose
+	@$(DOCKER_COMPOSE) up -d
+
+.PHONY: infra-down
+infra-down: ## Stop infra services
+	@$(DOCKER_COMPOSE) down
+
+.PHONY: infra-logs
+infra-logs: ## Tail infra logs
+	@$(DOCKER_COMPOSE) logs -f --tail=200
+
+# --- Backend API / workers ---
+.PHONY: api
+api: ## Run backend API (placeholder)
+	@echo "Run backend API (FastAPI)" 
+
+.PHONY: worker
+worker: ## Run worker process (placeholder)
+	@echo "Run worker (RQ/Celery)" 
+
+.PHONY: scheduler
+scheduler: ## Run scheduler (placeholder)
+	@echo "Run scheduler (APScheduler)" 
+
+# --- Pipeline stages (PRD-aligned) ---
+.PHONY: gen
+
+gen: ## Generate DSL/spec (placeholder)
+	@echo "Generate DSL spec" 
+
+.PHONY: render
+render: ## Render animation from DSL (placeholder)
+	@echo "Render animation" 
+
+.PHONY: review
+review: ## Launch review UI (placeholder)
+	@echo "Start review UI" 
+
+.PHONY: publish
+publish: ## Publish to platforms (placeholder)
+	@echo "Publish to YouTube/TikTok" 
+
+.PHONY: metrics
+metrics: ## Pull platform metrics (placeholder)
+	@echo "Pull metrics" 
+
+.PHONY: qc
+qc: ## Run QC checks (placeholder)
+	@echo "Run QC checks" 
+
+.PHONY: rerender
+rerender: ## Rerender from metadata/seed (placeholder)
+	@echo "Rerender from metadata" 
+
+# --- Data / exports ---
+.PHONY: export
+export: ## Export data for analysis (placeholder)
+	@echo "Export data" 
+
+# --- Database ---
+.PHONY: db-migrate
+
+db-migrate: ## Run DB migrations (placeholder)
+	@echo "Run Alembic migrations" 
+
+.PHONY: db-seed
+
+db-seed: ## Seed DB data (placeholder)
+	@echo "Seed database" 
+
+# --- Frontend ---
+.PHONY: ui
+ui: ## Run review panel (placeholder)
+	@echo "Run frontend (Vite)" 
+
+# --- Tests ---
+.PHONY: test
+
+test: ## Run all tests (placeholder)
+	@echo "Run tests" 
+
+.PHONY: test-render
+
+test-render: ## Run render determinism tests (placeholder)
+	@echo "Run render tests" 
+
+.PHONY: test-ui
+
+test-ui: ## Run UI smoke tests (Playwright) (placeholder)
+	@echo "Run UI tests" 
+
+# --- Lint/format ---
+.PHONY: lint
+lint: ## Run linters (placeholder)
+	@echo "Run ruff/black" 
+
+.PHONY: format
+format: ## Format code (placeholder)
+	@echo "Format code" 
+
+# --- Dev convenience ---
+.PHONY: doctor
+
+doctor: ## Quick environment checks
+	@echo "Python: $$($(PYTHON) --version 2>/dev/null || echo 'missing')"
+	@echo "Node: $$(node --version 2>/dev/null || echo 'missing')"
+	@echo "FFmpeg: $$(ffmpeg -version 2>/dev/null | head -n 1 || echo 'missing')"
+	@echo "Docker: $$(docker --version 2>/dev/null || echo 'missing')"
