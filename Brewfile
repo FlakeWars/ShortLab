@@ -2,11 +2,13 @@
 
 tap "homebrew/bundle"
 
-git
-pkg-config
-python@3.14
-node@24
-ffmpeg
-cairo
+brew "git"
+brew "pkg-config"
+brew "python@3.14"
+brew "node@24"
+brew "ffmpeg"
+brew "cairo"
+brew "uv"
+brew "poetry"
 
 cask "docker"

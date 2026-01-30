@@ -2,8 +2,9 @@
 
 ## Now (W toku)
 - [ ] Dev environment bootstrap (branch: chore/dev-setup)
-  - [ ] Zweryfikować i uzupełnić środowisko dev na macOS (Brewfile + versions.env)
+  - [x] Zweryfikować i uzupełnić środowisko dev na macOS (Brewfile + versions.env)
   - [ ] Przygotować skrypt bootstrapu macOS (scripts/setup-macos.sh) i wpisać do Makefile
+  - [ ] Uruchomić bootstrap lokalnie i potwierdzić działanie (make setup-macos, make verify)
   - [ ] Spisać minimalne kroki uruchomienia lokalnego (README: 5-min quickstart)
 - [ ] DSL v1 + walidacja (branch: feat/dsl-v1)
   - [ ] Opisać DSL v1: struktura pliku, pola wymagane, opcjonalne, wersjonowanie
