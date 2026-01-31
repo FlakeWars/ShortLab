@@ -16,20 +16,91 @@ if ! xcode-select -p >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v brew >/dev/null 2>&1; then
+BREW_BIN=""
+
+if [[ -x "/opt/homebrew/bin/brew" ]]; then
+  BREW_BIN="/opt/homebrew/bin/brew"
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif command -v brew >/dev/null 2>&1; then
+  BREW_BIN="$(command -v brew)"
+fi
+
+if [[ -z "${BREW_BIN}" ]]; then
   log "Homebrew not found. Installing..."
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  if [[ -f "/opt/homebrew/bin/brew" ]]; then
+  if [[ -x "/opt/homebrew/bin/brew" ]]; then
+    BREW_BIN="/opt/homebrew/bin/brew"
     eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif command -v brew >/dev/null 2>&1; then
+    BREW_BIN="$(command -v brew)"
   fi
 fi
 
+if [[ -z "${BREW_BIN}" ]]; then
+  log "ERROR: Homebrew not available after install."
+  exit 1
+fi
+
 if [[ -f "${ROOT_DIR}/Brewfile" ]]; then
-  log "Installing brew dependencies from Brewfile..."
-  brew bundle --file "${ROOT_DIR}/Brewfile"
+  log "Installing brew dependencies from Brewfile (missing only)..."
+  brews=()
+  casks=()
+  while read -r line; do
+    case "${line}" in
+      brew\ \"*\") brews+=("${line#brew \"}");;
+      cask\ \"*\") casks+=("${line#cask \"}");;
+    esac
+  done < <(awk '/^(brew|cask) /{print}' "${ROOT_DIR}/Brewfile")
+
+  for i in "${!brews[@]}"; do
+    brews[$i]="${brews[$i]%\"}"
+  done
+  for i in "${!casks[@]}"; do
+    casks[$i]="${casks[$i]%\"}"
+  done
+
+  for formula in "${brews[@]}"; do
+    if "${BREW_BIN}" list --formula "${formula}" >/dev/null 2>&1; then
+      log "brew ${formula}: already installed"
+    else
+      log "brew ${formula}: installing"
+      "${BREW_BIN}" install "${formula}"
+    fi
+  done
+
+  for cask in "${casks[@]}"; do
+    if "${BREW_BIN}" list --cask "${cask}" >/dev/null 2>&1; then
+      log "cask ${cask}: already installed"
+      continue
+    fi
+    if [[ "${cask}" == "docker" ]]; then
+      log "cask ${cask}: skipped (install manually)"
+      continue
+    fi
+    if [[ "${cask}" == "docker" && -d "/Applications/Docker.app" ]]; then
+      log "cask ${cask}: detected /Applications/Docker.app, skipping"
+      continue
+    fi
+    log "cask ${cask}: installing"
+    "${BREW_BIN}" install --cask "${cask}"
+  done
 else
   log "ERROR: Brewfile not found in repo root."
   exit 1
+fi
+
+MISE_BIN=""
+if [[ -x "/opt/homebrew/bin/mise" ]]; then
+  MISE_BIN="/opt/homebrew/bin/mise"
+elif command -v mise >/dev/null 2>&1; then
+  MISE_BIN="$(command -v mise)"
+fi
+
+if [[ -n "${MISE_BIN}" ]]; then
+  log "Installing runtime versions via mise..."
+  (cd "${ROOT_DIR}" && "${MISE_BIN}" install)
+else
+  log "WARNING: mise not found. Install via Brewfile or manually."
 fi
 
 if [[ -f "${VERSIONS_FILE}" ]]; then

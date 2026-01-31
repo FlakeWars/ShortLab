@@ -1,12 +1,11 @@
 # Homebrew Bundle for ShortLab (macOS ARM64)
 
-tap "homebrew/bundle"
-
-git
-pkg-config
-python@3.14
-node@24
-ffmpeg
-cairo
+brew "git"
+brew "pkg-config"
+brew "mise"
+brew "ffmpeg"
+brew "cairo"
+brew "uv"
+brew "poetry"
 
 cask "docker"

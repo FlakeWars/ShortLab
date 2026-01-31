@@ -19,7 +19,7 @@ Dokument opisuje plan przygotowania lokalnego środowiska uruchomieniowego zgodn
    - Standardowe źródło zależności systemowych na macOS.
 
 ## 4. Pinowanie wersji (stabilność i deterministyczność)
-- **Python**: wersja 3.12.
+- **Python**: wersja zgodna z `versions.env`.
 - **Node.js**: wersja LTS.
 - **FFmpeg**: jawnie przypięta wersja z Homebrew.
 - **Skia/Cairo**: jawnie przypięte wersje (brew lub wheel w zależności od kompatybilności).
@@ -33,7 +33,7 @@ Dokument opisuje plan przygotowania lokalnego środowiska uruchomieniowego zgodn
 3. Zainstaluj narzędzia bazowe przez `Brewfile` (patrz sekcja 6).
 
 ### 5.2. Python i środowisko backendu
-1. Zainstaluj Python 3.12 przez Homebrew.
+1. Zainstaluj Python zgodny z `versions.env` przez Homebrew.
 2. Zainstaluj `uv` lub `poetry`.
 3. Utwórz i aktywuj wirtualne środowisko.
 4. Zainstaluj zależności backendu z lockfile.
