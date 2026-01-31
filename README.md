@@ -12,6 +12,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 1. Zainstaluj narzędzia bazowe:
    - `make setup-macos` (lub `make bootstrap` dla pełnego setupu)
 2. Zainstaluj wersje runtime przez mise:
+   - `mise trust`
    - `mise install`
 2. Zweryfikuj środowisko:
    - `make verify`
@@ -19,6 +20,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
    - `make venv`
    - `make deps-py-uv` lub `make deps-py-poetry`
 4. Uruchom infrastrukturę:
+   - Docker Desktop zainstaluj manualnie (bootstrap pomija cask)
    - `make infra-up`
 5. Uruchom API/worker/UI (gdy kod będzie gotowy):
    - `make api`
