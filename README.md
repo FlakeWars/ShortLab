@@ -11,6 +11,8 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 ## Szybki start (macOS M2 Pro)
 1. Zainstaluj narzędzia bazowe:
    - `make setup-macos` (lub `make bootstrap` dla pełnego setupu)
+2. Zainstaluj wersje runtime przez mise:
+   - `mise install`
 2. Zweryfikuj środowisko:
    - `make verify`
 3. Utwórz venv i zależności:
