@@ -1,11 +1,11 @@
 # TODO
 
 ## Now (W toku)
-
-## Next (Kolejne)
 - [ ] Deterministyczność renderu (branch: test/renderer-golden)
   - [ ] Golden tests (min. 2 przypadki)
   - [ ] Tolerancje porównań i dokumentacja
+
+## Next (Kolejne)
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
   - [ ] Reguły: move / orbit / attract / repel
   - [ ] Reguły: split / merge / decay
@@ -19,9 +19,6 @@
   - [ ] Model kolizji i interakcji
   - [ ] Emitery / spawny w czasie
   - [ ] Definicje metryk do termination
-- [ ] Deterministyczność renderu (branch: test/renderer-golden)
-  - [ ] Golden tests (min. 2 przypadki)
-  - [ ] Tolerancje porównań i dokumentacja
 - [ ] Baza danych + migracje (branch: feat/db-schema)
   - [ ] Szkielet DB (Postgres + Alembic)
   - [ ] Podstawowy model danych: animacja, render, QC, audit
