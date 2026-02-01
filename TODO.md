@@ -2,8 +2,8 @@
 
 ## Now (W toku)
 - [ ] CLI do renderu (branch: feat/render-cli)
-  - [ ] Wejście: DSL + seed, wyjście: wideo + metadane
-  - [ ] Walidacja wejścia i czytelne błędy
+  - [x] Wejście: DSL + seed, wyjście: wideo + metadane (2026-02-01)
+  - [x] Walidacja wejścia i czytelne błędy (2026-02-01)
 
 ## Next (Kolejne)
 - [ ] Deterministyczność renderu (branch: test/renderer-golden)
