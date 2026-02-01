@@ -1,9 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Deterministyczność renderu (branch: test/renderer-golden)
-  - [x] Golden tests (min. 2 przypadki) (2026-02-01)
-  - [x] Tolerancje porównań i dokumentacja (2026-02-01)
 
 ## Next (Kolejne)
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
@@ -62,6 +59,9 @@
 - [x] CLI do renderu (branch: feat/render-cli) (2026-02-01)
   - [x] Wejście: DSL + seed, wyjście: wideo + metadane (2026-02-01)
   - [x] Walidacja wejścia i czytelne błędy (2026-02-01)
+- [x] Deterministyczność renderu (branch: test/renderer-golden) (2026-02-01)
+  - [x] Golden tests (min. 2 przypadki) (2026-02-01)
+  - [x] Tolerancje porównań i dokumentacja (2026-02-01)
 
 ## Zasady
 - Jeden właściciel taska i jeden cel; task ma kończyć się działającym artefaktem lub testem
