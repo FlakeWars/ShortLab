@@ -1,0 +1,62 @@
+dsl_version: "1.0"
+meta:
+  id: "example-grid-001"
+  title: "Komórki pamięci (edge)"
+  seed: 1
+  tags: []
+scene:
+  canvas:
+    width: 720
+    height: 1280
+    fps: 24
+    duration_s: 12
+  palette: ["#111111", "#FFFFFF"]
+  background: "#111111"
+systems:
+  entities:
+    - id: "cell"
+      shape: "square"
+      size: 12
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "cell"
+      count: 1
+      distribution:
+        type: "grid"
+        params:
+          cols: 1
+          rows: 1
+  rules:
+    - id: "memory-trace"
+      type: "memory"
+      applies_to: "cell"
+      params:
+        decay: 0.0
+        influence: 1.0
+  fsm:
+    states: ["seed", "drift", "stabilize"]
+    initial: "seed"
+    transitions:
+      - from: "seed"
+        to: "drift"
+        when:
+          type: "time"
+          params:
+            at_s: 2
+      - from: "drift"
+        to: "stabilize"
+        when:
+          type: "metric"
+          params:
+            name: "stability"
+            op: ">="
+            value: 0.95
+termination:
+  time:
+    at_s: 12
+output:
+  format: "mp4"
+  resolution: "720x1280"
+  codec: "h264"
+  bitrate: "6M"
+notes: "Edge: minimalna liczba obiektów, FSM + time termination, brak sił globalnych."

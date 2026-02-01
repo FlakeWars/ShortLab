@@ -1,0 +1,65 @@
+dsl_version: "1.0"
+meta:
+  id: "example-reactor-001"
+  title: "Reaktor podziału"
+  seed: 424242
+  tags: ["reactor", "split", "entropy"]
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 18
+  palette: ["#0B0D0E", "#F2F4F5", "#4CC3FF", "#FFB84C"]
+  background: "#0B0D0E"
+systems:
+  entities:
+    - id: "core"
+      shape: "circle"
+      size: 120
+      color: "#4CC3FF"
+      mass: 10
+    - id: "particle"
+      shape: "circle"
+      size: 16
+      color: "#F2F4F5"
+      mass: 1
+  spawns:
+    - entity_id: "core"
+      count: 1
+      distribution:
+        type: "center"
+    - entity_id: "particle"
+      count: 28
+      distribution:
+        type: "orbit"
+        params:
+          radius: 220
+          speed: 0.9
+  rules:
+    - id: "orbit-core"
+      type: "orbit"
+      applies_to: "particle"
+      params:
+        center: "core"
+        speed: 1.0
+    - id: "split-on-collision"
+      type: "split"
+      applies_to: "particle"
+      params:
+        angle_threshold_deg: 30
+        into: 4
+        speed_multiplier: 1.6
+  forces:
+    gravity: 0.0
+termination:
+  condition:
+    type: "entropy"
+    params:
+      max_entities: 320
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+notes: "Happy path: reaktor podziału z prostymi regułami orbit i split."

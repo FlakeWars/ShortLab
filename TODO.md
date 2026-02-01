@@ -2,12 +2,13 @@
 
 ## Now (W toku)
 - [ ] DSL v1 + walidacja (branch: feat/dsl-v1)
-  - [ ] Opisać DSL v1: struktura pliku, pola wymagane, opcjonalne, wersjonowanie
-  - [ ] Zdefiniować minimalny kontrakt FSM (stany, przejścia, parametry, wejścia/wyjścia)
-  - [ ] Przygotować 2 przykładowe pliki DSL v1 (happy path + edge case)
-  - [ ] Wybrać format wejścia (JSON albo YAML) i uzasadnić w krótkiej notce
-  - [ ] Zaimplementować schemat DSL (pydantic/jsonschema) + walidator wejścia
-  - [ ] Dodać testy walidacji DSL (min. valid/invalid cases)
+  - [x] Opisać DSL v1: struktura pliku, pola wymagane, opcjonalne, wersjonowanie (2026-01-31)
+  - [x] Zdefiniować minimalny kontrakt FSM (stany, przejścia, parametry, wejścia/wyjścia) (2026-01-31)
+  - [x] Przygotować 2 przykładowe pliki DSL v1 (happy path + edge case) (2026-01-31)
+  - [x] Wybrać format wejścia (JSON albo YAML) i uzasadnić w krótkiej notce (2026-01-31)
+  - [x] Zaimplementować schemat DSL (pydantic/jsonschema) + walidator wejścia (2026-01-31)
+  - [x] Dodać testy walidacji DSL (min. valid/invalid cases) (2026-01-31)
+  - [ ] Dodać zależności Python (pyproject + lock) dla DSL/testów (pydantic, pyyaml, pytest)
 - [ ] Minimalny renderer MVP (branch: feat/renderer-mvp)
   - [ ] Renderer Python + Skia/Cairo z deterministycznym seedingiem
   - [ ] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji
