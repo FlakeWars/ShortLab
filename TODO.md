@@ -48,7 +48,7 @@
 ## Next (Kolejne)
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
   - [x] Reguły: move / orbit / attract / repel (2026-02-01)
-  - [ ] Reguły: split / merge / decay
+  - [x] Reguły: split / merge / decay (2026-02-01)
   - [ ] Reguły: memory + ślady
   - [ ] FSM w rendererze
   - [ ] Zgodność kolejności ewaluacji z DSL (forces/interactions/constraints)

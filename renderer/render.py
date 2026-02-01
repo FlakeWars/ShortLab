@@ -195,6 +195,58 @@ def _apply_split(states: List[EntityState], model, dt: float, rng) -> List[Entit
     return states
 
 
+def _apply_merge(states: List[EntityState], model) -> List[EntityState]:
+    for rule in model.systems.rules:
+        if rule.type != "merge":
+            continue
+        distance = float(rule.params.get("distance", 12.0))
+        size_factor = float(rule.params.get("size_factor", 0.5))
+        new_states: List[EntityState] = []
+        used = set()
+        for i, a in enumerate(states):
+            if a.entity_id != rule.applies_to or i in used:
+                continue
+            for j, b in enumerate(states):
+                if j <= i or j in used:
+                    continue
+                if b.entity_id != rule.applies_to:
+                    continue
+                if math.hypot(a.x - b.x, a.y - b.y) > distance:
+                    continue
+                used.update({i, j})
+                new_states.append(
+                    EntityState(
+                        entity_id=a.entity_id,
+                        shape=a.shape,
+                        size=max(2.0, (a.size + b.size) * size_factor),
+                        color=a.color,
+                        x=(a.x + b.x) / 2,
+                        y=(a.y + b.y) / 2,
+                        vx=(a.vx + b.vx) / 2,
+                        vy=(a.vy + b.vy) / 2,
+                    )
+                )
+                break
+        if used:
+            states = [s for idx, s in enumerate(states) if idx not in used]
+            states.extend(new_states)
+    return states
+
+
+def _apply_decay(states: List[EntityState], model, dt: float) -> List[EntityState]:
+    for rule in model.systems.rules:
+        if rule.type != "decay":
+            continue
+        rate = float(rule.params.get("rate", 0.1))
+        min_size = float(rule.params.get("min_size", 2.0))
+        for ent in states:
+            if ent.entity_id != rule.applies_to:
+                continue
+            ent.size = max(0.0, ent.size - rate * dt)
+        states = [s for s in states if s.size >= min_size]
+    return states
+
+
 def _apply_move(states: List[EntityState], model, dt: float) -> None:
     for rule in model.systems.rules:
         if rule.type != "move":
@@ -234,6 +286,8 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
         _apply_attract_repel(states, model, dt)
         _apply_move(states, model, dt)
         states = _apply_split(states, model, dt, rng)
+        states = _apply_merge(states, model)
+        states = _apply_decay(states, model, dt)
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
         ctx = cairo.Context(surface)
@@ -261,7 +315,15 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
 
 
 def _warn_on_unsupported(model) -> None:
-    supported_rules = {"orbit", "split", "move", "attract", "repel"}
+    supported_rules = {
+        "orbit",
+        "split",
+        "move",
+        "attract",
+        "repel",
+        "merge",
+        "decay",
+    }
     for rule in model.systems.rules:
         if rule.type not in supported_rules:
             print(f"[renderer] WARN unsupported rule.type: {rule.type}")
