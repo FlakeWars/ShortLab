@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Canvas(BaseModel):
@@ -11,8 +11,7 @@ class Canvas(BaseModel):
     fps: int
     duration_s: float
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Scene(BaseModel):
@@ -21,8 +20,7 @@ class Scene(BaseModel):
     background: str
     time: Optional[Dict[str, float]] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Meta(BaseModel):
@@ -32,8 +30,7 @@ class Meta(BaseModel):
     tags: List[str] = Field(default_factory=list)
     attribution: Optional[str] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Entity(BaseModel):
@@ -44,16 +41,14 @@ class Entity(BaseModel):
     mass: Optional[float] = 1.0
     render: Optional[Dict[str, object]] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Distribution(BaseModel):
     type: str
     params: Optional[Dict[str, object]] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Spawn(BaseModel):
@@ -61,8 +56,7 @@ class Spawn(BaseModel):
     count: int
     distribution: Distribution
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Rule(BaseModel):
@@ -72,16 +66,14 @@ class Rule(BaseModel):
     params: Dict[str, object]
     probability: Optional[float] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class FSMTransitionWhen(BaseModel):
     type: str
     params: Dict[str, object]
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class FSMTransition(BaseModel):
@@ -91,9 +83,7 @@ class FSMTransition(BaseModel):
     once: Optional[bool] = True
     priority: Optional[int] = 0
 
-    class Config:
-        extra = "forbid"
-        allow_population_by_field_name = True
+    model_config = ConfigDict(extra="forbid", validate_by_name=True)
 
 
 class FSM(BaseModel):
@@ -101,8 +91,7 @@ class FSM(BaseModel):
     initial: str
     transitions: List[FSMTransition]
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Systems(BaseModel):
@@ -113,31 +102,27 @@ class Systems(BaseModel):
     fsm: Optional[FSM] = None
     interactions: Optional[Dict[str, object]] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class TerminationTime(BaseModel):
     at_s: float
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class TerminationCondition(BaseModel):
     type: str
     params: Dict[str, object]
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Termination(BaseModel):
     time: Optional[TerminationTime] = None
     condition: Optional[TerminationCondition] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class Output(BaseModel):
@@ -146,8 +131,7 @@ class Output(BaseModel):
     codec: str
     bitrate: str
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
 
 class DSL(BaseModel):
@@ -159,5 +143,4 @@ class DSL(BaseModel):
     output: Output
     notes: Optional[str] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
