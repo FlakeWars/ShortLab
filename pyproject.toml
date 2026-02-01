@@ -8,6 +8,9 @@ dependencies = [
   "pydantic>=2.7",
   "PyYAML>=6.0",
   "pycairo>=1.26",
+  "SQLAlchemy>=2.0",
+  "alembic>=1.13",
+  "psycopg[binary]>=3.1",
 ]
 
 [dependency-groups]

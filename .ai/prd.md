@@ -18,6 +18,8 @@
    1.1. System generuje pomysły animacji i zapisuje je jako deterministyczną specyfikację DSL.
    1.2. DSL jest wersjonowany i kompatybilny wstecz; każda animacja referencjonuje wersję DSL.
    1.3. Logika animacji oparta o FSM jako kontrakt API; AI parametryzuje predefiniowane stany i przejścia.
+   1.4. (Opcjonalnie) System proponuje kilka krótkich opisów pomysłów; operator wybiera jeden do renderu (Idea Gate).
+   1.5. System sprawdza unikalność pomysłu względem historii (hash + similarity/embedding) i oznacza zbyt podobne.
 2. Rendering i reprodukowalność
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.
    2.2. Render jest deterministyczny i możliwy do odtworzenia 1:1 z metadanych.
@@ -26,7 +28,7 @@
    3.1. Warstwa wizualna jest minimalistyczna i oparta o zamrożony Design System MVP.
    3.2. Design System jest wersjonowany i przypisywany do każdej animacji.
 4. Pipeline job-based
-   4.1. System obsługuje kolejkę zadań i workerów dla etapów: generacja -> render -> review -> publikacja -> metryki.
+   4.1. System obsługuje kolejkę zadań i workerów dla etapów: generacja -> (opcjonalnie Idea Gate) -> render -> review -> publikacja -> metryki.
    4.2. Każdy etap zapisuje status i artefakty w repozytorium lokalnym.
    4.3. Niepowodzenia etapów są logowane i możliwe do ponownego uruchomienia.
 5. Webowy panel review i QC
@@ -187,6 +189,18 @@
     Kryteria akceptacji:
     - System usuwa odrzucone animacje po 7 dniach.
     - Usunięcie jest rejestrowane w logu.
+22. US-022
+    Tytuł: Wybór pomysłu (Idea Gate)
+    Opis: Jako operator chcę wybrać jeden z kilku zaproponowanych pomysłów, aby ograniczyć renderowanie nietrafionych animacji.
+    Kryteria akceptacji:
+    - System pokazuje krótkie opisy 3–5 pomysłów.
+    - Operator wybiera jeden do renderowania lub wybiera tryb auto.
+23. US-023
+    Tytuł: Weryfikacja unikalności pomysłu
+    Opis: Jako operator chcę wiedzieć, czy nowy pomysł nie jest zbyt podobny do wcześniejszych.
+    Kryteria akceptacji:
+    - System wylicza podobieństwo (embedding) do historii.
+    - Pomysły zbyt podobne są oznaczane i mogą być odrzucone.
 
 ## 6. Metryki sukcesu
 1. Primary KPI

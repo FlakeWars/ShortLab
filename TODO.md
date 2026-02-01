@@ -1,7 +1,22 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
+- [ ] Baza danych + migracje (branch: feat/db-schema)
+  - [x] Szkielet DB (Postgres + Alembic) (2026-02-01)
+  - [ ] Podstawowy model danych: animacja, render, QC, audit
+  - [ ] Migracje startowe
+
+## Next (Kolejne)
+- [ ] Minimalny worker pipeline (branch: feat/pipeline-mvp)
+  - [ ] RQ + Redis: generacja -> render
+  - [ ] Logowanie statusów jobów
+- [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
+  - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
+  - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
+  - [ ] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów
+
+## Done (Zrobione)
+- [x] Renderer: implementacja reguł (branch: feat/renderer-rules) (2026-02-01)
   - [x] Reguły: move / orbit / attract / repel (2026-02-01)
   - [x] Reguły: split / merge / decay (2026-02-01)
   - [x] Reguły: memory + ślady (2026-02-01)
@@ -25,17 +40,6 @@
   - [x] Interactions: stabilne RNG dla `when.probability` (2026-02-01)
   - [x] Metryki: doprecyzować semantykę (coverage/stability/entropy) i dostosować implementację (2026-02-01)
   - [x] Interactions: split/merge zgodne z parametrami DSL (np. angle_threshold_deg) (2026-02-01)
-
-## Next (Kolejne)
-- [ ] Baza danych + migracje (branch: feat/db-schema)
-  - [ ] Szkielet DB (Postgres + Alembic)
-  - [ ] Podstawowy model danych: animacja, render, QC, audit
-  - [ ] Migracje startowe
-- [ ] Minimalny worker pipeline (branch: feat/pipeline-mvp)
-  - [ ] RQ + Redis: generacja -> render
-  - [ ] Logowanie statusów jobów
-
-## Done (Zrobione)
 - [x] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1) (2026-02-01)
 - [x] Utworzenie TODO.md (branch: chore/todo) (2026-01-30)
   - [x] Zdefiniować strukturę zadań i zasady utrzymania TODO (2026-01-30)

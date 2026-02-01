@@ -140,7 +140,7 @@ export: ## Export data for analysis (placeholder)
 .PHONY: db-migrate
 
 db-migrate: ## Run DB migrations (placeholder)
-	@echo "Run Alembic migrations" 
+	@UV_CACHE_DIR=.uv-cache uv run alembic upgrade head
 
 .PHONY: db-seed
 
