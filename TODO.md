@@ -5,8 +5,15 @@
   - [x] Renderer Python + Cairo z deterministycznym seedingiem (2026-02-01)
   - [x] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji (2026-02-01)
   - [x] Ustalić spójną wersję FFmpeg w PATH (obecnie używany 7.1.1 vs pinned 8.0.1) (2026-02-01)
+  - [x] Ostrzeganie o nieobsługiwanych regułach/FSM w rendererze (2026-02-01)
 
 ## Next (Kolejne)
+- [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
+  - [ ] Reguły: move / orbit / attract / repel
+  - [ ] Reguły: split / merge / decay
+  - [ ] Reguły: memory + ślady
+  - [ ] FSM w rendererze
+  - [ ] Zgodność reguł z DSL v1.1 (po rozszerzeniu)
 - [ ] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1)
   - [ ] Słownik reguł `rules.type` + wymagane `params`
   - [ ] Jednostki/układ współrzędnych + time unit

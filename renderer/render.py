@@ -199,6 +199,7 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
     dt = 1.0 / fps
     frames = int(model.scene.canvas.duration_s * fps)
 
+    _warn_on_unsupported(model)
     states = _spawn_entities(model)
     for frame in range(frames):
         _apply_orbit(states, model, dt)
@@ -228,6 +229,15 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
     _encode_video(out_dir, fps, out_video)
     _write_metadata(model, out_dir)
     return out_video
+
+
+def _warn_on_unsupported(model) -> None:
+    supported_rules = {"orbit", "split", "move"}
+    for rule in model.systems.rules:
+        if rule.type not in supported_rules:
+            print(f"[renderer] WARN unsupported rule.type: {rule.type}")
+    if model.systems.fsm is not None:
+        print("[renderer] WARN systems.fsm is not supported yet")
 
 
 def _encode_video(out_dir: Path, fps: int, out_video: Path) -> None:
