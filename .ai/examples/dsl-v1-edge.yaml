@@ -33,6 +33,25 @@ systems:
       params:
         decay: 0.0
         influence: 1.0
+  interactions:
+    pairs:
+      - a: "cell"
+        b: "cell"
+        rule:
+          type: "repel"
+          params:
+            target: "cell"
+            strength: 0.2
+          when:
+            distance_lte: 24
+  emitters:
+    - id: "cell-drift"
+      entity_id: "cell"
+      rate_per_s: 0.2
+      distribution:
+        type: "center"
+      start_s: 2
+      end_s: 8
   fsm:
     states: ["seed", "drift", "stabilize"]
     initial: "seed"

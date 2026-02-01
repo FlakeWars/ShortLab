@@ -1,13 +1,49 @@
 # TODO
 
 ## Now (W toku)
-- [ ] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1)
-  - [ ] Słownik reguł `rules.type` + wymagane `params`
-  - [ ] Jednostki/układ współrzędnych + time unit
-  - [ ] Kolejność ewaluacji systemów
-  - [ ] Model kolizji i interakcji
-  - [ ] Emitery / spawny w czasie
-  - [ ] Definicje metryk do termination
+
+  - [x] Słownik reguł `rules.type` + wymagane `params` (2026-02-01)
+  - [x] Walidacja `rules.type` i wymaganych `params` w schemacie (2026-02-01)
+  - [x] Jednostki/układ współrzędnych + time unit (2026-02-01)
+  - [x] Doprecyzować definicję `selector` (entity_id/tag) i użycie w `center/target` (2026-02-01)
+  - [x] Doprecyzować zakres kroku "Interactions/Collisions" vs "Constraints/Bounds" (2026-02-01)
+  - [x] Kolejność ewaluacji systemów (2026-02-01)
+  - [x] Model kolizji i interakcji (2026-02-01)
+  - [x] Emitery / spawny w czasie (2026-02-01)
+  - [x] Uściślić schemat `emitters` (typy pól + walidacja) (2026-02-01)
+  - [x] Dodać przykład DSL z `emitters` (2026-02-01)
+  - [x] Definicje metryk do termination (2026-02-01)
+  - [x] Ujednolicić kontrakt `termination.condition` i `fsm.transitions.when` dla metryk (2026-02-01)
+  - [x] Rozważyć pole `systems.constraints` dla bounds (clamp/bounce) (2026-02-01)
+  - [x] Walidacja `systems.constraints` (type/padding/restitution) (2026-02-01)
+  - [x] Doprecyzować znaczenie `emitters.limit` (globalnie vs per-emitter) (2026-02-01)
+  - [x] Walidacja kontraktu `termination.condition`/`fsm.when` dla metryk w schemacie (2026-02-01)
+  - [x] Walidacja operatorów `op` dla metryk (dozwolony zestaw) (2026-02-01)
+  - [x] Walidacja `name` dla metryk (dozwolony zestaw) (2026-02-01)
+  - [x] Walidacja zakresów `value` dla metryk (np. coverage/stability 0..1) (2026-02-01)
+  - [x] Walidacja `window_s` i `sample_every_s` dla metryk (>= 0) (2026-02-01)
+  - [x] Walidacja relacji `sample_every_s <= window_s` (gdy oba podane) (2026-02-01)
+  - [x] Zdefiniować `entities.tags` i walidację selectorów `tag:` względem encji (2026-02-01)
+  - [x] Ujednolicić `termination.condition.type` (np. tylko `metric` vs legacy types) (2026-02-01)
+  - [x] Słownik dystrybucji `spawns/emitters.distribution.type` + wymagane `params` (2026-02-01)
+  - [x] Słownik `systems.forces` (typy + params) + walidacja (2026-02-01)
+  - [x] Uściślić `systems.interactions` (schema + walidacja `pairs` i rule) (2026-02-01)
+  - [x] Doprecyzować `entities.size` (typy obiektów, zakresy, jednostki) (2026-02-01)
+  - [x] Doprecyzować `entities.render` (dozwolone pola i typy) (2026-02-01)
+  - [x] Ujednolicić przykłady DSL pod `termination.condition.type: metric` (2026-02-01)
+  - [x] Walidacja `distribution.params` per typ (np. grid: cols/rows; orbit: radius) (2026-02-01)
+  - [x] Walidacja `entities.size` (min/max/distribution) w schemacie (2026-02-01)
+  - [x] Walidacja `entities.render` (stroke/opacity) w schemacie (2026-02-01)
+  - [x] Walidacja `systems.interactions.rule.params` zgodnie ze słownikiem reguł (2026-02-01)
+  - [x] Walidacja kolorów `entities.color`/`render.stroke.color` względem `scene.palette` (2026-02-01)
+  - [x] Walidacja opcjonalnych `distribution.params` (np. orbit.speed, random.padding typ/zakres) (2026-02-01)
+  - [x] Walidacja `scene.background` względem `scene.palette` (2026-02-01)
+  - [x] Walidacja formatu kolorów w `scene.palette` (np. hex `#RRGGBB`) (2026-02-01)
+  - [x] Walidacja `scene.canvas` (wymiary/fps/duration > 0) (2026-02-01)
+  - [x] Walidacja `output` (format/codec/resolution/bitrate) + zgodność z `scene.canvas` (2026-02-01)
+  - [x] Walidacja enumów: `entities.shape` i `distribution.type` (2026-02-01)
+  - [x] Walidacja unikalności `entities.id`, `rules.id`, `emitters.id` (2026-02-01)
+  - [x] Walidacja `entities.tags` (format, brak pustych, unikalność) (2026-02-01)
 
 ## Next (Kolejne)
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
@@ -15,6 +51,11 @@
   - [ ] Reguły: split / merge / decay
   - [ ] Reguły: memory + ślady
   - [ ] FSM w rendererze
+  - [ ] Zgodność kolejności ewaluacji z DSL (forces/interactions/constraints)
+  - [ ] Obsługa selectorów `tag:`/`all` i wyboru „najbliższego” w center/target
+  - [ ] Emitery: spawny w czasie zgodne z DSL v1.1
+  - [ ] Constraints/bounds: clamp/bounce/wrap zgodnie z DSL v1.1
+  - [ ] Forces: gravity/noise zgodnie z DSL v1.1
   - [ ] Zgodność reguł z DSL v1.1 (po rozszerzeniu)
 - [ ] Baza danych + migracje (branch: feat/db-schema)
   - [ ] Szkielet DB (Postgres + Alembic)
@@ -25,6 +66,7 @@
   - [ ] Logowanie statusów jobów
 
 ## Done (Zrobione)
+- [x] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1) (2026-02-01)
 - [x] Utworzenie TODO.md (branch: chore/todo) (2026-01-30)
   - [x] Zdefiniować strukturę zadań i zasady utrzymania TODO (2026-01-30)
 - [x] Dev environment bootstrap (branch: chore/dev-setup) (2026-01-31)

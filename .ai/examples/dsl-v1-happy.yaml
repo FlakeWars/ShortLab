@@ -41,7 +41,9 @@ systems:
       type: "orbit"
       applies_to: "particle"
       params:
-        center: "core"
+        center:
+          x: 540
+          y: 960
         speed: 1.0
     - id: "split-on-collision"
       type: "split"
@@ -50,13 +52,22 @@ systems:
         angle_threshold_deg: 30
         into: 4
         speed_multiplier: 1.6
+  constraints:
+    bounds:
+      type: "clamp"
+  forces:
+    gravity:
+      x: 0
+      y: 0
   forces:
     gravity: 0.0
 termination:
   condition:
-    type: "entropy"
+    type: "metric"
     params:
-      max_entities: 320
+      name: "population"
+      op: ">="
+      value: 320
 output:
   format: "mp4"
   resolution: "1080x1920"
