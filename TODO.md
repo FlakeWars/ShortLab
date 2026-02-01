@@ -1,14 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
-  - [ ] Reguły: move / orbit / attract / repel
-  - [ ] Reguły: split / merge / decay
-  - [ ] Reguły: memory + ślady
-  - [ ] FSM w rendererze
-  - [ ] Zgodność reguł z DSL v1.1 (po rozszerzeniu)
-
-## Next (Kolejne)
 - [ ] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1)
   - [ ] Słownik reguł `rules.type` + wymagane `params`
   - [ ] Jednostki/układ współrzędnych + time unit
@@ -16,6 +8,14 @@
   - [ ] Model kolizji i interakcji
   - [ ] Emitery / spawny w czasie
   - [ ] Definicje metryk do termination
+
+## Next (Kolejne)
+- [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
+  - [ ] Reguły: move / orbit / attract / repel
+  - [ ] Reguły: split / merge / decay
+  - [ ] Reguły: memory + ślady
+  - [ ] FSM w rendererze
+  - [ ] Zgodność reguł z DSL v1.1 (po rozszerzeniu)
 - [ ] Baza danych + migracje (branch: feat/db-schema)
   - [ ] Szkielet DB (Postgres + Alembic)
   - [ ] Podstawowy model danych: animacja, render, QC, audit
