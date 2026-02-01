@@ -1,18 +1,18 @@
 # TODO
 
 ## Now (W toku)
-- [ ] DSL v1 + walidacja (branch: feat/dsl-v1)
-  - [ ] Opisać DSL v1: struktura pliku, pola wymagane, opcjonalne, wersjonowanie
-  - [ ] Zdefiniować minimalny kontrakt FSM (stany, przejścia, parametry, wejścia/wyjścia)
-  - [ ] Przygotować 2 przykładowe pliki DSL v1 (happy path + edge case)
-  - [ ] Wybrać format wejścia (JSON albo YAML) i uzasadnić w krótkiej notce
-  - [ ] Zaimplementować schemat DSL (pydantic/jsonschema) + walidator wejścia
-  - [ ] Dodać testy walidacji DSL (min. valid/invalid cases)
 - [ ] Minimalny renderer MVP (branch: feat/renderer-mvp)
   - [ ] Renderer Python + Skia/Cairo z deterministycznym seedingiem
   - [ ] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji
 
 ## Next (Kolejne)
+- [ ] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1)
+  - [ ] Słownik reguł `rules.type` + wymagane `params`
+  - [ ] Jednostki/układ współrzędnych + time unit
+  - [ ] Kolejność ewaluacji systemów
+  - [ ] Model kolizji i interakcji
+  - [ ] Emitery / spawny w czasie
+  - [ ] Definicje metryk do termination
 - [ ] CLI do renderu (branch: feat/render-cli)
   - [ ] Wejście: DSL + seed, wyjście: wideo + metadane
   - [ ] Walidacja wejścia i czytelne błędy
@@ -45,6 +45,15 @@
   - [x] Usunąć tap `homebrew/bundle` z Brewfile (tap zdeprecjonowany) (2026-01-30)
   - [x] Uruchomić bootstrap lokalnie i potwierdzić działanie (make setup-macos, make verify) (2026-01-31)
   - [x] Spisać minimalne kroki uruchomienia lokalnego (README: 5-min quickstart) (2026-01-31)
+- [x] DSL v1 + walidacja (branch: feat/dsl-v1) (2026-02-01)
+  - [x] Opisać DSL v1: struktura pliku, pola wymagane, opcjonalne, wersjonowanie (2026-01-31)
+  - [x] Zdefiniować minimalny kontrakt FSM (stany, przejścia, parametry, wejścia/wyjścia) (2026-01-31)
+  - [x] Przygotować 2 przykładowe pliki DSL v1 (happy path + edge case) (2026-01-31)
+  - [x] Wybrać format wejścia (JSON albo YAML) i uzasadnić w krótkiej notce (2026-01-31)
+  - [x] Zaimplementować schemat DSL (pydantic/jsonschema) + walidator wejścia (2026-01-31)
+  - [x] Dodać testy walidacji DSL (min. valid/invalid cases) (2026-01-31)
+  - [x] Dodać zależności Python (pyproject + lock) dla DSL/testów (pydantic, pyyaml, pytest) (2026-02-01)
+  - [x] Usunąć warningi Pydantic v2 (Config -> ConfigDict) (2026-02-01)
 
 ## Zasady
 - Jeden właściciel taska i jeden cel; task ma kończyć się działającym artefaktem lub testem
