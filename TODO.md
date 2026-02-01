@@ -1,11 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Minimalny renderer MVP (branch: feat/renderer-mvp)
-  - [x] Renderer Python + Cairo z deterministycznym seedingiem (2026-02-01)
-  - [x] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji (2026-02-01)
-  - [x] Ustalić spójną wersję FFmpeg w PATH (obecnie używany 7.1.1 vs pinned 8.0.1) (2026-02-01)
-  - [x] Ostrzeganie o nieobsługiwanych regułach/FSM w rendererze (2026-02-01)
 
 ## Next (Kolejne)
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
@@ -62,6 +57,11 @@
   - [x] Dodać testy walidacji DSL (min. valid/invalid cases) (2026-01-31)
   - [x] Dodać zależności Python (pyproject + lock) dla DSL/testów (pydantic, pyyaml, pytest) (2026-02-01)
   - [x] Usunąć warningi Pydantic v2 (Config -> ConfigDict) (2026-02-01)
+- [x] Minimalny renderer MVP (branch: feat/renderer-mvp) (2026-02-01)
+  - [x] Renderer Python + Cairo z deterministycznym seedingiem (2026-02-01)
+  - [x] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji (2026-02-01)
+  - [x] Ustalić spójną wersję FFmpeg w PATH (obecnie używany 7.1.1 vs pinned 8.0.1) (2026-02-01)
+  - [x] Ostrzeganie o nieobsługiwanych regułach/FSM w rendererze (2026-02-01)
 
 ## Zasady
 - Jeden właściciel taska i jeden cel; task ma kończyć się działającym artefaktem lub testem
