@@ -13,6 +13,7 @@ Ten plik opisuje lokalne zasady współpracy z agentem i minimalny „contract�
 - Nie zmieniamy wersji narzędzi ani zależności bez wyraźnej zgody użytkownika; zawsze trzymamy się `versions.env`.
 - Po realizacji każdego podpunktu z `TODO.md` raportujemy krótko: co zrobione, co nieudane/blokady i jaki jest stan.
 - Po realizacji każdego podpunktu robimy krytyczną analizę efektu; może to skutkować zmianami w `TODO.md`, dokumentacji (`.ai/prd.md`, `.ai/tech-stack.md`, `README.md` lub innych plikach), a także dopisaniem nowych zasad/zakazów w `AGENTS.md` i zmianą kolejnego kroku.
+- Po każdej krytycznej analizie zapisujemy wynik w `TODO.md` (np. nowe podpunkty/zakres v1.1), żeby nie zgubić ważnych uwag.
 - Dokumentacja musi być spójna z `versions.env`; przy rozbieżnościach aktualizujemy dokumentację, nie wersje.
 - Po zakończeniu zadania (branch-level) wykonujemy merge do `main`, przełączamy się na `main` i robimy `git pull`. Dopiero potem uznajemy zadanie za zamknięte.
 - Po merge do `main` wykonujemy krótką analizę wpływu na plan: czy pojawiły się nowe priorytety lub czy kolejność zadań w `TODO.md` wymaga korekty. Zmiany zapisujemy w `TODO.md`/dokumentacji zanim startujemy kolejne zadanie.

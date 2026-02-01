@@ -9,12 +9,19 @@
   - [x] Zaimplementować schemat DSL (pydantic/jsonschema) + walidator wejścia (2026-01-31)
   - [x] Dodać testy walidacji DSL (min. valid/invalid cases) (2026-01-31)
   - [x] Dodać zależności Python (pyproject + lock) dla DSL/testów (pydantic, pyyaml, pytest) (2026-02-01)
-  - [ ] Usunąć warningi Pydantic v2 (Config -> ConfigDict)
+  - [x] Usunąć warningi Pydantic v2 (Config -> ConfigDict) (2026-02-01)
 - [ ] Minimalny renderer MVP (branch: feat/renderer-mvp)
   - [ ] Renderer Python + Skia/Cairo z deterministycznym seedingiem
   - [ ] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji
 
 ## Next (Kolejne)
+- [ ] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1)
+  - [ ] Słownik reguł `rules.type` + wymagane `params`
+  - [ ] Jednostki/układ współrzędnych + time unit
+  - [ ] Kolejność ewaluacji systemów
+  - [ ] Model kolizji i interakcji
+  - [ ] Emitery / spawny w czasie
+  - [ ] Definicje metryk do termination
 - [ ] CLI do renderu (branch: feat/render-cli)
   - [ ] Wejście: DSL + seed, wyjście: wideo + metadane
   - [ ] Walidacja wejścia i czytelne błędy
