@@ -39,8 +39,7 @@ venv: ## Create Python venv
 .PHONY: deps-py-uv
 deps-py-uv: venv ## Install Python deps with uv (if lock exists)
 	@if [ -f pyproject.toml ]; then \
-		$(UV) pip install -r requirements.txt 2>/dev/null || true; \
-		$(UV) pip install -e . 2>/dev/null || true; \
+		UV_CACHE_DIR=.uv-cache uv sync --group dev; \
 	else \
 		echo "pyproject.toml not found"; \
 	fi
@@ -142,7 +141,11 @@ ui: ## Run review panel (placeholder)
 .PHONY: test
 
 test: ## Run all tests (placeholder)
-	@echo "Run tests" 
+	@if [ -f pyproject.toml ]; then \
+		UV_CACHE_DIR=.uv-cache uv run -m pytest -q; \
+	else \
+		echo "pyproject.toml not found"; \
+	fi
 
 .PHONY: test-render
 
