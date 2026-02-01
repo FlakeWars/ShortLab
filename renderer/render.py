@@ -34,6 +34,36 @@ class RenderConfig:
     renderer_version: str = "cairo-mvp-0"
 
 
+@dataclass
+class MemoryGrid:
+    cols: int
+    rows: int
+    memory: List[List[float]] = field(default_factory=list)
+
+    @classmethod
+    def create(cls, cols: int, rows: int) -> "MemoryGrid":
+        grid = cls(cols=cols, rows=rows)
+        grid.memory = [[0.0 for _ in range(cols)] for _ in range(rows)]
+        return grid
+
+    def decay(self, rate: float) -> None:
+        for y in range(self.rows):
+            for x in range(self.cols):
+                self.memory[y][x] = max(0.0, self.memory[y][x] - rate)
+
+    def mark(self, x: int, y: int, value: float) -> None:
+        if 0 <= x < self.cols and 0 <= y < self.rows:
+            self.memory[y][x] = min(1.0, max(self.memory[y][x], value))
+
+    def sample_gradient(self, x: int, y: int) -> tuple[float, float]:
+        # Central difference gradient
+        left = self.memory[y][x - 1] if x > 0 else self.memory[y][x]
+        right = self.memory[y][x + 1] if x < self.cols - 1 else self.memory[y][x]
+        up = self.memory[y - 1][x] if y > 0 else self.memory[y][x]
+        down = self.memory[y + 1][x] if y < self.rows - 1 else self.memory[y][x]
+        return (right - left, down - up)
+
+
 def _parse_color(hex_color: str) -> tuple[float, float, float]:
     hex_color = hex_color.lstrip("#")
     r = int(hex_color[0:2], 16) / 255.0
@@ -247,6 +277,30 @@ def _apply_decay(states: List[EntityState], model, dt: float) -> List[EntityStat
     return states
 
 
+def _apply_memory(states: List[EntityState], model, dt: float, memory: MemoryGrid) -> None:
+    for rule in model.systems.rules:
+        if rule.type != "memory":
+            continue
+        decay = float(rule.params.get("decay", 0.01))
+        influence = float(rule.params.get("influence", 1.0))
+        memory.decay(decay * dt)
+        width = model.scene.canvas.width
+        height = model.scene.canvas.height
+        cell_w = width / memory.cols
+        cell_h = height / memory.rows
+        for ent in states:
+            if ent.entity_id != rule.applies_to:
+                continue
+            gx = int(ent.x / cell_w)
+            gy = int(ent.y / cell_h)
+            memory.mark(gx, gy, 1.0)
+            gx = min(memory.cols - 1, max(0, gx))
+            gy = min(memory.rows - 1, max(0, gy))
+            dx, dy = memory.sample_gradient(gx, gy)
+            ent.vx += dx * influence * dt
+            ent.vy += dy * influence * dt
+
+
 def _apply_move(states: List[EntityState], model, dt: float) -> None:
     for rule in model.systems.rules:
         if rule.type != "move":
@@ -281,6 +335,10 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
 
     _warn_on_unsupported(model)
     states = _spawn_entities(model)
+    memory = MemoryGrid.create(
+        cols=max(1, int(model.scene.canvas.width / 16)),
+        rows=max(1, int(model.scene.canvas.height / 16)),
+    )
     for frame in range(frames):
         _apply_orbit(states, model, dt)
         _apply_attract_repel(states, model, dt)
@@ -288,6 +346,7 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
         states = _apply_split(states, model, dt, rng)
         states = _apply_merge(states, model)
         states = _apply_decay(states, model, dt)
+        _apply_memory(states, model, dt, memory)
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
         ctx = cairo.Context(surface)
@@ -323,6 +382,7 @@ def _warn_on_unsupported(model) -> None:
         "repel",
         "merge",
         "decay",
+        "memory",
     }
     for rule in model.systems.rules:
         if rule.type not in supported_rules:
