@@ -35,6 +35,12 @@ class RenderConfig:
 
 
 @dataclass
+class FSMState:
+    name: str
+    entered_at_s: float = 0.0
+
+
+@dataclass
 class MemoryGrid:
     cols: int
     rows: int
@@ -301,6 +307,24 @@ def _apply_memory(states: List[EntityState], model, dt: float, memory: MemoryGri
             ent.vy += dy * influence * dt
 
 
+def _apply_fsm(model, fsm_state: FSMState, current_time_s: float) -> FSMState:
+    fsm = model.systems.fsm
+    if fsm is None:
+        return fsm_state
+    transitions = [t for t in fsm.transitions if t.from_ == fsm_state.name]
+    if not transitions:
+        return fsm_state
+    transitions.sort(key=lambda t: t.priority or 0, reverse=True)
+
+    for t in transitions:
+        when = t.when
+        if when.type == "time":
+            at_s = float(when.params.get("at_s", 0))
+            if current_time_s >= at_s:
+                return FSMState(name=t.to, entered_at_s=current_time_s)
+    return fsm_state
+
+
 def _apply_move(states: List[EntityState], model, dt: float) -> None:
     for rule in model.systems.rules:
         if rule.type != "move":
@@ -335,11 +359,17 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
 
     _warn_on_unsupported(model)
     states = _spawn_entities(model)
+    fsm_state = None
+    if model.systems.fsm is not None:
+        fsm_state = FSMState(name=model.systems.fsm.initial, entered_at_s=0.0)
     memory = MemoryGrid.create(
         cols=max(1, int(model.scene.canvas.width / 16)),
         rows=max(1, int(model.scene.canvas.height / 16)),
     )
     for frame in range(frames):
+        current_time = frame * dt
+        if fsm_state is not None:
+            fsm_state = _apply_fsm(model, fsm_state, current_time)
         _apply_orbit(states, model, dt)
         _apply_attract_repel(states, model, dt)
         _apply_move(states, model, dt)
@@ -388,7 +418,10 @@ def _warn_on_unsupported(model) -> None:
         if rule.type not in supported_rules:
             print(f"[renderer] WARN unsupported rule.type: {rule.type}")
     if model.systems.fsm is not None:
-        print("[renderer] WARN systems.fsm is not supported yet")
+        supported_fsm_when = {"time"}
+        for t in model.systems.fsm.transitions:
+            if t.when.type not in supported_fsm_when:
+                print(f"[renderer] WARN unsupported fsm.when.type: {t.when.type}")
 
 
 def _encode_video(out_dir: Path, fps: int, out_video: Path) -> None:
