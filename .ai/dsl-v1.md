@@ -92,6 +92,7 @@ Zasady:
 `size` może być:
 - number (stały rozmiar w `px`)
 - object:
+  - `value` (number, stały rozmiar w `px`)
   - `min` (number, px)
   - `max` (number, px)
   - `distribution` (string: "uniform" | "normal", default="uniform")
@@ -257,7 +258,7 @@ Globalne siły (np. grawitacja).
 - `noise`:
   - `strength` (number, >= 0)
   - `scale` (number, > 0)
-  - `seed` (integer, optional)
+  - `seed` (integer, optional) — jeśli podany, szum jest **deterministyczny w czasie** (statyczny)
 
 ### 4.4. systems.interactions
 Złożone interakcje między typami obiektów.
@@ -339,8 +340,11 @@ Metryki:
 - `population` — liczba aktywnych obiektów
   - `params`: `value` (number), `op` (string: ">" | ">=" | "<" | "<=" | "==")
 - `coverage` — procent pokrycia ekranu przez obiekty
+  - Definicja: suma pól kół o promieniu `size` / pole ekranu (cap do 1.0)
   - `params`: `value` (number 0..1), `op` (string: ">" | ">=" | "<" | "<=" | "==")
 - `entropy` — miara nieuporządkowania (np. liczba obiektów lub ich rozkład)
+  - Definicja (v1.1): liczba obiektów (alias `population`)
   - `params`: `value` (number), `op` (string: ">" | ">=" | "<" | "<=" | "==")
 - `stability` — brak zmian pozycji w czasie
-  - `params`: `value` (number 0..1), `op` (string: ">" | ">=" | "<" | "<=" | "=="), `window_s` (number)
+  - Definicja: udział obiektów z prędkością <= `stability_eps` w oknie czasu
+  - `params`: `value` (number 0..1), `op` (string: ">" | ">=" | "<" | "<=" | "=="), `window_s` (number), `stability_eps` (number, default=1e-3)

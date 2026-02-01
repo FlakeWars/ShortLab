@@ -1,19 +1,32 @@
 # TODO
 
 ## Now (W toku)
-
-## Next (Kolejne)
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
   - [x] Reguły: move / orbit / attract / repel (2026-02-01)
   - [x] Reguły: split / merge / decay (2026-02-01)
   - [x] Reguły: memory + ślady (2026-02-01)
   - [x] FSM w rendererze (2026-02-01)
-  - [ ] Zgodność kolejności ewaluacji z DSL (forces/interactions/constraints)
-  - [ ] Obsługa selectorów `tag:`/`all` i wyboru „najbliższego” w center/target
-  - [ ] Emitery: spawny w czasie zgodne z DSL v1.1
-  - [ ] Constraints/bounds: clamp/bounce/wrap zgodnie z DSL v1.1
-  - [ ] Forces: gravity/noise zgodnie z DSL v1.1
-  - [ ] Zgodność reguł z DSL v1.1 (po rozszerzeniu)
+  - [x] Zgodność kolejności ewaluacji z DSL (forces/interactions/constraints) (2026-02-01)
+  - [x] Obsługa selectorów `tag:`/`all` i wyboru „najbliższego” w center/target (2026-02-01)
+  - [x] Emitery: spawny w czasie zgodne z DSL v1.1 (2026-02-01)
+  - [x] Emitery: obsłużyć `entities.size` z min/max/distribution (2026-02-01)
+  - [x] Constraints/bounds: clamp/bounce/wrap zgodnie z DSL v1.1 (2026-02-01)
+  - [x] Bounds: uwzględnić rozmiar obiektu (radius) w clamp/bounce (2026-02-01)
+  - [x] Forces: gravity/noise zgodnie z DSL v1.1 (2026-02-01)
+  - [x] Forces: uwzględnić `noise.scale` i `noise.seed` (2026-02-01)
+  - [x] Doprecyzować obsługę `entities.size.value` (usunąć lub dodać do DSL) (2026-02-01)
+  - [x] Forces: ustalić zachowanie `noise.seed` w czasie (statyczny vs zmienny) (2026-02-01)
+  - [x] Zgodność reguł z DSL v1.1 (po rozszerzeniu) (2026-02-01)
+  - [x] Interactions: implementacja `systems.interactions` (pairs + when) (2026-02-01)
+  - [x] FSM: obsługa `metric` (przynajmniej population) (2026-02-01)
+  - [x] Termination: obsługa `condition.type = metric` (przynajmniej population) (2026-02-01)
+  - [x] Interactions: obsługa `merge`/`split` w `systems.interactions` (2026-02-01)
+  - [x] Metryki: `coverage` / `entropy` / `stability` w FSM i termination (2026-02-01)
+  - [x] Interactions: stabilne RNG dla `when.probability` (2026-02-01)
+  - [x] Metryki: doprecyzować semantykę (coverage/stability/entropy) i dostosować implementację (2026-02-01)
+  - [x] Interactions: split/merge zgodne z parametrami DSL (np. angle_threshold_deg) (2026-02-01)
+
+## Next (Kolejne)
 - [ ] Baza danych + migracje (branch: feat/db-schema)
   - [ ] Szkielet DB (Postgres + Alembic)
   - [ ] Podstawowy model danych: animacja, render, QC, audit
