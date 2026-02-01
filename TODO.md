@@ -1,14 +1,14 @@
 # TODO
 
 ## Now (W toku)
-
-## Next (Kolejne)
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
   - [ ] Reguły: move / orbit / attract / repel
   - [ ] Reguły: split / merge / decay
   - [ ] Reguły: memory + ślady
   - [ ] FSM w rendererze
   - [ ] Zgodność reguł z DSL v1.1 (po rozszerzeniu)
+
+## Next (Kolejne)
 - [ ] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1)
   - [ ] Słownik reguł `rules.type` + wymagane `params`
   - [ ] Jednostki/układ współrzędnych + time unit
