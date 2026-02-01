@@ -1,9 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] CLI do renderu (branch: feat/render-cli)
-  - [x] Wejście: DSL + seed, wyjście: wideo + metadane (2026-02-01)
-  - [x] Walidacja wejścia i czytelne błędy (2026-02-01)
 
 ## Next (Kolejne)
 - [ ] Deterministyczność renderu (branch: test/renderer-golden)
@@ -65,6 +62,9 @@
   - [x] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji (2026-02-01)
   - [x] Ustalić spójną wersję FFmpeg w PATH (obecnie używany 7.1.1 vs pinned 8.0.1) (2026-02-01)
   - [x] Ostrzeganie o nieobsługiwanych regułach/FSM w rendererze (2026-02-01)
+- [x] CLI do renderu (branch: feat/render-cli) (2026-02-01)
+  - [x] Wejście: DSL + seed, wyjście: wideo + metadane (2026-02-01)
+  - [x] Walidacja wejścia i czytelne błędy (2026-02-01)
 
 ## Zasady
 - Jeden właściciel taska i jeden cel; task ma kończyć się działającym artefaktem lub testem
