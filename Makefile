@@ -55,6 +55,10 @@ deps-py-lock: ## Update uv lockfile
 		echo "pyproject.toml not found"; \
 	fi
 
+.PHONY: golden
+golden: ## Regenerate golden hashes for renderer
+	@UV_CACHE_DIR=.uv-cache uv run scripts/generate-golden.py
+
 .PHONY: deps-py-poetry
 deps-py-poetry: venv ## Install Python deps with poetry (if lock exists)
 	@if [ -f pyproject.toml ]; then \

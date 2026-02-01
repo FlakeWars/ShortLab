@@ -26,9 +26,24 @@ def _render_and_hash(dsl_path: Path, out_dir: Path) -> dict[str, str]:
     out_video = out_dir / "out.mp4"
     render_dsl(dsl_path, out_dir, out_video)
     meta = out_dir / "metadata.json"
+    frames = sorted(out_dir.glob("frame_*.png"))
+    if not frames:
+        raise AssertionError("No frames rendered")
+    first_idx = 0
+    mid_idx = len(frames) // 2
+    last_idx = len(frames) - 1
     return {
-        "video_sha256": _sha256(out_video),
         "metadata_sha256": _sha256(meta),
+        "frame_index": {
+            "first": first_idx,
+            "middle": mid_idx,
+            "last": last_idx,
+        },
+        "frame_hashes": {
+            "first": _sha256(frames[first_idx]),
+            "middle": _sha256(frames[mid_idx]),
+            "last": _sha256(frames[last_idx]),
+        },
     }
 
 

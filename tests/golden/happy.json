@@ -1,4 +1,13 @@
 {
-  "video_sha256": "9e47801674fca29c4edec4549ad010307b3928c06811b592087bc271308a8192",
-  "metadata_sha256": "ac954e29c1ad9d321c9dbcdbea0d3e5a0875cd9a26016657c6a5349e329224ba"
+  "metadata_sha256": "ac954e29c1ad9d321c9dbcdbea0d3e5a0875cd9a26016657c6a5349e329224ba",
+  "frame_index": {
+    "first": 0,
+    "middle": 270,
+    "last": 539
+  },
+  "frame_hashes": {
+    "first": "08ae49ee3d3120ddb0b9390baad24c5263020dc03e4b4007e20c9715ef4398ba",
+    "middle": "60767a5b5f5bd7b99b173995912169534e5c275c39fe445650f0bad9710ebb05",
+    "last": "ed20f89fbe66c65e6e3d7acd4e018d1e0082064ff9eef9d8a8add6b53e56f2e4"
+  }
 }

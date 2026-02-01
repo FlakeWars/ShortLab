@@ -3,7 +3,7 @@
 ## Now (W toku)
 - [ ] Deterministyczność renderu (branch: test/renderer-golden)
   - [x] Golden tests (min. 2 przypadki) (2026-02-01)
-  - [ ] Tolerancje porównań i dokumentacja
+  - [x] Tolerancje porównań i dokumentacja (2026-02-01)
 
 ## Next (Kolejne)
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
