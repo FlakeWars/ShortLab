@@ -8,6 +8,9 @@ VENV_BIN := $(VENV_DIR)/bin
 PIP := $(VENV_BIN)/pip
 UV := $(VENV_BIN)/uv
 POETRY := $(VENV_BIN)/poetry
+DSL ?= .ai/examples/dsl-v1-happy.yaml
+RENDER_OUT ?= out/render
+RENDER_VIDEO ?= out/render.mp4
 
 # Optional paths (adjust when code exists)
 BACKEND_DIR ?= backend
@@ -40,6 +43,14 @@ venv: ## Create Python venv
 deps-py-uv: venv ## Install Python deps with uv (if lock exists)
 	@if [ -f pyproject.toml ]; then \
 		UV_CACHE_DIR=.uv-cache uv sync --group dev; \
+	else \
+		echo "pyproject.toml not found"; \
+	fi
+
+.PHONY: deps-py-lock
+deps-py-lock: ## Update uv lockfile
+	@if [ -f pyproject.toml ]; then \
+		UV_CACHE_DIR=.uv-cache uv lock; \
 	else \
 		echo "pyproject.toml not found"; \
 	fi
@@ -94,7 +105,7 @@ gen: ## Generate DSL/spec (placeholder)
 
 .PHONY: render
 render: ## Render animation from DSL (placeholder)
-	@echo "Render animation" 
+	@UV_CACHE_DIR=.uv-cache uv run scripts/render-dsl.py --dsl "$(DSL)" --out-dir "$(RENDER_OUT)" --out-video "$(RENDER_VIDEO)"
 
 .PHONY: review
 review: ## Launch review UI (placeholder)
