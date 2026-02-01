@@ -1,8 +1,14 @@
 # TODO
 
 ## Now (W toku)
+- [ ] CLI do renderu (branch: feat/render-cli)
+  - [ ] Wejście: DSL + seed, wyjście: wideo + metadane
+  - [ ] Walidacja wejścia i czytelne błędy
 
 ## Next (Kolejne)
+- [ ] Deterministyczność renderu (branch: test/renderer-golden)
+  - [ ] Golden tests (min. 2 przypadki)
+  - [ ] Tolerancje porównań i dokumentacja
 - [ ] Renderer: implementacja reguł (branch: feat/renderer-rules)
   - [ ] Reguły: move / orbit / attract / repel
   - [ ] Reguły: split / merge / decay
@@ -16,9 +22,6 @@
   - [ ] Model kolizji i interakcji
   - [ ] Emitery / spawny w czasie
   - [ ] Definicje metryk do termination
-- [ ] CLI do renderu (branch: feat/render-cli)
-  - [ ] Wejście: DSL + seed, wyjście: wideo + metadane
-  - [ ] Walidacja wejścia i czytelne błędy
 - [ ] Deterministyczność renderu (branch: test/renderer-golden)
   - [ ] Golden tests (min. 2 przypadki)
   - [ ] Tolerancje porównań i dokumentacja
