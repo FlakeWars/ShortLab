@@ -2,8 +2,9 @@
 
 ## Now (W toku)
 - [ ] Minimalny renderer MVP (branch: feat/renderer-mvp)
-  - [ ] Renderer Python + Skia/Cairo z deterministycznym seedingiem
-  - [ ] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji
+  - [x] Renderer Python + Cairo z deterministycznym seedingiem (2026-02-01)
+  - [x] Metadane renderu: seed, dsl_version, design_system_version, parametry symulacji (2026-02-01)
+  - [x] Ustalić spójną wersję FFmpeg w PATH (obecnie używany 7.1.1 vs pinned 8.0.1) (2026-02-01)
 
 ## Next (Kolejne)
 - [ ] DSL v1.1 rozszerzenia (branch: feat/dsl-v1-1)
