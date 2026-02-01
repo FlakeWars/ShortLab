@@ -114,6 +114,34 @@ def _apply_orbit(states: List[EntityState], model, dt: float) -> None:
             ent.vy = math.cos(ent.angle) * speed * radius
 
 
+def _apply_attract_repel(states: List[EntityState], model, dt: float) -> None:
+    rules = [r for r in model.systems.rules if r.type in {"attract", "repel"}]
+    if not rules:
+        return
+    for rule in rules:
+        strength = float(rule.params.get("strength", 1.0))
+        min_dist = float(rule.params.get("min_dist", 4.0))
+        max_dist = float(rule.params.get("max_dist", 500.0))
+        if rule.type == "repel":
+            strength = -strength
+        for i, a in enumerate(states):
+            if a.entity_id != rule.applies_to:
+                continue
+            for j, b in enumerate(states):
+                if i == j:
+                    continue
+                dx = b.x - a.x
+                dy = b.y - a.y
+                dist = math.hypot(dx, dy)
+                if dist < min_dist or dist > max_dist:
+                    continue
+                nx = dx / dist
+                ny = dy / dist
+                force = strength / (dist * dist)
+                a.vx += nx * force * dt
+                a.vy += ny * force * dt
+
+
 def _apply_split(states: List[EntityState], model, dt: float, rng) -> List[EntityState]:
     for rule in model.systems.rules:
         if rule.type != "split":
@@ -203,6 +231,7 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
     states = _spawn_entities(model)
     for frame in range(frames):
         _apply_orbit(states, model, dt)
+        _apply_attract_repel(states, model, dt)
         _apply_move(states, model, dt)
         states = _apply_split(states, model, dt, rng)
 
@@ -232,7 +261,7 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
 
 
 def _warn_on_unsupported(model) -> None:
-    supported_rules = {"orbit", "split", "move"}
+    supported_rules = {"orbit", "split", "move", "attract", "repel"}
     for rule in model.systems.rules:
         if rule.type not in supported_rules:
             print(f"[renderer] WARN unsupported rule.type: {rule.type}")
