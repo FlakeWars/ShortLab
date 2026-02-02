@@ -34,6 +34,7 @@
 - [ ] Embedding Service: smoke test fastembed (branch: test/embedding-service)
   - [x] Dodac smoke test do `scripts/verify-env.sh` (2026-02-02)
   - [ ] Zweryfikowac lokalne pobranie modelu i embedding w testowym srodowisku
+  - [ ] Blokada: fastembed 0.7.4 wymaga onnxruntime bez wheel dla Python 3.14 (cp314)
 
 ## Done (Zrobione)
 - [x] Embedding Service (moduł) (branch: feat/embedding-service) (2026-02-02)
