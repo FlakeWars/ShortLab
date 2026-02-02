@@ -69,6 +69,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `OPENAI_BASE_URL` – endpoint API (domyślnie `https://api.openai.com/v1`).
 - `OPENAI_TEMPERATURE` – temperatura generacji (domyślnie `0.7`).
 - `OPENAI_MAX_OUTPUT_TOKENS` – limit tokenów odpowiedzi (domyślnie `800`).
+- `ARTIFACTS_BASE_DIR` – katalog bazowy dla serwowania artefaktów (domyślnie `out`).
 
 ## Makefile
 Dostępne cele:

@@ -47,6 +47,11 @@ def _require_operator(x_operator_token: str | None = Header(default=None)) -> No
         raise HTTPException(status_code=401, detail="operator_token_required")
 
 
+def _artifact_base_dir() -> Path:
+    base_dir = getenv("ARTIFACTS_BASE_DIR", "out")
+    return Path(base_dir).expanduser().resolve()
+
+
 def _animation_row(animation: Animation, render: Render | None, qc: QCDecision | None) -> dict:
     payload = {
         "id": animation.id,
@@ -367,7 +372,7 @@ def get_artifact_file(artifact_id: UUID):
         if not storage_path.exists():
             raise HTTPException(status_code=404, detail="artifact_missing")
 
-        base_dir = Path.cwd().joinpath("out").resolve()
+        base_dir = _artifact_base_dir()
         try:
             storage_path.relative_to(base_dir)
         except ValueError:

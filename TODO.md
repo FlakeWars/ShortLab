@@ -2,7 +2,7 @@
 
 ## Now (W toku)
 - [ ] API/UI: polityka serwowania artefaktow (branch: fix/api-artifacts)
-  - [ ] Ustalic dozwolony katalog bazowy (obecnie tylko `out/`) i opisac w docs
+  - [x] Ustalic dozwolony katalog bazowy (obecnie tylko `out/`) i opisac w docs
 
 ## Next (Kolejne)
 
