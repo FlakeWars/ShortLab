@@ -1,12 +1,13 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Settings runtime: API endpoint do podgladu configu (branch: feat/settings-api)
-  - [x] UI pobiera ustawienia z API zamiast VITE_*
+- [ ] Brak aktywnych zadan
 
 ## Next (Kolejne)
 
 ## Done (Zrobione)
+- [x] Settings runtime: API endpoint do podgladu configu (branch: feat/settings-api) (2026-02-02)
+  - [x] UI pobiera ustawienia z API zamiast VITE_*
 - [x] Security: wymusic token operatora w prod (branch: fix/ops-guard) (2026-02-02)
   - [x] Blokada uruchomienia /ops/* bez OPERATOR_TOKEN w trybie produkcyjnym
 - [x] Stabilizacja operacji i dokumentacji (branch: chore/ops-docs) (2026-02-02)
