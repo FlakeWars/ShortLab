@@ -15,6 +15,7 @@ RENDER_OUT ?= out/render
 RENDER_VIDEO ?= out/render.mp4
 OLDER_MIN ?= 30
 IDEA_GATE_SELECT ?=
+IDEA_GATE_ENABLED ?= 0
 IDEA_GATE_AUTO ?= 0
 
 # Optional paths (adjust when code exists)
@@ -109,7 +110,7 @@ scheduler: ## Run scheduler (placeholder)
 
 .PHONY: enqueue
 enqueue: ## Enqueue minimal pipeline job
-	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/enqueue.py
+	@IDEA_GATE_ENABLED="$(IDEA_GATE_ENABLED)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/enqueue.py
 
 .PHONY: job-status
 job-status: ## Show recent pipeline job statuses

@@ -6,7 +6,12 @@ from rq import Queue
 
 from db.models import Animation, Job
 from db.session import SessionLocal
-from pipeline.jobs import generate_dsl_job, render_job, rq_on_failure, rq_on_success
+from pipeline.jobs import (
+    generate_dsl_job,
+    render_job,
+    rq_on_failure,
+    rq_on_success,
+)
 
 
 def _redis_url() -> str:
@@ -27,7 +32,11 @@ def get_queue(name: str = "default") -> Queue:
     return Queue(name, connection=get_redis())
 
 
-def enqueue_pipeline(dsl_template: str, out_root: str) -> dict:
+def enqueue_pipeline(
+    dsl_template: str,
+    out_root: str,
+    use_idea_gate: bool = False,
+) -> dict:
     session = SessionLocal()
     try:
         animation = Animation(
@@ -48,7 +57,11 @@ def enqueue_pipeline(dsl_template: str, out_root: str) -> dict:
             kind="generate_dsl",
             status="queued",
             animation_id=animation.id,
-            payload={"dsl_template": dsl_template, "out_root": out_root},
+            payload={
+                "dsl_template": dsl_template,
+                "out_root": out_root,
+                "use_idea_gate": use_idea_gate,
+            },
         )
         session.add(gen_job)
         session.commit()
@@ -61,6 +74,7 @@ def enqueue_pipeline(dsl_template: str, out_root: str) -> dict:
             animation.id,
             dsl_template,
             out_root,
+            use_idea_gate,
             job_timeout=_timeout_seconds("generate"),
             on_failure=rq_on_failure,
             on_success=rq_on_success,

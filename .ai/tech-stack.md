@@ -9,7 +9,10 @@ Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline�
 
 ## 2. Backend API i panel review
 - **FastAPI**: szybki backend HTTP/JSON, łatwe walidacje modeli, dokumentacja OpenAPI.
-- **React + Vite**: lekki panel review z odtwarzaniem wideo i metadanymi.
+- **React + Vite**: panel operacyjny systemu (pipeline, Idea Gate, QC, metryki).
+- **TanStack Query**: cache danych, odświeżanie statusów jobów (polling).
+- **TanStack Table**: listy animacji/jobów z filtrowaniem.
+- **Wykresy**: **ECharts** lub **Recharts** do metryk i trendów.
 - **Auth**: session-based auth z hashem (Argon2), tylko dla operatora; opcjonalnie podstawowy 2FA (TOTP).
 
 ## 3. Kolejki zadań i workerzy
@@ -59,6 +62,14 @@ Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline�
 - **Strukturalne logi**: `structlog` lub `loguru`.
 - **Dashboard minimalny**: endpoint zdrowia + status jobów.
 - **Tracing** (opcjonalnie, po MVP): OpenTelemetry, jeśli pipeline się rozrośnie.
+
+## 10.1. UI – zakres operacyjny (MVP)
+- **Dashboard**: status pipeline + ostatnie joby (queued/running/failed/succeeded).
+- **Animacje**: lista animacji + metadane + statusy.
+- **Render**: podgląd wideo + metryki renderu + DSL/Design System.
+- **Idea Gate**: propozycje + wybór + similarity.
+- **QC**: decyzje i checklisty.
+- **Audit log**: historia zdarzeń i filtr po typie.
 
 ## 11. Testy i jakość
 - **Pytest**: testy pipeline, DSL i deterministyczności renderu (golden tests).

@@ -30,6 +30,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 ### Pipeline (MVP) – komendy operacyjne
 - `make worker` – startuje workera RQ.
 - `make enqueue` – wrzuca minimalny job (generacja DSL -> render).
+  - `IDEA_GATE_ENABLED=1 make enqueue` – włącza Idea Gate w pipeline.
 - `make job-status` – pokazuje ostatnie joby.
 - `make job-summary` – podsumowanie statusów jobów.
 - `make job-cleanup OLDER_MIN=30` – oznacza stare joby `running` jako `failed`.

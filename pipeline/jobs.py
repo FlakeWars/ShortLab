@@ -3,13 +3,16 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime
+import os
+from random import Random
 from pathlib import Path
 
 import yaml
 
 from rq.job import Job as RQJob
 
-from db.models import Animation, Job, Render
+from db.models import Animation, AuditLog, Idea, Job, Render
+from sqlalchemy import select
 from db.session import SessionLocal
 from dsl.validate import validate_file
 from renderer.render import render_dsl
@@ -98,6 +101,7 @@ def generate_dsl_job(
     animation_id: int,
     dsl_template: str,
     out_root: str,
+    use_idea_gate: bool = False,
 ) -> dict:
     session = SessionLocal()
     try:
@@ -115,6 +119,70 @@ def generate_dsl_job(
         if not template_path.exists():
             raise FileNotFoundError(f"DSL template not found: {template_path}")
 
+        if use_idea_gate:
+            from idea_gate.core import content_hash, max_similarity, parse_ideas, text_to_vec
+
+            ideas = parse_ideas(Path(".ai/ideas.md"))
+            if not ideas:
+                raise RuntimeError("Idea Gate enabled but no ideas found")
+
+            count = int(os.getenv("IDEA_GATE_COUNT", "3"))
+            threshold = float(os.getenv("IDEA_GATE_THRESHOLD", "0.85"))
+            rng = Random(
+                int(hashlib.sha256(animation.uuid.encode("utf-8")).hexdigest(), 16) % (2**31)
+            )
+            rng.shuffle(ideas)
+            pool = ideas[: max(1, min(count, len(ideas)))]
+
+            history = (
+                session.execute(
+                    select(Idea.embedding).where(Idea.embedding != None)  # noqa: E711
+                )
+                .scalars()
+                .all()
+            )
+            history_vecs = [vec for vec in history if isinstance(vec, list)]
+
+            saved: list[Idea] = []
+            for item in pool:
+                vec = text_to_vec(item["title"] + " " + item["summary"])
+                similarity = max_similarity(vec, history_vecs)
+                idea = Idea(
+                    title=item["title"],
+                    summary=item["summary"],
+                    content_hash=content_hash(item["title"], item["summary"]),
+                    embedding=vec,
+                    similarity=similarity,
+                    is_too_similar=similarity >= threshold,
+                )
+                session.add(idea)
+                session.commit()
+                session.refresh(idea)
+                saved.append(idea)
+
+            candidates = [i for i in saved if not i.is_too_similar]
+            selected = (
+                min(candidates, key=lambda i: i.similarity or 0.0)
+                if candidates
+                else min(saved, key=lambda i: i.similarity or 0.0)
+            )
+            title = selected.title
+            summary = selected.summary
+
+            audit = AuditLog(
+                event_type="idea_selected",
+                payload={
+                    "idea_id": selected.id,
+                    "selection_mode": "pipeline",
+                    "threshold": threshold,
+                },
+            )
+            session.add(audit)
+            session.commit()
+        else:
+            title = "auto-generated"
+            summary = ""
+
         target_path = _dsl_path(out_dir)
         _write_dsl_from_template(template_path, target_path, animation.uuid)
 
@@ -122,11 +190,16 @@ def generate_dsl_job(
         payload = model.model_dump()
         dsl_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()
 
-        animation.title = model.meta.title
+        if title:
+            animation.title = title
+        elif model.meta.title:
+            animation.title = model.meta.title
         animation.status = "dsl_ready"
         animation.dsl_version = model.dsl_version
         animation.dsl_hash = dsl_hash
         animation.dsl_payload = payload
+        if summary:
+            animation.dsl_payload["idea_summary"] = summary
         animation.seed = model.meta.seed
         animation.design_system_version = "mvp-0"
         animation.updated_at = datetime.utcnow()

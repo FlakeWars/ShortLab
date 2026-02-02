@@ -7,7 +7,18 @@
   - [x] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów (2026-02-02)
   - [x] Uruchomić `make db-migrate` lokalnie (kolumny Idea Gate) (2026-02-02)
   - [ ] Rozważyć podmianę embeddingu hash->model (real embeddings)
-  - [ ] Wpiąć Idea Gate jako etap opcjonalny w pipeline (przed generacją DSL)
+  - [x] Wpiąć Idea Gate jako etap opcjonalny w pipeline (przed generacją DSL) (2026-02-02)
+  - [ ] UI dla Idea Gate (lista propozycji + wybór)
+  - [ ] Rozszerzyć opisy propozycji (co użytkownik ma zobaczyć w animacji)
+  - [ ] Dodać „preview” oczekiwanego efektu (np. kluczowe reguły/skrót DSL)
+- [ ] Panel operacyjny UI (moduł systemu) (branch: feat/ui-ops)
+  - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
+  - [ ] Lista animacji z filtrem po statusie + podgląd metadanych
+  - [ ] Podgląd renderów (wideo + metadane) + status QC
+  - [ ] Sekcja Idea Gate: propozycje + wybór + podobieństwo
+  - [ ] Historia zdarzeń (audit log) + filtr po typie
+  - [ ] Ustawienia (timeouts, .env flags) tylko do podglądu w MVP
+  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobów
   - [x] Usunąć warning datetime.utcnow + poprawić auto-selekcję przy `too_similar` (2026-02-02)
 
 ## Next (Kolejne)

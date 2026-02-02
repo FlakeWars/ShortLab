@@ -35,6 +35,11 @@
    5.1. Panel umożliwia podgląd wideo, metadanych, wersji DSL i Design Systemu.
    5.2. Operator może zaakceptować, odrzucić lub zlecić regenerację.
    5.3. QC zawiera checklisty hard fail i soft judgement; decyzja jest zapisywana z uzasadnieniem.
+   5.4. Panel operacyjny pokazuje stan pipeline (queued/running/failed/succeeded) i ostatnie joby.
+   5.5. Panel pokazuje listę animacji z filtrami po statusie oraz podstawowe metadane.
+   5.6. Panel umożliwia przegląd historii zdarzeń (audit log) z filtrem po typie.
+   5.7. Panel zawiera sekcję Idea Gate z propozycjami, wyborem i similarity.
+   5.8. Panel udostępnia akcje operacyjne: enqueue, rerun, cleanup jobów.
 6. Publikacja
    6.1. System umożliwia półautomatyczny upload na YouTube i TikTok.
    6.2. Publikacja zapisuje identyfikatory materiałów na platformach.
@@ -52,6 +57,18 @@
 10. Eksport i inspekcja danych
    10.1. System umożliwia eksport metadanych i metryk do pliku dla dalszej analizy.
    10.2. System umożliwia podgląd historii decyzji i powiązań między animacjami a wynikami.
+
+## 6. Panel operacyjny (moduł UI)
+1. Zakres MVP
+   1.1. Dashboard: stan pipeline + ostatnie joby.
+   1.2. Animacje: lista + podgląd renderu + metadane.
+   1.3. Idea Gate: propozycje + wybór + similarity.
+   1.4. QC: decyzje + checklisty.
+   1.5. Audit log: przegląd zdarzeń.
+2. Akcje
+   2.1. Uruchomienie pipeline (enqueue).
+   2.2. Rerun renderu.
+   2.3. Cleanup jobów (stare running).
 
 ## 4. Granice produktu
 1. MVP nie obejmuje komercjalizacji ani monetyzacji.
