@@ -98,6 +98,14 @@ PY
 postgres_v=$(get_cmd_version "psql" "psql --version 2>/dev/null | awk '{print \$3}'")
 redis_v=$(get_cmd_version "redis-server" "redis-server --version 2>/dev/null | sed -n 's/.*v=\\([0-9.]*\\).*/\\1/p'")
 minio_v=$(get_cmd_version "minio" "minio --version 2>/dev/null | awk '{print \$3}'")
+fastembed_v=$(python3 - <<'PY' 2>/dev/null || true
+try:
+    import fastembed
+    print(getattr(fastembed, "__version__", "unknown"))
+except Exception:
+    print("missing")
+PY
+)
 
 if [[ -z "${postgres_v}" ]]; then
   postgres_v=$(get_compose_tag "postgres")
@@ -139,6 +147,24 @@ if [[ "${minio_v:-missing}" == "missing" ]]; then
   echo "[verify] MinIO: WARN (missing, expected via docker compose)"
 else
   check_version "MinIO" "${MINIO_VERSION}" "${minio_v:-missing}"
+fi
+
+if [[ "${fastembed_v:-missing}" == "missing" ]]; then
+  echo "[verify] fastembed: WARN (missing, optional until embeddings are used)"
+else
+  check_version "fastembed" "${FASTEMBED_VERSION:-}" "${fastembed_v:-missing}"
+  if ! python3 - <<'PY' 2>/dev/null; then
+from fastembed import TextEmbedding
+
+embedder = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+_ = next(embedder.embed(["smoke test"]))
+print("ok")
+PY
+    echo "[verify] fastembed: FAIL (smoke test)"
+    fail=1
+  else
+    echo "[verify] fastembed: OK (smoke test)"
+  fi
 fi
 
 if [[ $fail -ne 0 ]]; then

@@ -32,6 +32,7 @@
   - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
   - [ ] Minimalne auth/guard (operator-only)
 - [ ] Embedding Service: smoke test fastembed (branch: test/embedding-service)
+  - [x] Dodac smoke test do `scripts/verify-env.sh` (2026-02-02)
   - [ ] Zweryfikowac lokalne pobranie modelu i embedding w testowym srodowisku
 
 ## Done (Zrobione)
