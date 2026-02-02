@@ -1,14 +1,14 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Security: wymusic token operatora w prod (branch: fix/ops-guard)
-  - [x] Blokada uruchomienia /ops/* bez OPERATOR_TOKEN w trybie produkcyjnym
-
-## Next (Kolejne)
 - [ ] Settings runtime: API endpoint do podgladu configu (branch: feat/settings-api)
   - [ ] UI pobiera ustawienia z API zamiast VITE_*
 
+## Next (Kolejne)
+
 ## Done (Zrobione)
+- [x] Security: wymusic token operatora w prod (branch: fix/ops-guard) (2026-02-02)
+  - [x] Blokada uruchomienia /ops/* bez OPERATOR_TOKEN w trybie produkcyjnym
 - [x] Stabilizacja operacji i dokumentacji (branch: chore/ops-docs) (2026-02-02)
   - [x] Dokumentacja: OPERATOR_TOKEN + przyklady curl dla /ops/*
   - [x] Smoke testy: /ops/enqueue, /ops/rerun, /ops/cleanup-jobs z tokenem
