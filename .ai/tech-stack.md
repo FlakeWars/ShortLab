@@ -25,9 +25,9 @@ Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline�
 - **Wersjonowanie DSL**: pole `dsl_version` oraz migratory "upgrader" w kodzie.
 
 ## 4a. Embedding i podobieństwo (Idea Gate / deduplikacja)
-- **fastembed**: lokalne embeddings (CPU), wystarczające jako „papierek lakmusowy”.
+- **scikit-learn (HashingVectorizer)**: lokalne embeddings (CPU) bez pobierania modeli.
 - **Cosine similarity**: podstawowa miara podobieństwa.
-- **Fallback offline**: hash-embedding, gdy model niedostępny.
+- **Fallback offline**: hash-embedding, gdy wektorizer niedostępny.
 
 ## 5. Silnik renderingu 2D
 - **MVP-first**: **Python + Skia-Python** lub **Cairo** jako renderer:

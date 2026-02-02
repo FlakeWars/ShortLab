@@ -8,6 +8,11 @@ if [[ -x "/opt/homebrew/bin/brew" ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
 
+PYTHON_BIN="python3"
+if [[ -x "${ROOT_DIR}/.venv/bin/python" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
+fi
+
 if [[ ! -f "${VERSIONS_FILE}" ]]; then
   echo "[verify] ERROR: versions file not found: ${VERSIONS_FILE}" >&2
   exit 1
@@ -90,7 +95,7 @@ python_v=$(get_mise_version "python3" "python3 --version | awk '{print \$2}'")
 node_v=$(get_mise_version "node" "node --version | sed 's/^v//'")
 ffmpeg_v=$(get_cmd_version "ffmpeg" "ffmpeg -version 2>/dev/null | head -n 1 | awk '{print \$3}'")
 cairo_v=$(get_cmd_version "pkg-config" "pkg-config --modversion cairo 2>/dev/null")
-skia_v=$(python3 - <<'PY' 2>/dev/null || true
+skia_v=$(${PYTHON_BIN} - <<'PY' 2>/dev/null || true
 import skia
 print(skia.__version__)
 PY
@@ -98,6 +103,14 @@ PY
 postgres_v=$(get_cmd_version "psql" "psql --version 2>/dev/null | awk '{print \$3}'")
 redis_v=$(get_cmd_version "redis-server" "redis-server --version 2>/dev/null | sed -n 's/.*v=\\([0-9.]*\\).*/\\1/p'")
 minio_v=$(get_cmd_version "minio" "minio --version 2>/dev/null | awk '{print \$3}'")
+sklearn_v=$(${PYTHON_BIN} - <<'PY' 2>/dev/null || true
+try:
+    import sklearn
+    print(getattr(sklearn, "__version__", "unknown"))
+except Exception:
+    print("missing")
+PY
+)
 
 if [[ -z "${postgres_v}" ]]; then
   postgres_v=$(get_compose_tag "postgres")
@@ -139,6 +152,24 @@ if [[ "${minio_v:-missing}" == "missing" ]]; then
   echo "[verify] MinIO: WARN (missing, expected via docker compose)"
 else
   check_version "MinIO" "${MINIO_VERSION}" "${minio_v:-missing}"
+fi
+
+if [[ "${sklearn_v:-missing}" == "missing" ]]; then
+  echo "[verify] scikit-learn: WARN (missing, optional until embeddings are used)"
+else
+  check_version "scikit-learn" "${SKLEARN_VERSION:-}" "${sklearn_v:-missing}"
+  if ! ${PYTHON_BIN} - <<'PY' 2>/dev/null; then
+from sklearn.feature_extraction.text import HashingVectorizer
+
+vec = HashingVectorizer(n_features=256, alternate_sign=False, norm="l2")
+_ = vec.transform(["smoke test"]).toarray()
+print("ok")
+PY
+    echo "[verify] scikit-learn: FAIL (smoke test)"
+    fail=1
+  else
+    echo "[verify] scikit-learn: OK (smoke test)"
+  fi
 fi
 
 if [[ $fail -ne 0 ]]; then

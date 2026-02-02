@@ -31,10 +31,16 @@
 - [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
   - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
   - [ ] Minimalne auth/guard (operator-only)
-- [ ] Embedding Service: smoke test fastembed (branch: test/embedding-service)
-  - [ ] Zweryfikowac lokalne pobranie modelu i embedding w testowym srodowisku
 
 ## Done (Zrobione)
+- [x] Embedding Service: smoke test sklearn hashing (branch: test/embedding-service) (2026-02-02)
+  - [x] Dodac smoke test do `scripts/verify-env.sh` (2026-02-02)
+  - [x] Zweryfikowac lokalne dzialanie HashingVectorizer w testowym srodowisku (2026-02-02)
+  - [x] Uzgodnic pin wersji scikit-learn (1.8.0) w `versions.env` (2026-02-02)
+- [x] Embedding Service: zmiana providera na sklearn hashing (branch: fix/embedding-provider) (2026-02-02)
+  - [x] Podmienic domyslny provider i zaleznosci na scikit-learn (2026-02-02)
+  - [x] Zaktualizowac verify-env (smoke test sklearn) (2026-02-02)
+  - [x] Zaktualizowac PRD/tech-stack i versions.env (2026-02-02)
 - [x] Embedding Service (moduł) (branch: feat/embedding-service) (2026-02-02)
   - [x] Adapter fastembed (lokalne embeddings, CPU) (2026-02-02)
   - [x] Cache + retry + rate limit (2026-02-02)

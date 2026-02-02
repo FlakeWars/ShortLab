@@ -20,7 +20,7 @@
    1.3. Logika animacji oparta o FSM jako kontrakt API; AI parametryzuje predefiniowane stany i przejścia.
    1.4. (Opcjonalnie) System proponuje kilka krótkich opisów pomysłów; operator wybiera jeden do renderu (Idea Gate).
    1.5. System sprawdza unikalność pomysłu względem historii (hash + similarity/embedding) i oznacza zbyt podobne.
-   1.6. MVP korzysta z lokalnych embeddingow (fastembed) jako papierka lakmusowego; zdalny provider jest opcjonalny.
+   1.6. MVP korzysta z lokalnych embeddingow (scikit-learn HashingVectorizer) jako papierka lakmusowego; zdalny provider jest opcjonalny.
 2. Rendering i reprodukowalność
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.
    2.2. Render jest deterministyczny i możliwy do odtworzenia 1:1 z metadanych.

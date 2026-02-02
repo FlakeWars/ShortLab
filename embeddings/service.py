@@ -15,14 +15,15 @@ class EmbeddingResult:
 
 @dataclass(frozen=True)
 class EmbeddingConfig:
-    provider: str = "fastembed"
-    model_name: str = "BAAI/bge-small-en-v1.5"
+    provider: str = "sklearn-hash"
+    model_name: str = "hashing-vectorizer"
     max_batch_size: int = 32
     rate_limit_rps: float = 5.0
     cache_ttl_s: int = 3600
     retry_attempts: int = 2
     retry_backoff_s: float = 0.5
     allow_hash_fallback: bool = True
+    hashing_features: int = 256
 
 
 class EmbeddingService:
@@ -126,6 +127,8 @@ class _HashEmbeddingProvider(_Provider):
 
 
 def _build_provider(config: EmbeddingConfig) -> _Provider:
+    if config.provider == "sklearn-hash":
+        return _SklearnHashingProvider(config.hashing_features)
     if config.provider == "fastembed":
         try:
             return _FastEmbedProvider(config.model_name)
@@ -136,6 +139,28 @@ def _build_provider(config: EmbeddingConfig) -> _Provider:
     if config.provider == "hash":
         return _HashEmbeddingProvider()
     raise ValueError(f"Unsupported embedding provider: {config.provider}")
+
+
+class _SklearnHashingProvider(_Provider):
+    def __init__(self, n_features: int) -> None:
+        from sklearn.feature_extraction.text import HashingVectorizer
+        import sklearn  # type: ignore
+
+        self._model_name = "sklearn-hashing"
+        self._version = getattr(sklearn, "__version__", "unknown")
+        self._vectorizer = HashingVectorizer(
+            n_features=n_features,
+            alternate_sign=False,
+            norm="l2",
+        )
+
+    def embed(self, texts: Sequence[str]) -> list[EmbeddingResult]:
+        matrix = self._vectorizer.transform(texts)
+        vectors = matrix.toarray().tolist()
+        return [
+            EmbeddingResult(vector=vec, model=self._model_name, version=self._version)
+            for vec in vectors
+        ]
 
 
 def _hash_embedding(text: str, dim: int) -> list[float]:
