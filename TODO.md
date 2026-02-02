@@ -4,6 +4,11 @@
 _brak_
 
 ## Next (Kolejne)
+- [ ] Sync TODO po merge (moduły/zależności) (branch: chore/todo-sync)
+  - [ ] Sprawdzić, czy nowe moduły są wpisane w `TODO.md` na `main`
+- [ ] Mapa zależności modułów (branch: docs/module-deps)
+  - [ ] Wybrać format (Mermaid/UML/ASCII) i zapisać w repo
+  - [ ] Zarysować zależności między modułami (pipeline, Idea Gate, generator, embeddings, UI)
 - [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
   - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
   - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
