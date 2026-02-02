@@ -1,13 +1,13 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm)
-
-## Next (Kolejne)
 - [ ] API/UI: polityka serwowania artefaktow (branch: fix/api-artifacts)
   - [ ] Ustalic dozwolony katalog bazowy (obecnie tylko `out/`) i opisac w docs
 
+## Next (Kolejne)
+
 ## Done (Zrobione)
+- [x] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm) (2026-02-02)
 - [x] Panel UI: integracja operacyjna (branch: feat/ui-ops) (2026-02-02)
   - [x] Akcje operacyjne: enqueue, rerun, cleanup jobow
   - [x] Minimalne auth/guard (operator-only)
