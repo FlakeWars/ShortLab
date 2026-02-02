@@ -6,7 +6,7 @@
   - [x] Hash DSL + embedding pomysłu do wykrywania podobieństw (2026-02-02)
   - [x] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów (2026-02-02)
   - [x] Uruchomić `make db-migrate` lokalnie (kolumny Idea Gate) (2026-02-02)
-  - [ ] Rozważyć podmianę embeddingu hash->model (real embeddings)
+  - [ ] Zastąpić hash-embedding przez moduł Embeddings (dependency)
   - [x] Wpiąć Idea Gate jako etap opcjonalny w pipeline (przed generacją DSL) (2026-02-02)
   - [x] Rozszerzyć opisy propozycji (co użytkownik ma zobaczyć w animacji) (2026-02-02)
   - [x] Dodać „preview” oczekiwanego efektu (np. kluczowe reguły/skrót DSL) (2026-02-02)
@@ -19,6 +19,11 @@
   - [ ] Zapisywanie propozycji do DB (Idea) z metadanymi generacji
   - [ ] Fallback do `.ai/ideas.md` gdy AI niedostępne
   - [ ] Walidacja jakości i deduplikacja wejścia (hash/embedding)
+- [ ] Embedding Service (moduł) (branch: feat/embedding-service)
+  - [ ] Adapter do providerów (OpenAI / lokalny)
+  - [ ] Cache + retry + rate limit
+  - [ ] Wersjonowanie embeddingu w DB (model + wersja)
+  - [ ] Fallback do hash-embeddingu w trybie offline
 - [ ] Panel operacyjny UI (moduł systemu) (branch: feat/ui-ops)
   - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
   - [ ] Lista animacji z filtrem po statusie + podgląd metadanych

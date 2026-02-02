@@ -21,6 +21,7 @@
    1.4. (Opcjonalnie) System proponuje kilka krótkich opisów pomysłów; operator wybiera jeden do renderu (Idea Gate).
    1.5. System sprawdza unikalność pomysłu względem historii (hash + similarity/embedding) i oznacza zbyt podobne.
    1.6. System korzysta z osobnego modułu generatora pomysłów (AI) i zapisuje propozycje w bazie; w razie braku AI używa fallbacku z pliku.
+   1.7. System posiada osobny moduł embeddings (provider + fallback), współdzielony przez Idea Gate i generator pomysłów.
 2. Rendering i reprodukowalność
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.
    2.2. Render jest deterministyczny i możliwy do odtworzenia 1:1 z metadanych.

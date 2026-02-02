@@ -125,3 +125,8 @@ Jeśli głównym celem jest stabilność środowiska na macOS ARM64 oraz dostęp
 - **Provider**: OpenAI API / lokalny LLM (opcjonalnie) jako generator pomysłów.
 - **Fallback**: statyczny plik `.ai/ideas.md` + zapis wygenerowanych pomysłów do DB.
 - **Embedding**: docelowo embeddingi modelowe (np. OpenAI) zamiast hash‑embeddingu.
+
+# Embedding Service (moduł)
+- **Provider**: OpenAI embeddings / lokalny model (opcjonalnie).
+- **Cache + retry + rate limit**: ochrona kosztów i stabilność.
+- **Fallback**: hash‑embedding w trybie offline.
