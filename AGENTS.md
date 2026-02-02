@@ -21,6 +21,7 @@ Ten plik opisuje lokalne zasady współpracy z agentem i minimalny „contract�
 - Unikamy ręcznych komend. Jeśli coś wymaga ręcznego uruchomienia, dodajemy/aktualizujemy target w `Makefile` lub skrypt wywoływany przez `Makefile`.
 - Unikamy nawarstwiających się warningów; jeśli się pojawiają, dodajemy podpunkt na ich usunięcie.
 - Przed każdym commitem sprawdzamy `git status -sb` i upewniamy się, że wszystkie zmiany związane z zadaniem są zarejestrowane (bez pomijania plików).
+- TODO utrzymujemy w porządku na bieżąco: tylko aktywne zadanie w sekcji Now, reszta w Next/Done; po każdej zmianie natychmiast korygujemy sekcje i podzadania.
 
 ## Commitowanie i merge
 - Jeden temat na raz: dla każdej pracy tworzymy osobną gałąź.
