@@ -5,9 +5,10 @@ from datetime import datetime
 import hashlib
 import random
 from typing import Sequence
+from uuid import UUID
 from pathlib import Path
 
-from db.models import Idea
+from db.models import Idea, IdeaCandidate, IdeaEmbedding, IdeaSimilarity
 from embeddings import EmbeddingService, cosine_similarity
 from embeddings.service import EmbeddingResult
 from .parser import ParsedIdea, parse_ideas_file
@@ -21,7 +22,7 @@ class IdeaDraft:
     preview: str
     source: str
     generation_meta: dict
-    content_hash: str
+    idea_hash: str
 
 
 def generate_ideas(
@@ -67,44 +68,63 @@ def save_ideas(
     ideas: Sequence[IdeaDraft],
     embedder: EmbeddingService,
     similarity_threshold: float | None = 0.97,
-) -> list[Idea]:
+    *,
+    idea_batch_id: UUID,
+) -> list[IdeaCandidate]:
     existing = session.query(Idea).all()
-    existing_hashes = {idea.content_hash for idea in existing if idea.content_hash}
-    existing_embeddings = [idea.embedding for idea in existing if idea.embedding]
+    existing_hashes = {idea.idea_hash for idea in existing if idea.idea_hash}
 
-    to_store = [
-        idea
-        for idea in ideas
-        if idea.content_hash not in existing_hashes and _is_valid(idea)
-    ]
+    to_store = [idea for idea in ideas if idea.idea_hash not in existing_hashes and _is_valid(idea)]
     if not to_store:
         return []
 
+    existing_texts = [_embed_text_from_idea(idea) for idea in existing]
+    existing_vectors = []
+    if existing_texts:
+        existing_vectors = [res.vector for res in embedder.embed(existing_texts)]
+
     embeddings = embedder.embed([_embed_text(idea) for idea in to_store])
-    created: list[Idea] = []
+    created: list[IdeaCandidate] = []
     for idea, result in zip(to_store, embeddings, strict=True):
-        similarity = _max_similarity(result, existing_embeddings)
-        record = Idea(
+        similarity = _max_similarity(result, existing_vectors)
+        similarity_status = _similarity_status(similarity, similarity_threshold, existing_vectors)
+        record = IdeaCandidate(
+            idea_batch_id=idea_batch_id,
             title=idea.title,
             summary=idea.summary,
             what_to_expect=idea.what_to_expect,
             preview=idea.preview,
-            content_hash=idea.content_hash,
-            source=idea.source,
-            generation_meta=idea.generation_meta,
-            embedding=result.vector,
-            embedding_model=result.model,
-            embedding_version=result.version,
-            similarity=similarity,
-            is_too_similar=bool(
-                similarity_threshold is not None
-                and similarity is not None
-                and similarity >= similarity_threshold
-            ),
+            generator_source=_map_generator_source(idea.source),
+            similarity_status=similarity_status,
             created_at=datetime.utcnow(),
         )
         session.add(record)
         created.append(record)
+        record.max_similarity = similarity  # type: ignore[attr-defined]
+        session.flush()
+
+        embedding = IdeaEmbedding(
+            idea_candidate_id=record.id,
+            idea_id=None,
+            provider=embedder.config.provider,
+            model=result.model,
+            version=result.version,
+            vector=result.vector,
+            created_at=datetime.utcnow(),
+        )
+        session.add(embedding)
+
+        if existing:
+            for compared, vector in zip(existing, existing_vectors, strict=True):
+                score = cosine_similarity(result.vector, vector)
+                sim = IdeaSimilarity(
+                    idea_candidate_id=record.id,
+                    compared_idea_id=compared.id,
+                    score=score,
+                    embedding_version=result.version,
+                    created_at=datetime.utcnow(),
+                )
+                session.add(sim)
     session.commit()
     return created
 
@@ -112,15 +132,15 @@ def save_ideas(
 def _embed_text(idea: IdeaDraft) -> str:
     return f"{idea.title}\n{idea.summary}".strip()
 
+def _embed_text_from_idea(idea: Idea) -> str:
+    summary = idea.summary or ""
+    return f"{idea.title}\n{summary}".strip()
 
-def _max_similarity(result: EmbeddingResult, existing_embeddings: Sequence[list[float] | None]) -> float | None:
+
+def _max_similarity(result: EmbeddingResult, existing_embeddings: Sequence[list[float]]) -> float | None:
     if not existing_embeddings:
         return None
-    sims = [
-        cosine_similarity(result.vector, emb)
-        for emb in existing_embeddings
-        if emb is not None
-    ]
+    sims = [cosine_similarity(result.vector, emb) for emb in existing_embeddings]
     return max(sims, default=0.0)
 
 
@@ -142,7 +162,7 @@ def _drafts_from_parsed(
                 preview=item.preview,
                 source=source,
                 generation_meta=meta,
-                content_hash=content_hash,
+                idea_hash=content_hash,
             )
         )
     return out
@@ -165,11 +185,11 @@ def _template_ideas(rng: random.Random, count: int, prompt: str | None) -> list[
             IdeaDraft(
                 title=f"{title} #{idx + 1}",
                 summary=summary,
-                what_to_expect=\"\",
-                preview=\"\",
+                what_to_expect="",
+                preview="",
                 source="template",
                 generation_meta={"prompt": prompt, "seed": rng.random()},
-                content_hash=content_hash,
+                idea_hash=content_hash,
             )
         )
     return out
@@ -186,3 +206,23 @@ def _is_valid(idea: IdeaDraft) -> bool:
     if len(idea.summary.strip()) < 20:
         return False
     return True
+
+
+def _map_generator_source(source: str) -> str:
+    if source == "file":
+        return "fallback"
+    if source == "template":
+        return "manual"
+    return "ai"
+
+
+def _similarity_status(
+    similarity: float | None,
+    threshold: float | None,
+    existing_vectors: Sequence[list[float]],
+) -> str:
+    if not existing_vectors:
+        return "unknown"
+    if threshold is None or similarity is None:
+        return "ok"
+    return "too_similar" if similarity >= threshold else "ok"

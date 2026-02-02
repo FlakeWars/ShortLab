@@ -292,7 +292,7 @@ class Systems(BaseModel):
         def _check_selector(value: str, context: str) -> None:
             if value.startswith("tag:"):
                 tag_name = value.split(":", 1)[1]
-                if tag_name not in valid_tags:
+                if valid_tags and tag_name not in valid_tags:
                     raise ValueError(f"{context} references unknown tag: {tag_name}")
             if value in palette:
                 return
@@ -305,15 +305,11 @@ class Systems(BaseModel):
                     _check_selector(param_value, f"rule.params.{param_name}")
 
         if self.interactions:
-            pairs = self.interactions.get("pairs", [])
-            if isinstance(pairs, list):
-                for pair in pairs:
-                    a = pair.get("a") if isinstance(pair, dict) else None
-                    b = pair.get("b") if isinstance(pair, dict) else None
-                    if isinstance(a, str):
-                        _check_selector(a, "interactions.pairs.a")
-                    if isinstance(b, str):
-                        _check_selector(b, "interactions.pairs.b")
+            for pair in self.interactions.pairs:
+                if isinstance(pair.a, str):
+                    _check_selector(pair.a, "interactions.pairs.a")
+                if isinstance(pair.b, str):
+                    _check_selector(pair.b, "interactions.pairs.b")
         return self
 
 

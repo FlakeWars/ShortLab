@@ -860,7 +860,7 @@ def _warn_on_unsupported(model) -> None:
         if rule.type not in supported_rules:
             print(f"[renderer] WARN unsupported rule.type: {rule.type}")
     if model.systems.fsm is not None:
-        supported_fsm_when = {"time"}
+        supported_fsm_when = {"time", "metric"}
         for t in model.systems.fsm.transitions:
             if t.when.type not in supported_fsm_when:
                 print(f"[renderer] WARN unsupported fsm.when.type: {t.when.type}")

@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date, datetime, timezone
 from pprint import pprint
 
+from db.models import IdeaBatch
 from db.session import SessionLocal
 from embeddings import EmbeddingConfig, EmbeddingService
 from ideas.generator import generate_ideas, save_ideas
@@ -49,11 +51,20 @@ def main() -> None:
     embedder = EmbeddingService(EmbeddingConfig(provider="sklearn-hash"))
     session = SessionLocal()
     try:
+        idea_batch = IdeaBatch(
+            run_date=date.today(),
+            window_id=datetime.now(timezone.utc).strftime("cli-%Y%m%d-%H%M%S"),
+            source="manual",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(idea_batch)
+        session.flush()
         created = save_ideas(
             session,
             drafts,
             embedder,
             similarity_threshold=args.similarity_threshold,
+            idea_batch_id=idea_batch.id,
         )
         print(f"[idea-generate] stored={len(created)} skipped={len(drafts) - len(created)}")
         for idea in created:

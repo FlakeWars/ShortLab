@@ -13,6 +13,7 @@ def main() -> None:
     parser = ArgumentParser(description="Show recent job statuses")
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--summary", action="store_true")
+    parser.add_argument("--failed", action="store_true", help="Show failed jobs with error payload")
     args = parser.parse_args()
 
     session = SessionLocal()
@@ -23,12 +24,19 @@ def main() -> None:
             for status, count in rows:
                 print(f"[summary] {status}: {count}")
             return
-        stmt = select(Job).order_by(desc(Job.id)).limit(args.limit)
+        stmt = select(Job)
+        if args.failed:
+            stmt = stmt.where(Job.status == "failed")
+        stmt = stmt.order_by(desc(Job.created_at)).limit(args.limit)
         jobs = session.execute(stmt).scalars().all()
         for job in jobs:
+            payload = job.payload or {}
+            error_payload = job.error_payload or {}
             print(
-                f"[job] id={job.id} kind={job.kind} status={job.status} rq_id={job.rq_id}"
+                f"[job] id={job.id} kind={job.job_type} status={job.status} rq_id={payload.get('rq_id')}"
             )
+            if args.failed and error_payload:
+                print(f"[job] error={error_payload}")
     finally:
         session.close()
 

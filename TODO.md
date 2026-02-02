@@ -22,6 +22,35 @@
 - [ ] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm)
 
 ## Done (Zrobione)
+- [x] Konsolidacja schematu DB pod `.ai/db-plan.md` (branch: fix/db-schema-core) (2026-02-02)
+  - [x] Rozwiązać rozgałęzione heady Alembica (co najmniej 6e3cbd8f7f45, 1d7b9a2f6c3e, 1b9b3c2d9c1a, 9f3a2c7d8b1e) i przygotować plan merge-migracji
+  - [x] Ustalić jeden kanoniczny schemat dokładnie wg `.ai/db-plan.md` (nazwy tabel, PK UUID, pola/typy/constrainty)
+  - [x] Uporządkować migracje: usunąć/zmodyfikować te, które dublują elementy z `db-plan.md` (np. idea/ideas, animation/animations, render/renders, qc_decision/qc_decisions, audit_event/audit_logs, job/jobs)
+  - [x] Ujednolicić pola idei wg `db-plan.md` i usunąć kolizje (`content_hash` vs `idea_hash`, indeksy `ix_ideas_content_hash`, itp.)
+  - [x] Dopasować działające moduły z sekcji Done do docelowego schematu (Idea Gate, pipeline/jobs, embeddings, QC, render) oraz modele SQLAlchemy
+  - [x] Priorytety dopasowania modułów: (1) pipeline/jobs + render + QC, (2) Idea Gate + embeddings, (3) audit log + publish/metrics
+  - [x] Priorytet (1) pipeline/jobs + render + QC zrealizowany w MVP
+  - [x] Priorytet (2) Idea Gate + embeddings zrealizowany w MVP
+  - [x] Priorytet (3) audit log + publish/metrics zrealizowany w MVP
+  - [x] Audit log + publish/metrics: minimalne flow (publish_record, metrics_pull_run, metrics_daily + audit_event)
+  - [x] Idea Gate + embeddings dopasowane do nowego schematu (idea_batch/candidate/similarity)
+  - [x] QC: dodać minimalny flow decyzji (checklist + qc_decision + audit_event + update animation status)
+  - [x] Ustalić mapowanie statusów QC → animation.status/pipeline_stage (accepted/rejected/regenerate)
+  - [x] Brak implementacji QC/publish/metrics w kodzie (wymaga integracji z tabelami)
+  - [x] Zweryfikować wymagania RLS/roles/extensions (pgcrypto/citext/pg_trgm) kontra środowiska i spisać decyzję (włączone/wyłączone) w docs
+  - [x] Zdecydować gdzie utrwalamy embeddingi dla podobieństwa idei przy nowym schemacie (obecnie liczone on-the-fly)
+  - [x] Zapisywać embeddingi do nowej tabeli `idea_embedding` w Idea Gate (do wdrożenia w kodzie)
+  - [x] Zaktualizować dokumentację (README/.ai/prd/.ai/db-plan) do stanu zgodnego z finalnym schematem
+  - [x] `make db-migrate` → migracje przechodzą bez błędów; brak nowych warningów
+  - [x] `make verify` → wszystkie testy/validations pass; brak regresji
+  - [x] Usunąć warning DeprecationWarning (datetime.utcnow) w flow Idea Gate/idea-generate
+  - [x] Wyjaśnić/naprawić mismatch golden testów renderera (happy.json) lub zregenerować goldeny
+  - [x] Zdiagnozować warning renderera: `fsm.when.type=metric` nieobsługiwany (czy to oczekiwane w MVP)
+  - [x] Zdiagnozować SIGPIPE w ffmpeg przy render job (czy powtarzalne)
+  - [x] `make test` → testy przechodzą bez błędów
+  - [x] `make enqueue` + `make worker` + `make job-status` → job kończy się `succeeded`
+  - [x] `make idea-gate` lub `make idea-generate` → zapis pomysłów zgodny z `db-plan.md`
+  - [x] `make worker` (logi) → brak błędów RLS/permissions; audit log zapisuje się w docelowej tabeli
 - [x] Idea Gate + unikalnosc pomyslow (branch: feat/idea-gate) (2026-02-02)
   - [x] Propozycja 3–5 pomyslow i wybor operatora (opcjonalnie auto) (2026-02-02)
   - [x] Hash DSL + embedding pomyslu do wykrywania podobienstw (2026-02-02)

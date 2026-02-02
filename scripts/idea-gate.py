@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+import hashlib
 from random import Random
 import os
 
-from db.models import AuditLog, Idea
+from db.models import AuditEvent, Idea, IdeaBatch
 from db.session import SessionLocal
 from embeddings import EmbeddingConfig, EmbeddingService
 from ideas.generator import generate_ideas, save_ideas
@@ -51,11 +52,26 @@ def main() -> None:
     session = SessionLocal()
     try:
         embedder = EmbeddingService(EmbeddingConfig(provider="sklearn-hash"))
-        saved = save_ideas(session, chosen, embedder, similarity_threshold=args.threshold)
+        idea_batch = IdeaBatch(
+            run_date=date.today(),
+            window_id=datetime.now(timezone.utc).strftime("cli-%Y%m%d-%H%M%S"),
+            source="manual",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(idea_batch)
+        session.flush()
+
+        saved = save_ideas(
+            session,
+            chosen,
+            embedder,
+            similarity_threshold=args.threshold,
+            idea_batch_id=idea_batch.id,
+        )
 
         for idx, idea in enumerate(saved, start=1):
-            flag = "too_similar" if idea.is_too_similar else "ok"
-            sim = idea.similarity if idea.similarity is not None else 0.0
+            flag = idea.similarity_status
+            sim = getattr(idea, "max_similarity", 0.0) or 0.0
             print(f"[{idx}] {idea.title} (sim={sim:.3f}, {flag})")
             if idea.summary:
                 print(f"    Opis: {idea.summary}")
@@ -74,18 +90,34 @@ def main() -> None:
             selected = saved[args.select - 1]
             selection_mode = "manual"
         else:
-            candidates = [i for i in saved if not i.is_too_similar]
+            candidates = [i for i in saved if i.similarity_status != "too_similar"]
             if candidates:
-                selected = min(candidates, key=lambda i: i.similarity or 0.0)
+                selected = min(candidates, key=lambda i: getattr(i, "max_similarity", 0.0) or 0.0)
                 selection_mode = "auto"
             else:
-                selected = min(saved, key=lambda i: i.similarity or 0.0)
+                selected = min(saved, key=lambda i: getattr(i, "max_similarity", 0.0) or 0.0)
                 selection_mode = "auto-all-too-similar"
 
-        audit = AuditLog(
+        selected.selected = True
+        selected.selected_at = datetime.now(timezone.utc)
+        idea = Idea(
+            idea_candidate_id=selected.id,
+            title=selected.title,
+            summary=selected.summary,
+            what_to_expect=selected.what_to_expect,
+            preview=selected.preview,
+            idea_hash=_hash_idea(selected.title, selected.summary or ""),
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(idea)
+        session.flush()
+
+        audit = AuditEvent(
             event_type="idea_selected",
+            source="ui",
+            occurred_at=datetime.now(timezone.utc),
             payload={
-                "idea_id": selected.id,
+                "idea_id": idea.id,
                 "selection_mode": selection_mode,
                 "threshold": args.threshold,
             },
@@ -93,9 +125,14 @@ def main() -> None:
         session.add(audit)
         session.commit()
 
-        print(f"[selected] id={selected.id} title={selected.title}")
+        print(f"[selected] id={idea.id} title={selected.title}")
     finally:
         session.close()
+
+
+def _hash_idea(title: str, summary: str) -> str:
+    payload = f"{title}\n{summary}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 if __name__ == "__main__":

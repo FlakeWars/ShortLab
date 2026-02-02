@@ -112,17 +112,35 @@ except Exception:
 PY
 )
 
-if [[ -z "${postgres_v}" ]]; then
+if [[ -z "${postgres_v}" || "${postgres_v}" == "missing" ]]; then
   postgres_v=$(get_compose_tag "postgres")
+  if [[ "${postgres_v}" == "\${"* ]]; then
+    postgres_v="${POSTGRES_VERSION:-missing}"
+  fi
 fi
-if [[ -z "${redis_v}" ]]; then
+if [[ -z "${redis_v}" || "${redis_v}" == "missing" ]]; then
   redis_v=$(get_compose_tag "redis")
+  if [[ "${redis_v}" == "\${"* ]]; then
+    redis_v="${REDIS_VERSION:-missing}"
+  fi
 fi
-if [[ -z "${minio_v}" ]]; then
+if [[ -z "${minio_v}" || "${minio_v}" == "missing" ]]; then
+  minio_v=$(get_compose_tag "alpine/minio")
+  if [[ "${minio_v}" == "\${"* ]]; then
+    minio_v="${MINIO_VERSION:-missing}"
+  fi
+fi
+if [[ -z "${minio_v}" || "${minio_v}" == "missing" ]]; then
   minio_v=$(get_compose_tag "minio/minio")
+  if [[ "${minio_v}" == "\${"* ]]; then
+    minio_v="${MINIO_VERSION:-missing}"
+  fi
 fi
-if [[ -z "${minio_v}" ]]; then
+if [[ -z "${minio_v}" || "${minio_v}" == "missing" ]]; then
   minio_v=$(get_compose_tag "minio")
+  if [[ "${minio_v}" == "\${"* ]]; then
+    minio_v="${MINIO_VERSION:-missing}"
+  fi
 fi
 
 check_version "Python" "${PYTHON_VERSION}" "${python_v:-missing}"

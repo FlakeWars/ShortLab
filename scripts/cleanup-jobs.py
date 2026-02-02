@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, select
 
@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument("--older-min", type=int, default=30)
     args = parser.parse_args()
 
-    cutoff = datetime.utcnow() - timedelta(minutes=args.older_min)
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=args.older_min)
     session = SessionLocal()
     try:
         stmt = select(Job).where(
@@ -24,8 +24,8 @@ def main() -> None:
         jobs = session.execute(stmt).scalars().all()
         for job in jobs:
             job.status = "failed"
-            job.error = f"auto-cleanup: running > {args.older_min} min"
-            job.updated_at = datetime.utcnow()
+            job.error_payload = {"message": f"auto-cleanup: running > {args.older_min} min"}
+            job.updated_at = datetime.now(timezone.utc)
             session.add(job)
         session.commit()
         print(f"[cleanup] marked {len(jobs)} job(s) as failed")

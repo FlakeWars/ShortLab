@@ -29,13 +29,21 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 
 ### Pipeline (MVP) – komendy operacyjne
 - `make worker` – startuje workera RQ.
+- `make worker-burst` – worker w trybie burst (przetwarza i kończy).
 - `make enqueue` – wrzuca minimalny job (generacja DSL -> render).
   - `IDEA_GATE_ENABLED=1 make enqueue` – włącza Idea Gate w pipeline.
 - `make job-status` – pokazuje ostatnie joby.
 - `make job-summary` – podsumowanie statusów jobów.
-- `make job-cleanup OLDER_MIN=30` – oznacza stare joby `running` jako `failed`.
+- `make job-failed` – lista jobów `failed` z payloadem błędu.
+- `make cleanup-jobs OLDER_MIN=30` – oznacza stare joby `running` jako `failed`.
+- `make purge-failed-jobs OLDER_MIN=60` – usuwa stare joby `failed`.
 - `make idea-gate` – proponuje pomysły i wybór (Idea Gate).
   - Używa `.ai/ideas.md`, wybór przez `IDEA_GATE_SELECT` lub `IDEA_GATE_AUTO=1`.
+- `make qc-decide ANIMATION_ID=... QC_RESULT=accepted` – zapis decyzji QC.
+- `make publish-record RENDER_ID=... PUBLISH_PLATFORM=youtube` – zapis publikacji.
+- `make metrics-daily METRICS_CONTENT_ID=... METRICS_DATE=YYYY-MM-DD` – zapis metryk dziennych.
+- `make metrics-pull-run METRICS_PLATFORM=youtube` – zapis uruchomienia pulla metryk.
+- `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
 
 ### Pipeline (MVP) – minimalny flow
 1. Uruchom infra: `make infra-up`
@@ -65,6 +73,7 @@ Dostępne cele:
 - `/.ai/tech-stack.md` – stos technologiczny.
 - `/.ai/bootstrap.md` – plan bootstrapu macOS.
 - `/versions.env` – przypięte wersje narzędzi i usług.
+- `/.ai/db-plan.md` – kanoniczny schemat bazy danych.
 
 ## Uwagi
 - Renderer i FFmpeg uruchamiane natywnie na macOS dla stabilności i dostępności bibliotek.

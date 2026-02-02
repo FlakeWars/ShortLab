@@ -24,6 +24,32 @@ IDEA_GEN_LIMIT ?= 5
 IDEA_GEN_SEED ?= 0
 IDEA_GEN_PROMPT ?=
 IDEA_GEN_SIM_THRESHOLD ?= 0.97
+QC_RESULT ?= accepted
+QC_NOTES ?=
+QC_DECIDED_BY ?=
+ANIMATION_ID ?=
+PUBLISH_PLATFORM ?= youtube
+PUBLISH_STATUS ?= queued
+PUBLISH_CONTENT_ID ?=
+PUBLISH_URL ?=
+PUBLISH_SCHEDULED_FOR ?=
+PUBLISH_PUBLISHED_AT ?=
+PUBLISH_ERROR ?=
+METRICS_PLATFORM ?= youtube
+METRICS_CONTENT_ID ?=
+METRICS_DATE ?=
+METRICS_VIEWS ?= 0
+METRICS_LIKES ?= 0
+METRICS_COMMENTS ?= 0
+METRICS_SHARES ?= 0
+METRICS_WATCH_TIME_SECONDS ?= 0
+METRICS_AVG_VIEW_PERCENTAGE ?=
+METRICS_AVG_VIEW_DURATION_SECONDS ?=
+METRICS_PUBLISH_RECORD_ID ?=
+METRICS_RENDER_ID ?=
+METRICS_PULL_STATUS ?= queued
+METRICS_PULL_SOURCE ?= api
+METRICS_PULL_ERROR ?=
 
 
 # Optional paths (adjust when code exists)
@@ -112,6 +138,10 @@ api: ## Run backend API (placeholder)
 worker: ## Run worker process (placeholder)
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py
 
+.PHONY: worker-burst
+worker-burst: ## Run worker in burst mode (process jobs then exit)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py --burst
+
 .PHONY: scheduler
 scheduler: ## Run scheduler (placeholder)
 	@echo "Run scheduler (APScheduler)" 
@@ -128,6 +158,18 @@ job-status: ## Show recent pipeline job statuses
 job-summary: ## Show job status summary
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py --summary
 
+.PHONY: job-failed
+job-failed: ## Show failed jobs with error payload
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py --failed
+
+.PHONY: cleanup-jobs
+cleanup-jobs: ## Mark stale running jobs as failed
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/cleanup-jobs.py --older-min "$(OLDER_MIN)"
+
+.PHONY: purge-failed-jobs
+purge-failed-jobs: ## Delete failed jobs older than OLDER_MIN
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/purge-failed-jobs.py --older-min "$(OLDER_MIN)"
+
 .PHONY: idea-generate
 idea-generate: ## Generate ideas into DB (file/template)
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-generate.py \
@@ -137,6 +179,58 @@ idea-generate: ## Generate ideas into DB (file/template)
 		--seed "$(IDEA_GEN_SEED)" \
 		--prompt "$(IDEA_GEN_PROMPT)" \
 		--similarity-threshold "$(IDEA_GEN_SIM_THRESHOLD)"
+
+.PHONY: qc-decide
+qc-decide: ## Create QC decision for an animation (ANIMATION_ID, QC_RESULT, QC_NOTES, QC_DECIDED_BY)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/qc-decide.py \
+		--animation-id "$(ANIMATION_ID)" \
+		--result "$(QC_RESULT)" \
+		--notes "$(QC_NOTES)" \
+		$(if $(QC_DECIDED_BY),--decided-by "$(QC_DECIDED_BY)",)
+
+.PHONY: publish-record
+publish-record: ## Create publish record (RENDER_ID, PUBLISH_PLATFORM, PUBLISH_STATUS, etc.)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/publish-record.py \
+		--render-id "$(RENDER_ID)" \
+		--platform "$(PUBLISH_PLATFORM)" \
+		--status "$(PUBLISH_STATUS)" \
+		$(if $(PUBLISH_CONTENT_ID),--content-id "$(PUBLISH_CONTENT_ID)",) \
+		$(if $(PUBLISH_URL),--url "$(PUBLISH_URL)",) \
+		$(if $(PUBLISH_SCHEDULED_FOR),--scheduled-for "$(PUBLISH_SCHEDULED_FOR)",) \
+		$(if $(PUBLISH_PUBLISHED_AT),--published-at "$(PUBLISH_PUBLISHED_AT)",) \
+		$(if $(PUBLISH_ERROR),--error "$(PUBLISH_ERROR)",)
+
+.PHONY: metrics-daily
+metrics-daily: ## Insert metrics_daily row (METRICS_* vars)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/metrics-daily.py \
+		--platform "$(METRICS_PLATFORM)" \
+		--content-id "$(METRICS_CONTENT_ID)" \
+		--date "$(METRICS_DATE)" \
+		--views "$(METRICS_VIEWS)" \
+		--likes "$(METRICS_LIKES)" \
+		--comments "$(METRICS_COMMENTS)" \
+		--shares "$(METRICS_SHARES)" \
+		--watch-time-seconds "$(METRICS_WATCH_TIME_SECONDS)" \
+		$(if $(METRICS_AVG_VIEW_PERCENTAGE),--avg-view-percentage "$(METRICS_AVG_VIEW_PERCENTAGE)",) \
+		$(if $(METRICS_AVG_VIEW_DURATION_SECONDS),--avg-view-duration-seconds "$(METRICS_AVG_VIEW_DURATION_SECONDS)",) \
+		$(if $(METRICS_PUBLISH_RECORD_ID),--publish-record-id "$(METRICS_PUBLISH_RECORD_ID)",) \
+		$(if $(METRICS_RENDER_ID),--render-id "$(METRICS_RENDER_ID)",)
+
+.PHONY: metrics-pull-run
+metrics-pull-run: ## Create metrics_pull_run row (METRICS_PULL_* vars)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/metrics-pull-run.py \
+		--platform "$(METRICS_PLATFORM)" \
+		--status "$(METRICS_PULL_STATUS)" \
+		--source "$(METRICS_PULL_SOURCE)" \
+		$(if $(METRICS_PULL_ERROR),--error "$(METRICS_PULL_ERROR)",)
+
+.PHONY: db-stamp-head
+db-stamp-head: ## Stamp alembic head (use when alembic_version points to removed revisions)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/alembic stamp head --purge
+
+.PHONY: db-stamp-base
+db-stamp-base: ## Stamp alembic base (empty DB state)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/alembic stamp base --purge
 
 # --- Pipeline stages (PRD-aligned) ---
 .PHONY: gen

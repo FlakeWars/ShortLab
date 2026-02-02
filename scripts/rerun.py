@@ -8,7 +8,7 @@ from pipeline.queue import enqueue_render
 
 def main() -> None:
     parser = ArgumentParser(description="Manually rerun render for an animation")
-    parser.add_argument("--animation-id", type=int, required=True)
+    parser.add_argument("--animation-id", type=str, required=True)
     parser.add_argument(
         "--out-root",
         default="out/pipeline",

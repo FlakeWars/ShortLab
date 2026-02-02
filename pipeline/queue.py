@@ -4,6 +4,8 @@ from uuid import uuid4
 from redis import Redis
 from rq import Queue
 
+from datetime import datetime
+
 from db.models import Animation, Job
 from db.session import SessionLocal
 from pipeline.jobs import (
@@ -40,28 +42,24 @@ def enqueue_pipeline(
     session = SessionLocal()
     try:
         animation = Animation(
-            uuid=uuid4().hex,
-            title="pending",
+            animation_code=uuid4().hex,
             status="queued",
-            dsl_version="pending",
-            dsl_hash="pending",
-            dsl_payload={},
-            design_system_version="mvp-0",
-            seed=0,
+            pipeline_stage="idea",
         )
         session.add(animation)
         session.commit()
         session.refresh(animation)
 
         gen_job = Job(
-            kind="generate_dsl",
+            job_type="generate_dsl",
             status="queued",
-            animation_id=animation.id,
             payload={
+                "animation_id": str(animation.id),
                 "dsl_template": dsl_template,
                 "out_root": out_root,
                 "use_idea_gate": use_idea_gate,
             },
+            queued_at=datetime.utcnow(),
         )
         session.add(gen_job)
         session.commit()
@@ -79,14 +77,16 @@ def enqueue_pipeline(
             on_failure=rq_on_failure,
             on_success=rq_on_success,
         )
-        gen_job.rq_id = rq_gen.id
+        gen_payload = gen_job.payload or {}
+        gen_payload["rq_id"] = rq_gen.id
+        gen_job.payload = gen_payload
         session.commit()
 
         render_db_job = Job(
-            kind="render",
+            job_type="render",
             status="queued",
-            animation_id=animation.id,
-            payload={"out_root": out_root},
+            payload={"out_root": out_root, "animation_id": str(animation.id)},
+            queued_at=datetime.utcnow(),
         )
         session.add(render_db_job)
         session.commit()
@@ -102,7 +102,9 @@ def enqueue_pipeline(
             on_failure=rq_on_failure,
             on_success=rq_on_success,
         )
-        render_db_job.rq_id = rq_render.id
+        render_payload = render_db_job.payload or {}
+        render_payload["rq_id"] = rq_render.id
+        render_db_job.payload = render_payload
         session.commit()
 
         return {
@@ -114,7 +116,7 @@ def enqueue_pipeline(
         session.close()
 
 
-def enqueue_render(animation_id: int, out_root: str) -> dict:
+def enqueue_render(animation_id: str, out_root: str) -> dict:
     session = SessionLocal()
     try:
         animation = session.get(Animation, animation_id)
@@ -122,10 +124,10 @@ def enqueue_render(animation_id: int, out_root: str) -> dict:
             raise RuntimeError(f"Animation not found: {animation_id}")
 
         render_db_job = Job(
-            kind="render",
+            job_type="render",
             status="queued",
-            animation_id=animation.id,
-            payload={"out_root": out_root, "rerun": True},
+            payload={"out_root": out_root, "rerun": True, "animation_id": str(animation.id)},
+            queued_at=datetime.utcnow(),
         )
         session.add(render_db_job)
         session.commit()
@@ -141,7 +143,9 @@ def enqueue_render(animation_id: int, out_root: str) -> dict:
             on_failure=rq_on_failure,
             on_success=rq_on_success,
         )
-        render_db_job.rq_id = rq_render.id
+        render_payload = render_db_job.payload or {}
+        render_payload["rq_id"] = rq_render.id
+        render_db_job.payload = render_payload
         session.commit()
 
         return {
