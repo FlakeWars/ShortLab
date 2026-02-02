@@ -4,9 +4,6 @@
 - _brak_
 
 ## Next (Kolejne)
-- [ ] Mapa zależności modułów (branch: docs/module-deps)
-  - [ ] Wybrać format (Mermaid/UML/ASCII) i zapisać w repo
-  - [ ] Zarysować zależności między modułami (pipeline, Idea Gate, generator, embeddings, UI)
 - [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
   - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
   - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
@@ -34,6 +31,9 @@
   - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobów
 
 ## Done (Zrobione)
+- [x] Mapa zależności modułów (branch: docs/module-deps) (2026-02-02)
+  - [x] Wybrać format (Mermaid/UML/ASCII) i zapisać w repo (2026-02-02)
+  - [x] Zarysować zależności między modułami (pipeline, Idea Gate, generator, embeddings, UI) (2026-02-02)
 - [x] Sync TODO po merge (moduły/zależności) (branch: chore/todo-sync) (2026-02-02)
   - [x] Sprawdzić, czy nowe moduły są wpisane w `TODO.md` na `main` (2026-02-02)
 - [x] Konfiguracja i dokumentacja pipeline (branch: docs/pipeline-ops) (2026-02-02)
