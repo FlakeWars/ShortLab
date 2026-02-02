@@ -20,6 +20,7 @@
    1.3. Logika animacji oparta o FSM jako kontrakt API; AI parametryzuje predefiniowane stany i przejścia.
    1.4. (Opcjonalnie) System proponuje kilka krótkich opisów pomysłów; operator wybiera jeden do renderu (Idea Gate).
    1.5. System sprawdza unikalność pomysłu względem historii (hash + similarity/embedding) i oznacza zbyt podobne.
+   1.6. System korzysta z osobnego modułu generatora pomysłów (AI) i zapisuje propozycje w bazie; w razie braku AI używa fallbacku z pliku.
 2. Rendering i reprodukowalność
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.
    2.2. Render jest deterministyczny i możliwy do odtworzenia 1:1 z metadanych.
@@ -40,6 +41,7 @@
    5.6. Panel umożliwia przegląd historii zdarzeń (audit log) z filtrem po typie.
    5.7. Panel zawiera sekcję Idea Gate z propozycjami, wyborem i similarity.
    5.8. Panel udostępnia akcje operacyjne: enqueue, rerun, cleanup jobów.
+   5.9. Panel umożliwia przegląd i ręczną akceptację/odrzucenie pomysłów z generatora.
 6. Publikacja
    6.1. System umożliwia półautomatyczny upload na YouTube i TikTok.
    6.2. Publikacja zapisuje identyfikatory materiałów na platformach.

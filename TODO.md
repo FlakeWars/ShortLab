@@ -8,10 +8,17 @@
   - [x] Uruchomić `make db-migrate` lokalnie (kolumny Idea Gate) (2026-02-02)
   - [ ] Rozważyć podmianę embeddingu hash->model (real embeddings)
   - [x] Wpiąć Idea Gate jako etap opcjonalny w pipeline (przed generacją DSL) (2026-02-02)
-  - [ ] UI dla Idea Gate (lista propozycji + wybór)
   - [x] Rozszerzyć opisy propozycji (co użytkownik ma zobaczyć w animacji) (2026-02-02)
   - [x] Dodać „preview” oczekiwanego efektu (np. kluczowe reguły/skrót DSL) (2026-02-02)
   - [ ] Zapisać rozszerzone pola (what_to_expect/preview) w DB (Idea) lub metadanych
+  - [ ] Źródło pomysłów: generator + fallback do pliku (integracja)
+
+## Next (Kolejne)
+- [ ] Generator pomysłów (moduł) (branch: feat/idea-generator)
+  - [ ] Generowanie pomysłów przez AI (prompt + parametry)
+  - [ ] Zapisywanie propozycji do DB (Idea) z metadanymi generacji
+  - [ ] Fallback do `.ai/ideas.md` gdy AI niedostępne
+  - [ ] Walidacja jakości i deduplikacja wejścia (hash/embedding)
 - [ ] Panel operacyjny UI (moduł systemu) (branch: feat/ui-ops)
   - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
   - [ ] Lista animacji z filtrem po statusie + podgląd metadanych
@@ -20,11 +27,10 @@
   - [ ] Historia zdarzeń (audit log) + filtr po typie
   - [ ] Ustawienia (timeouts, .env flags) tylko do podglądu w MVP
   - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobów
-  - [x] Usunąć warning datetime.utcnow + poprawić auto-selekcję przy `too_similar` (2026-02-02)
-
-## Next (Kolejne)
 
 ## Done (Zrobione)
+- [x] Idea Gate – poprawki wyboru (auto + warning) (2026-02-02)
+  - [x] Usunąć warning datetime.utcnow + poprawić auto-selekcję przy `too_similar` (2026-02-02)
 - [x] Konfiguracja i dokumentacja pipeline (branch: docs/pipeline-ops) (2026-02-02)
   - [x] Opisać minimalny flow uruchomienia (worker/enqueue/job-status) (2026-02-02)
   - [x] Opisać zmienne `.env` (REDIS_URL, RQ_*_TIMEOUT, FFMPEG_TIMEOUT_S) (2026-02-02)

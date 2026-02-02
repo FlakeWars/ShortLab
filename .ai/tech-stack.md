@@ -121,3 +121,7 @@ Jeśli głównym celem jest stabilność środowiska na macOS ARM64 oraz dostęp
 - **Przechowywanie kluczy**: `.env`/vault lokalny + ograniczone uprawnienia plików.
 - **Auth**: session-based + Argon2, logowanie zdarzeń i nieudanych prób.
 - **Panel**: podstawowy rate limiting i blokada publikacji bez konfiguracji kluczy.
+# Generator pomysłów (moduł)
+- **Provider**: OpenAI API / lokalny LLM (opcjonalnie) jako generator pomysłów.
+- **Fallback**: statyczny plik `.ai/ideas.md` + zapis wygenerowanych pomysłów do DB.
+- **Embedding**: docelowo embeddingi modelowe (np. OpenAI) zamiast hash‑embeddingu.
