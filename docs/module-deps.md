@@ -8,7 +8,7 @@ flowchart LR
   EMB[Embedding Service]
 
   %% Pipeline i render
-  PIPE[Pipeline (jobs/queue)]
+  PIPE[Pipeline jobs-queue]
   RENDER[Renderer]
   QC[QC / Review]
   PUB[Publikacja]
