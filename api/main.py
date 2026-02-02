@@ -110,6 +110,30 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/settings")
+def get_settings() -> dict:
+    def flag(name: str, default: str = "") -> str:
+        return getenv(name, default)
+
+    return {
+        "database_url": flag("DATABASE_URL", ""),
+        "redis_url": flag("REDIS_URL", ""),
+        "rq_job_timeout": flag("RQ_JOB_TIMEOUT", "120"),
+        "rq_render_timeout": flag("RQ_RENDER_TIMEOUT", "600"),
+        "ffmpeg_timeout_s": flag("FFMPEG_TIMEOUT_S", "120"),
+        "idea_gate_enabled": flag("IDEA_GATE_ENABLED", "0"),
+        "idea_gate_count": flag("IDEA_GATE_COUNT", "3"),
+        "idea_gate_threshold": flag("IDEA_GATE_THRESHOLD", "0.85"),
+        "idea_gate_auto": flag("IDEA_GATE_AUTO", "0"),
+        "operator_guard": flag("OPERATOR_TOKEN", "") != "",
+        "artifacts_base_dir": flag("ARTIFACTS_BASE_DIR", "out"),
+        "openai_model": flag("OPENAI_MODEL", ""),
+        "openai_base_url": flag("OPENAI_BASE_URL", ""),
+        "openai_temperature": flag("OPENAI_TEMPERATURE", "0.7"),
+        "openai_max_output_tokens": flag("OPENAI_MAX_OUTPUT_TOKENS", "800"),
+    }
+
+
 @app.get("/audit-events")
 def list_audit_events(
     event_type: Optional[str] = None,

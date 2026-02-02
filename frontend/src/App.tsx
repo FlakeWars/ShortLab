@@ -100,41 +100,23 @@ const IDEA_SIMILARITY = ['ok', 'too_similar', 'unknown']
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
 
-const SETTINGS_PREVIEW = [
-  {
-    group: 'Database',
-    description: 'Connection and persistence configuration.',
-    items: [
-      { key: 'DATABASE_URL', value: import.meta.env.VITE_DATABASE_URL ?? 'postgresql+psycopg://...' },
-    ],
-  },
-  {
-    group: 'Pipeline timeouts',
-    description: 'Worker and render execution thresholds.',
-    items: [
-      { key: 'RQ_JOB_TIMEOUT', value: import.meta.env.VITE_RQ_JOB_TIMEOUT ?? '120' },
-      { key: 'RQ_RENDER_TIMEOUT', value: import.meta.env.VITE_RQ_RENDER_TIMEOUT ?? '600' },
-      { key: 'FFMPEG_TIMEOUT_S', value: import.meta.env.VITE_FFMPEG_TIMEOUT_S ?? '120' },
-    ],
-  },
-  {
-    group: 'Idea Gate',
-    description: 'Idea generation controls and similarity thresholds.',
-    items: [
-      { key: 'IDEA_GATE_ENABLED', value: import.meta.env.VITE_IDEA_GATE_ENABLED ?? '0' },
-      { key: 'IDEA_GATE_COUNT', value: import.meta.env.VITE_IDEA_GATE_COUNT ?? '3' },
-      { key: 'IDEA_GATE_THRESHOLD', value: import.meta.env.VITE_IDEA_GATE_THRESHOLD ?? '0.85' },
-      { key: 'IDEA_GATE_AUTO', value: import.meta.env.VITE_IDEA_GATE_AUTO ?? '0' },
-    ],
-  },
-  {
-    group: 'Storage',
-    description: 'Local output paths used by renderer and artifacts.',
-    items: [
-      { key: 'RENDER_OUT', value: import.meta.env.VITE_RENDER_OUT ?? 'out/render' },
-    ],
-  },
-]
+type SettingsResponse = {
+  database_url?: string
+  redis_url?: string
+  rq_job_timeout?: string
+  rq_render_timeout?: string
+  ffmpeg_timeout_s?: string
+  idea_gate_enabled?: string
+  idea_gate_count?: string
+  idea_gate_threshold?: string
+  idea_gate_auto?: string
+  operator_guard?: boolean
+  artifacts_base_dir?: string
+  openai_model?: string
+  openai_base_url?: string
+  openai_temperature?: string
+  openai_max_output_tokens?: string
+}
 
 function formatDate(value?: string | null) {
   if (!value) return '—'
@@ -178,6 +160,17 @@ function similarityTone(value?: string | null) {
     default:
       return 'bg-stone-100 text-stone-600 border-stone-200'
   }
+}
+
+function SettingRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs uppercase tracking-[0.18em] text-stone-500">{label}</span>
+      <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-700">
+        {value ?? '—'}
+      </span>
+    </div>
+  )
 }
 
 function App() {
@@ -230,6 +223,10 @@ function App() {
   const [opsEnqueueLoading, setOpsEnqueueLoading] = useState(false)
   const [opsRerunLoading, setOpsRerunLoading] = useState(false)
   const [opsCleanupLoading, setOpsCleanupLoading] = useState(false)
+
+  const [settings, setSettings] = useState<SettingsResponse | null>(null)
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
 
   const opsHeaders = () => {
     const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
@@ -434,6 +431,23 @@ function App() {
     }
   }
 
+  const fetchSettings = async () => {
+    setSettingsLoading(true)
+    setSettingsError(null)
+    try {
+      const response = await fetch(`${API_BASE}/settings`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as SettingsResponse
+      setSettings(payload)
+    } catch (err) {
+      setSettingsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setSettingsLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchSummary()
     const interval = window.setInterval(fetchSummary, 15000)
@@ -450,6 +464,10 @@ function App() {
 
   useEffect(() => {
     fetchAuditEvents()
+  }, [])
+
+  useEffect(() => {
+    fetchSettings()
   }, [])
 
   useEffect(() => {
@@ -1260,29 +1278,69 @@ function App() {
           </Badge>
         </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          {SETTINGS_PREVIEW.map((group) => (
-            <div key={group.group} className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-              <div className="text-sm font-semibold text-stone-900">{group.group}</div>
-              <div className="text-xs text-stone-500">{group.description}</div>
-              <div className="mt-3 space-y-2 text-sm">
-                {group.items.map((item) => (
-                  <div key={item.key} className="flex items-center justify-between">
-                    <span className="text-xs uppercase tracking-[0.18em] text-stone-500">
-                      {item.key}
-                    </span>
-                    <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-700">
-                      {item.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Button variant="outline" className="rounded-full" onClick={fetchSettings} disabled={settingsLoading}>
+            {settingsLoading ? 'Refreshing…' : 'Refresh settings'}
+          </Button>
+          {settingsError ? (
+            <span className="text-xs text-rose-600">{settingsError}</span>
+          ) : null}
         </div>
 
+        {settingsLoading ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+            Loading settings…
+          </div>
+        ) : settings ? (
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="text-sm font-semibold text-stone-900">Core services</div>
+              <div className="text-xs text-stone-500">Live runtime configuration.</div>
+              <div className="mt-3 space-y-2 text-sm">
+                <SettingRow label="DATABASE_URL" value={settings.database_url} />
+                <SettingRow label="REDIS_URL" value={settings.redis_url} />
+                <SettingRow label="ARTIFACTS_BASE_DIR" value={settings.artifacts_base_dir} />
+                <SettingRow label="OPERATOR_GUARD" value={settings.operator_guard ? 'enabled' : 'disabled'} />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="text-sm font-semibold text-stone-900">Pipeline timeouts</div>
+              <div className="text-xs text-stone-500">Worker and render thresholds.</div>
+              <div className="mt-3 space-y-2 text-sm">
+                <SettingRow label="RQ_JOB_TIMEOUT" value={settings.rq_job_timeout} />
+                <SettingRow label="RQ_RENDER_TIMEOUT" value={settings.rq_render_timeout} />
+                <SettingRow label="FFMPEG_TIMEOUT_S" value={settings.ffmpeg_timeout_s} />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="text-sm font-semibold text-stone-900">Idea Gate</div>
+              <div className="text-xs text-stone-500">Similarity and selection settings.</div>
+              <div className="mt-3 space-y-2 text-sm">
+                <SettingRow label="IDEA_GATE_ENABLED" value={settings.idea_gate_enabled} />
+                <SettingRow label="IDEA_GATE_COUNT" value={settings.idea_gate_count} />
+                <SettingRow label="IDEA_GATE_THRESHOLD" value={settings.idea_gate_threshold} />
+                <SettingRow label="IDEA_GATE_AUTO" value={settings.idea_gate_auto} />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="text-sm font-semibold text-stone-900">OpenAI generator</div>
+              <div className="text-xs text-stone-500">LLM provider runtime config.</div>
+              <div className="mt-3 space-y-2 text-sm">
+                <SettingRow label="OPENAI_MODEL" value={settings.openai_model} />
+                <SettingRow label="OPENAI_BASE_URL" value={settings.openai_base_url} />
+                <SettingRow label="OPENAI_TEMPERATURE" value={settings.openai_temperature} />
+                <SettingRow label="OPENAI_MAX_OUTPUT_TOKENS" value={settings.openai_max_output_tokens} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+            Settings are not available.
+          </div>
+        )}
+
         <p className="mt-4 text-xs text-stone-500">
-          Values are sourced from Vite env variables (VITE_*). If not provided, defaults are shown.
+          Values are fetched from the backend runtime via <code>/settings</code>.
         </p>
       </section>
     </div>

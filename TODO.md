@@ -2,7 +2,7 @@
 
 ## Now (W toku)
 - [ ] Settings runtime: API endpoint do podgladu configu (branch: feat/settings-api)
-  - [ ] UI pobiera ustawienia z API zamiast VITE_*
+  - [x] UI pobiera ustawienia z API zamiast VITE_*
 
 ## Next (Kolejne)
 
