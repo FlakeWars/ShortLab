@@ -92,6 +92,7 @@ curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
 - `OPENAI_MAX_OUTPUT_TOKENS` – limit tokenów odpowiedzi (domyślnie `800`).
 - `ARTIFACTS_BASE_DIR` – katalog bazowy dla serwowania artefaktów (domyślnie `out`).
 - `OPERATOR_TOKEN` – prosty token operatora dla endpointów `/ops/*` (nagłówek `X-Operator-Token`).
+- `ALLOW_OPS_WITHOUT_TOKEN` – jeśli `1`, pozwala na `/ops/*` bez tokena (domyślnie `0`).
 
 ## Makefile
 Dostępne cele:

@@ -2,7 +2,7 @@
 
 ## Now (W toku)
 - [ ] Security: wymusic token operatora w prod (branch: fix/ops-guard)
-  - [ ] Blokada uruchomienia /ops/* bez OPERATOR_TOKEN w trybie produkcyjnym
+  - [x] Blokada uruchomienia /ops/* bez OPERATOR_TOKEN w trybie produkcyjnym
 
 ## Next (Kolejne)
 - [ ] Settings runtime: API endpoint do podgladu configu (branch: feat/settings-api)

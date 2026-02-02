@@ -42,7 +42,9 @@ def _encode(obj) -> dict:
 def _require_operator(x_operator_token: str | None = Header(default=None)) -> None:
     expected = getenv("OPERATOR_TOKEN", "")
     if not expected:
-        return
+        if getenv("ALLOW_OPS_WITHOUT_TOKEN", "0") == "1":
+            return
+        raise HTTPException(status_code=503, detail="operator_token_missing")
     if x_operator_token != expected:
         raise HTTPException(status_code=401, detail="operator_token_required")
 
