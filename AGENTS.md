@@ -18,6 +18,7 @@ Ten plik opisuje lokalne zasady współpracy z agentem i minimalny „contract�
 - Dokumentacja musi być spójna z `versions.env`; przy rozbieżnościach aktualizujemy dokumentację, nie wersje.
 - Po zakończeniu zadania (branch-level) wykonujemy merge do `main`, przełączamy się na `main` i robimy `git pull`. Dopiero potem uznajemy zadanie za zamknięte.
 - Po merge do `main` wykonujemy krótką analizę wpływu na plan: czy pojawiły się nowe priorytety lub czy kolejność zadań w `TODO.md` wymaga korekty. Zmiany zapisujemy w `TODO.md`/dokumentacji zanim startujemy kolejne zadanie.
+- Po wykryciu nowych modułów/zależności dopisujemy je do `TODO.md` od razu na bieżącym branchu, a po powrocie na `main` wykonujemy „sync TODO”, aby lista modułów była kompletna.
 - Unikamy ręcznych komend. Jeśli coś wymaga ręcznego uruchomienia, dodajemy/aktualizujemy target w `Makefile` lub skrypt wywoływany przez `Makefile`.
 - Unikamy nawarstwiających się warningów; jeśli się pojawiają, dodajemy podpunkt na ich usunięcie.
 - Przed każdym commitem sprawdzamy `git status -sb` i upewniamy się, że wszystkie zmiany związane z zadaniem są zarejestrowane (bez pomijania plików).

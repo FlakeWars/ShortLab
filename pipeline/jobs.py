@@ -120,47 +120,31 @@ def generate_dsl_job(
             raise FileNotFoundError(f"DSL template not found: {template_path}")
 
         if use_idea_gate:
-            from idea_gate.core import content_hash, max_similarity, parse_ideas, text_to_vec
-
-            ideas = parse_ideas(Path(".ai/ideas.md"))
-            if not ideas:
-                raise RuntimeError("Idea Gate enabled but no ideas found")
+            from embeddings import EmbeddingConfig, EmbeddingService
+            from ideas.generator import generate_ideas, save_ideas
 
             count = int(os.getenv("IDEA_GATE_COUNT", "3"))
             threshold = float(os.getenv("IDEA_GATE_THRESHOLD", "0.85"))
             rng = Random(
                 int(hashlib.sha256(animation.uuid.encode("utf-8")).hexdigest(), 16) % (2**31)
             )
-            rng.shuffle(ideas)
-            pool = ideas[: max(1, min(count, len(ideas)))]
 
-            history = (
-                session.execute(
-                    select(Idea.embedding).where(Idea.embedding != None)  # noqa: E711
-                )
-                .scalars()
-                .all()
+            drafts = generate_ideas(
+                source="auto",
+                ideas_path=".ai/ideas.md",
+                limit=max(1, count),
+                seed=rng.randint(0, 10**6),
             )
-            history_vecs = [vec for vec in history if isinstance(vec, list)]
+            if not drafts:
+                raise RuntimeError("Idea Gate enabled but no ideas found")
 
-            saved: list[Idea] = []
-            for item in pool:
-                vec = text_to_vec(item["title"] + " " + item["summary"])
-                similarity = max_similarity(vec, history_vecs)
-                idea = Idea(
-                    title=item["title"],
-                    summary=item["summary"],
-                    what_to_expect=item.get("what_to_expect", ""),
-                    preview=item.get("preview", ""),
-                    content_hash=content_hash(item["title"], item["summary"]),
-                    embedding=vec,
-                    similarity=similarity,
-                    is_too_similar=similarity >= threshold,
-                )
-                session.add(idea)
-                session.commit()
-                session.refresh(idea)
-                saved.append(idea)
+            rng.shuffle(drafts)
+            pool = drafts[: max(1, min(count, len(drafts)))]
+
+            embedder = EmbeddingService(EmbeddingConfig(provider="sklearn-hash"))
+            saved = save_ideas(session, pool, embedder, similarity_threshold=threshold)
+            if not saved:
+                raise RuntimeError("Idea Gate saved no ideas (dedupe/validation)")
 
             candidates = [i for i in saved if not i.is_too_similar]
             selected = (

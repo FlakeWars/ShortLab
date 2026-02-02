@@ -17,6 +17,14 @@ OLDER_MIN ?= 30
 IDEA_GATE_SELECT ?=
 IDEA_GATE_ENABLED ?= 0
 IDEA_GATE_AUTO ?= 0
+IDEA_GATE_SOURCE ?= auto
+IDEA_GEN_SOURCE ?= file
+IDEA_GEN_PATH ?= .ai/ideas.md
+IDEA_GEN_LIMIT ?= 5
+IDEA_GEN_SEED ?= 0
+IDEA_GEN_PROMPT ?=
+IDEA_GEN_SIM_THRESHOLD ?= 0.97
+
 
 # Optional paths (adjust when code exists)
 BACKEND_DIR ?= backend
@@ -120,6 +128,16 @@ job-status: ## Show recent pipeline job statuses
 job-summary: ## Show job status summary
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py --summary
 
+.PHONY: idea-generate
+idea-generate: ## Generate ideas into DB (file/template)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-generate.py \
+		--source "$(IDEA_GEN_SOURCE)" \
+		--ideas-path "$(IDEA_GEN_PATH)" \
+		--limit "$(IDEA_GEN_LIMIT)" \
+		--seed "$(IDEA_GEN_SEED)" \
+		--prompt "$(IDEA_GEN_PROMPT)" \
+		--similarity-threshold "$(IDEA_GEN_SIM_THRESHOLD)"
+
 # --- Pipeline stages (PRD-aligned) ---
 .PHONY: gen
 
@@ -157,11 +175,11 @@ job-cleanup: ## Mark stale running jobs as failed
 .PHONY: idea-gate
 idea-gate: ## Propose ideas and select one (Idea Gate)
 	@if [ -n "$(IDEA_GATE_SELECT)" ]; then \
-		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py --select "$(IDEA_GATE_SELECT)"; \
+		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py --source "$(IDEA_GATE_SOURCE)" --select "$(IDEA_GATE_SELECT)"; \
 	elif [ "$(IDEA_GATE_AUTO)" = "1" ]; then \
-		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py --auto; \
+		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py --source "$(IDEA_GATE_SOURCE)" --auto; \
 	else \
-		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py; \
+		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py --source "$(IDEA_GATE_SOURCE)"; \
 	fi
 
 # --- Data / exports ---

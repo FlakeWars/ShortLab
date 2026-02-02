@@ -27,6 +27,11 @@ Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline�
 - **Walidacja schematu**: `pydantic` + `jsonschema`.
 - **Wersjonowanie DSL**: pole `dsl_version` oraz migratory "upgrader" w kodzie.
 
+## 4a. Embedding i podobieństwo (Idea Gate / deduplikacja)
+- **scikit-learn (HashingVectorizer)**: lokalne embeddings (CPU) bez pobierania modeli.
+- **Cosine similarity**: podstawowa miara podobieństwa.
+- **Fallback offline**: hash-embedding, gdy wektorizer niedostępny.
+
 ## 5. Silnik renderingu 2D
 - **MVP-first**: **Python + Skia-Python** lub **Cairo** jako renderer:
   - Szybszy start i niższy koszt utrzymania.

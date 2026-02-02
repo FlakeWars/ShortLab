@@ -3,25 +3,24 @@ from __future__ import annotations
 
 from argparse import ArgumentParser
 from datetime import datetime, timezone
-from pathlib import Path
 from random import Random
 import os
 
-from sqlalchemy import select
-
 from db.models import AuditLog, Idea
 from db.session import SessionLocal
-from idea_gate.core import (
-    content_hash,
-    max_similarity,
-    parse_ideas,
-    text_to_vec,
-)
+from embeddings import EmbeddingConfig, EmbeddingService
+from ideas.generator import generate_ideas, save_ideas
 
 
 def main() -> None:
     parser = ArgumentParser(description="Idea Gate: propose ideas and select one")
     parser.add_argument("--ideas-file", default=".ai/ideas.md")
+    parser.add_argument(
+        "--source",
+        default="auto",
+        choices=["auto", "file", "template"],
+        help="Idea source provider",
+    )
     parser.add_argument(
         "--count",
         type=int,
@@ -37,53 +36,33 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    ideas = parse_ideas(Path(args.ideas_file))
-    if not ideas:
-        raise SystemExit("No ideas found")
-
     rng = Random(args.seed or int(datetime.now(timezone.utc).strftime("%Y%m%d")))
-    rng.shuffle(ideas)
-    chosen = ideas[: max(1, min(args.count, len(ideas)))]
+    drafts = generate_ideas(
+        source=args.source,
+        ideas_path=args.ideas_file,
+        limit=max(1, args.count),
+        seed=args.seed or int(rng.random() * 1_000_000),
+    )
+    if not drafts:
+        raise SystemExit("No ideas found")
+    rng.shuffle(drafts)
+    chosen = drafts[: max(1, min(args.count, len(drafts)))]
 
     session = SessionLocal()
     try:
-        history = session.execute(select(Idea.embedding).where(Idea.embedding != None)).scalars().all()  # noqa: E711
-        history_vecs = [vec for vec in history if isinstance(vec, list)]
-
-        saved: list[Idea] = []
-        idea_meta: dict[int, dict] = {}
-        for item in chosen:
-            vec = text_to_vec(item["title"] + " " + item["summary"])
-            similarity = max_similarity(vec, history_vecs)
-            idea = Idea(
-                title=item["title"],
-                summary=item["summary"],
-                what_to_expect=item.get("what_to_expect", ""),
-                preview=item.get("preview", ""),
-                content_hash=content_hash(item["title"], item["summary"]),
-                embedding=vec,
-                similarity=similarity,
-                is_too_similar=similarity >= args.threshold,
-            )
-            session.add(idea)
-            session.commit()
-            session.refresh(idea)
-            saved.append(idea)
-            idea_meta[idea.id] = {
-                "what_to_expect": item.get("what_to_expect", ""),
-                "preview": item.get("preview", ""),
-            }
+        embedder = EmbeddingService(EmbeddingConfig(provider="sklearn-hash"))
+        saved = save_ideas(session, chosen, embedder, similarity_threshold=args.threshold)
 
         for idx, idea in enumerate(saved, start=1):
             flag = "too_similar" if idea.is_too_similar else "ok"
-            print(f"[{idx}] {idea.title} (sim={idea.similarity:.3f}, {flag})")
-            meta = idea_meta.get(idea.id, {})
+            sim = idea.similarity if idea.similarity is not None else 0.0
+            print(f"[{idx}] {idea.title} (sim={sim:.3f}, {flag})")
             if idea.summary:
                 print(f"    Opis: {idea.summary}")
-            if meta.get("what_to_expect"):
-                print(f"    Co zobaczysz: {meta['what_to_expect']}")
-            if meta.get("preview"):
-                print(f"    Preview/Reguły: {meta['preview']}")
+            if getattr(idea, "what_to_expect", ""):
+                print(f"    Co zobaczysz: {idea.what_to_expect}")
+            if getattr(idea, "preview", ""):
+                print(f"    Preview/Reguły: {idea.preview}")
 
         if args.select is None and not args.auto:
             print("Use --select N or --auto to choose.")
@@ -102,7 +81,6 @@ def main() -> None:
             else:
                 selected = min(saved, key=lambda i: i.similarity or 0.0)
                 selection_mode = "auto-all-too-similar"
-            selection_mode = "auto"
 
         audit = AuditLog(
             event_type="idea_selected",

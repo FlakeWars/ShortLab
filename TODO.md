@@ -1,42 +1,64 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
-  - [x] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto) (2026-02-02)
-  - [x] Hash DSL + embedding pomysłu do wykrywania podobieństw (2026-02-02)
-  - [x] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów (2026-02-02)
-  - [x] Uruchomić `make db-migrate` lokalnie (kolumny Idea Gate) (2026-02-02)
-  - [ ] Zastąpić hash-embedding przez moduł Embeddings (dependency)
-  - [x] Wpiąć Idea Gate jako etap opcjonalny w pipeline (przed generacją DSL) (2026-02-02)
-  - [x] Rozszerzyć opisy propozycji (co użytkownik ma zobaczyć w animacji) (2026-02-02)
-  - [x] Dodać „preview” oczekiwanego efektu (np. kluczowe reguły/skrót DSL) (2026-02-02)
-  - [x] Zapisać rozszerzone pola (what_to_expect/preview) w DB (Idea) lub metadanych (2026-02-02)
-  - [x] Uruchomić `make db-migrate` lokalnie (idea details fields) (2026-02-02)
-  - [ ] Źródło pomysłów: generator + fallback do pliku (integracja)
+- _brak_
 
 ## Next (Kolejne)
-- [ ] Generator pomysłów (moduł) (branch: feat/idea-generator)
-  - [ ] Generowanie pomysłów przez AI (prompt + parametry)
-  - [ ] Zapisywanie propozycji do DB (Idea) z metadanymi generacji
-  - [ ] Fallback do `.ai/ideas.md` gdy AI niedostępne
-  - [ ] Walidacja jakości i deduplikacja wejścia (hash/embedding)
-- [ ] Embedding Service (moduł) (branch: feat/embedding-service)
-  - [ ] Adapter do providerów (OpenAI / lokalny)
-  - [ ] Cache + retry + rate limit
-  - [ ] Wersjonowanie embeddingu w DB (model + wersja)
-  - [ ] Fallback do hash-embeddingu w trybie offline
-- [ ] Panel operacyjny UI (moduł systemu) (branch: feat/ui-ops)
+- [ ] Panel UI: backend API (MVP) (branch: feat/ui-api)
+  - [ ] Endpointy statusu pipeline (summary + joby)
+  - [ ] Lista animacji + metadane + status QC
+  - [ ] Audit log (lista + filtry)
+  - [ ] Idea Gate: lista propozycji + status podobienstwa
+- [ ] Panel UI: frontend (MVP) (branch: feat/ui-frontend)
   - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
-  - [ ] Lista animacji z filtrem po statusie + podgląd metadanych
-  - [ ] Podgląd renderów (wideo + metadane) + status QC
-  - [ ] Sekcja Idea Gate: propozycje + wybór + podobieństwo
-  - [ ] Historia zdarzeń (audit log) + filtr po typie
-  - [ ] Ustawienia (timeouts, .env flags) tylko do podglądu w MVP
-  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobów
+  - [ ] Lista animacji z filtrem po statusie + podglad metadanych
+  - [ ] Podglad renderow (wideo + metadane) + status QC
+  - [ ] Sekcja Idea Gate: propozycje + wybor + podobienstwo
+  - [ ] Historia zdarzen (audit log) + filtr po typie
+  - [ ] Ustawienia (timeouts, .env flags) tylko do podgladu w MVP
+- [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
+  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
+  - [ ] Minimalne auth/guard (operator-only)
+- [ ] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm)
 
 ## Done (Zrobione)
+- [x] Idea Gate + unikalnosc pomyslow (branch: feat/idea-gate) (2026-02-02)
+  - [x] Propozycja 3–5 pomyslow i wybor operatora (opcjonalnie auto) (2026-02-02)
+  - [x] Hash DSL + embedding pomyslu do wykrywania podobienstw (2026-02-02)
+  - [x] Prog podobienstwa + oznaczanie zbyt podobnych pomyslow (2026-02-02)
+  - [x] Uruchomic `make db-migrate` lokalnie (kolumny Idea Gate) (2026-02-02)
+  - [x] Zastapic hash-embedding przez modul Embeddings (dependency) (2026-02-02)
+  - [x] Wpiac Idea Gate jako etap opcjonalny w pipeline (przed generacja DSL) (2026-02-02)
+  - [x] Rozszerzyc opisy propozycji (co uzytkownik ma zobaczyc w animacji) (2026-02-02)
+  - [x] Dodac "preview" oczekiwanego efektu (np. kluczowe reguly/skrot DSL) (2026-02-02)
+  - [x] Zapisac rozszerzone pola (what_to_expect/preview) w DB (Idea) lub metadanych (2026-02-02)
+  - [x] Uruchomic `make db-migrate` lokalnie (idea details fields) (2026-02-02)
+  - [x] Zrodlo pomyslow: generator + fallback do pliku (integracja) (2026-02-02)
 - [x] Idea Gate – poprawki wyboru (auto + warning) (2026-02-02)
-  - [x] Usunąć warning datetime.utcnow + poprawić auto-selekcję przy `too_similar` (2026-02-02)
+  - [x] Usunac warning datetime.utcnow + poprawic auto-selekcje przy `too_similar` (2026-02-02)
+- [x] Generator pomysłów (moduł) (branch: feat/idea-generator) (2026-02-02)
+  - [x] Generowanie pomysłów (provider template + prompt) (2026-02-02)
+  - [x] Zapisywanie propozycji do DB (Idea) z metadanymi generacji (2026-02-02)
+  - [x] Fallback do `.ai/ideas.md` gdy provider niedostępny (2026-02-02)
+  - [x] Walidacja jakości i deduplikacja wejścia (hash/embedding) (2026-02-02)
+- [x] Embedding Service: smoke test sklearn hashing (branch: test/embedding-service) (2026-02-02)
+  - [x] Dodac smoke test do `scripts/verify-env.sh` (2026-02-02)
+  - [x] Zweryfikowac lokalne dzialanie HashingVectorizer w testowym srodowisku (2026-02-02)
+  - [x] Uzgodnic pin wersji scikit-learn (1.8.0) w `versions.env` (2026-02-02)
+- [x] Embedding Service: zmiana providera na sklearn hashing (branch: fix/embedding-provider) (2026-02-02)
+  - [x] Podmienic domyslny provider i zaleznosci na scikit-learn (2026-02-02)
+  - [x] Zaktualizowac verify-env (smoke test sklearn) (2026-02-02)
+  - [x] Zaktualizowac PRD/tech-stack i versions.env (2026-02-02)
+- [x] Embedding Service (moduł) (branch: feat/embedding-service) (2026-02-02)
+  - [x] Adapter fastembed (lokalne embeddings, CPU) (2026-02-02)
+  - [x] Cache + retry + rate limit (2026-02-02)
+  - [x] Wersjonowanie embeddingu w DB (model + wersja) (2026-02-02)
+  - [x] Fallback do hash-embeddingu w trybie offline (2026-02-02)
+- [x] Mapa zależności modułów (branch: docs/module-deps) (2026-02-02)
+  - [x] Wybrać format (Mermaid/UML/ASCII) i zapisać w repo (2026-02-02)
+  - [x] Zarysować zależności między modułami (pipeline, Idea Gate, generator, embeddings, UI) (2026-02-02)
+- [x] Sync TODO po merge (moduły/zależności) (branch: chore/todo-sync) (2026-02-02)
+  - [x] Sprawdzić, czy nowe moduły są wpisane w `TODO.md` na `main` (2026-02-02)
 - [x] Konfiguracja i dokumentacja pipeline (branch: docs/pipeline-ops) (2026-02-02)
   - [x] Opisać minimalny flow uruchomienia (worker/enqueue/job-status) (2026-02-02)
   - [x] Opisać zmienne `.env` (REDIS_URL, RQ_*_TIMEOUT, FFMPEG_TIMEOUT_S) (2026-02-02)
