@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import './App.css'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 type Job = {
   id: string
@@ -12,20 +15,132 @@ type Job = {
   error?: string | null
 }
 
+type AnimationRow = {
+  id: string
+  animation_code?: string | null
+  status?: string | null
+  pipeline_stage?: string | null
+  idea_id?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  render?: {
+    id?: string | null
+    status?: string | null
+    seed?: number | null
+    dsl_version_id?: string | null
+    design_system_version_id?: string | null
+    renderer_version?: string | null
+    duration_ms?: number | null
+    width?: number | null
+    height?: number | null
+    fps?: number | null
+    created_at?: string | null
+    started_at?: string | null
+    finished_at?: string | null
+  } | null
+  qc?: {
+    id?: string | null
+    result?: string | null
+    checklist_version_id?: string | null
+    decided_at?: string | null
+  } | null
+}
+
+type Artifact = {
+  id: string
+  render_id?: string | null
+  artifact_type?: string | null
+  storage_path?: string | null
+  size_bytes?: number | null
+  created_at?: string | null
+}
+
+type IdeaCandidate = {
+  id: string
+  idea_batch_id?: string | null
+  title?: string | null
+  summary?: string | null
+  what_to_expect?: string | null
+  preview?: string | null
+  generator_source?: string | null
+  similarity_status?: string | null
+  selected?: boolean | null
+  selected_at?: string | null
+  selected_by?: string | null
+  created_at?: string | null
+}
+
+type AuditEvent = {
+  id: string
+  event_type?: string | null
+  source?: string | null
+  actor_user_id?: string | null
+  payload?: Record<string, unknown> | null
+  occurred_at?: string | null
+}
+
 type SummaryResponse = {
   summary?: Record<string, number>
   jobs?: Job[]
 }
 
 const STATUS_ORDER = ['queued', 'running', 'failed', 'succeeded']
+const ANIMATION_STATUSES = [
+  'draft',
+  'queued',
+  'running',
+  'review',
+  'accepted',
+  'rejected',
+  'published',
+  'archived',
+]
+const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
+const IDEA_SIMILARITY = ['ok', 'too_similar', 'unknown']
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
 
+const SETTINGS_PREVIEW = [
+  {
+    group: 'Database',
+    description: 'Connection and persistence configuration.',
+    items: [
+      { key: 'DATABASE_URL', value: import.meta.env.VITE_DATABASE_URL ?? 'postgresql+psycopg://...' },
+    ],
+  },
+  {
+    group: 'Pipeline timeouts',
+    description: 'Worker and render execution thresholds.',
+    items: [
+      { key: 'RQ_JOB_TIMEOUT', value: import.meta.env.VITE_RQ_JOB_TIMEOUT ?? '120' },
+      { key: 'RQ_RENDER_TIMEOUT', value: import.meta.env.VITE_RQ_RENDER_TIMEOUT ?? '600' },
+      { key: 'FFMPEG_TIMEOUT_S', value: import.meta.env.VITE_FFMPEG_TIMEOUT_S ?? '120' },
+    ],
+  },
+  {
+    group: 'Idea Gate',
+    description: 'Idea generation controls and similarity thresholds.',
+    items: [
+      { key: 'IDEA_GATE_ENABLED', value: import.meta.env.VITE_IDEA_GATE_ENABLED ?? '0' },
+      { key: 'IDEA_GATE_COUNT', value: import.meta.env.VITE_IDEA_GATE_COUNT ?? '3' },
+      { key: 'IDEA_GATE_THRESHOLD', value: import.meta.env.VITE_IDEA_GATE_THRESHOLD ?? '0.85' },
+      { key: 'IDEA_GATE_AUTO', value: import.meta.env.VITE_IDEA_GATE_AUTO ?? '0' },
+    ],
+  },
+  {
+    group: 'Storage',
+    description: 'Local output paths used by renderer and artifacts.',
+    items: [
+      { key: 'RENDER_OUT', value: import.meta.env.VITE_RENDER_OUT ?? 'out/render' },
+    ],
+  },
+]
+
 function formatDate(value?: string | null) {
   if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString()
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return parsed.toLocaleString()
 }
 
 function statusLabel(status?: string | null) {
@@ -35,39 +150,189 @@ function statusLabel(status?: string | null) {
 function statusTone(status?: string | null) {
   switch (status) {
     case 'queued':
-      return 'tone-wait'
+      return 'bg-amber-100/70 text-amber-950 border-amber-200'
     case 'running':
-      return 'tone-live'
+      return 'bg-emerald-100/70 text-emerald-950 border-emerald-200'
     case 'failed':
-      return 'tone-alert'
+      return 'bg-rose-100/70 text-rose-950 border-rose-200'
     case 'succeeded':
-      return 'tone-ok'
+      return 'bg-sky-100/70 text-sky-950 border-sky-200'
     default:
-      return 'tone-neutral'
+      return 'bg-stone-100/70 text-stone-700 border-stone-200'
+  }
+}
+
+function chipTone(value?: string | null) {
+  if (!value) return 'bg-stone-100 text-stone-600 border-stone-200'
+  return 'bg-stone-900 text-white border-stone-900'
+}
+
+function similarityTone(value?: string | null) {
+  switch (value) {
+    case 'ok':
+      return 'bg-emerald-100 text-emerald-900 border-emerald-200'
+    case 'too_similar':
+      return 'bg-amber-100 text-amber-900 border-amber-200'
+    case 'unknown':
+      return 'bg-stone-100 text-stone-700 border-stone-200'
+    default:
+      return 'bg-stone-100 text-stone-600 border-stone-200'
   }
 }
 
 function App() {
-  const [data, setData] = useState<SummaryResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(true)
+  const [summaryUpdatedAt, setSummaryUpdatedAt] = useState<Date | null>(null)
+
+  const [animationData, setAnimationData] = useState<AnimationRow[]>([])
+  const [animationError, setAnimationError] = useState<string | null>(null)
+  const [animationLoading, setAnimationLoading] = useState(false)
+  const [animationUpdatedAt, setAnimationUpdatedAt] = useState<Date | null>(null)
+
+  const [animationStatus, setAnimationStatus] = useState('')
+  const [pipelineStage, setPipelineStage] = useState('')
+  const [ideaId, setIdeaId] = useState('')
+
+  const [selectedAnimation, setSelectedAnimation] = useState<AnimationRow | null>(null)
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [artifactsError, setArtifactsError] = useState<string | null>(null)
+  const [artifactsLoading, setArtifactsLoading] = useState(false)
+
+  const [ideaCandidates, setIdeaCandidates] = useState<IdeaCandidate[]>([])
+  const [ideaError, setIdeaError] = useState<string | null>(null)
+  const [ideaLoading, setIdeaLoading] = useState(false)
+  const [ideaUpdatedAt, setIdeaUpdatedAt] = useState<Date | null>(null)
+  const [selectedIdea, setSelectedIdea] = useState<IdeaCandidate | null>(null)
+
+  const [ideaBatchId, setIdeaBatchId] = useState('')
+  const [ideaSimilarity, setIdeaSimilarity] = useState('')
+  const [ideaSelected, setIdeaSelected] = useState('')
+
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
+  const [auditError, setAuditError] = useState<string | null>(null)
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditUpdatedAt, setAuditUpdatedAt] = useState<Date | null>(null)
+
+  const [auditType, setAuditType] = useState('')
+  const [auditSource, setAuditSource] = useState('')
+  const [auditActor, setAuditActor] = useState('')
 
   const fetchSummary = async () => {
-    setLoading(true)
-    setError(null)
+    setSummaryLoading(true)
+    setSummaryError(null)
     try {
       const response = await fetch(`${API_BASE}/pipeline/summary?limit=12`)
       if (!response.ok) {
         throw new Error(`API error ${response.status}`)
       }
       const payload = (await response.json()) as SummaryResponse
-      setData(payload)
-      setLastUpdated(new Date())
+      setSummaryData(payload)
+      setSummaryUpdatedAt(new Date())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      setSummaryError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
-      setLoading(false)
+      setSummaryLoading(false)
+    }
+  }
+
+  const fetchAnimations = async () => {
+    setAnimationLoading(true)
+    setAnimationError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '12')
+      if (animationStatus) params.set('status', animationStatus)
+      if (pipelineStage) params.set('pipeline_stage', pipelineStage)
+      if (ideaId) params.set('idea_id', ideaId)
+
+      const response = await fetch(`${API_BASE}/animations?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as AnimationRow[]
+      setAnimationData(payload)
+      setAnimationUpdatedAt(new Date())
+      if (payload.length && !selectedAnimation) {
+        setSelectedAnimation(payload[0])
+      }
+    } catch (err) {
+      setAnimationError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setAnimationLoading(false)
+    }
+  }
+
+  const fetchArtifacts = async (renderId?: string | null) => {
+    if (!renderId) {
+      setArtifacts([])
+      return
+    }
+    setArtifactsLoading(true)
+    setArtifactsError(null)
+    try {
+      const response = await fetch(`${API_BASE}/renders/${renderId}/artifacts`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as Artifact[]
+      setArtifacts(payload)
+    } catch (err) {
+      setArtifactsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setArtifactsLoading(false)
+    }
+  }
+
+  const fetchIdeaCandidates = async () => {
+    setIdeaLoading(true)
+    setIdeaError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '12')
+      if (ideaBatchId) params.set('idea_batch_id', ideaBatchId)
+      if (ideaSimilarity) params.set('similarity_status', ideaSimilarity)
+      if (ideaSelected) params.set('selected', ideaSelected)
+
+      const response = await fetch(`${API_BASE}/idea-gate/candidates?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as IdeaCandidate[]
+      setIdeaCandidates(payload)
+      setIdeaUpdatedAt(new Date())
+      if (payload.length && !selectedIdea) {
+        setSelectedIdea(payload[0])
+      }
+    } catch (err) {
+      setIdeaError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setIdeaLoading(false)
+    }
+  }
+
+  const fetchAuditEvents = async () => {
+    setAuditLoading(true)
+    setAuditError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '12')
+      if (auditType) params.set('event_type', auditType)
+      if (auditSource) params.set('source', auditSource)
+      if (auditActor) params.set('actor_user_id', auditActor)
+
+      const response = await fetch(`${API_BASE}/audit-events?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as AuditEvent[]
+      setAuditEvents(payload)
+      setAuditUpdatedAt(new Date())
+    } catch (err) {
+      setAuditError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setAuditLoading(false)
     }
   }
 
@@ -77,109 +342,743 @@ function App() {
     return () => window.clearInterval(interval)
   }, [])
 
-  const summary = useMemo(() => data?.summary ?? {}, [data])
-  const jobs = useMemo(() => data?.jobs ?? [], [data])
+  useEffect(() => {
+    fetchAnimations()
+  }, [])
+
+  useEffect(() => {
+    fetchIdeaCandidates()
+  }, [])
+
+  useEffect(() => {
+    fetchAuditEvents()
+  }, [])
+
+  useEffect(() => {
+    fetchArtifacts(selectedAnimation?.render?.id ?? null)
+  }, [selectedAnimation?.render?.id])
+
+  const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
+  const jobs = useMemo(() => summaryData?.jobs ?? [], [summaryData])
+
+  const videoArtifact = useMemo(
+    () => artifacts.find((item) => item.artifact_type === 'video'),
+    [artifacts],
+  )
+
+  const previewUrl = videoArtifact ? `${API_BASE}/artifacts/${videoArtifact.id}/file` : null
 
   return (
-    <div className="app-shell">
-      <header className="hero">
-        <div>
-          <p className="hero-kicker">ShortLab Control Panel</p>
-          <h1>Pipeline Pulse</h1>
-          <p className="hero-subtitle">
-            Live view of queue pressure, execution health, and recent pipeline jobs.
-          </p>
-        </div>
-        <div className="hero-actions">
-          <div className="hero-chip">
-            <span className="dot" aria-hidden />
-            <span>Auto-refresh 15s</span>
+    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 pb-16 pt-12">
+      <header className="flex flex-col gap-6 rounded-[32px] border border-amber-100/60 bg-gradient-to-br from-amber-50 via-orange-100/70 to-rose-100/70 p-8 shadow-2xl shadow-amber-950/10">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-stone-500">
+              ShortLab Control Panel
+            </p>
+            <h1 className="mt-3 font-serif text-4xl font-semibold text-stone-900 md:text-5xl">
+              Pipeline Pulse
+            </h1>
+            <p className="mt-3 max-w-2xl text-base text-stone-600">
+              Live view of queue pressure, execution health, and the latest pipeline jobs.
+              Track the rhythm, spot bottlenecks, and react fast.
+            </p>
           </div>
-          <button className="ghost-button" onClick={fetchSummary} disabled={loading}>
-            Refresh now
-          </button>
+          <div className="flex flex-col gap-3 lg:items-end">
+            <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-4 py-2 text-xs font-medium text-stone-600 shadow">
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
+              Auto-refresh every 15s
+            </div>
+            <Button variant="outline" className="rounded-full" onClick={fetchSummary} disabled={summaryLoading}>
+              Refresh now
+            </Button>
+          </div>
         </div>
       </header>
 
-      <section className="status-grid">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STATUS_ORDER.map((status) => (
-          <article className={`status-card ${statusTone(status)}`} key={status}>
-            <div>
-              <p className="status-label">{statusLabel(status)}</p>
-              <p className="status-value">{summary[status] ?? 0}</p>
-            </div>
-            <div className="status-meter">
-              <div
-                className="status-meter-fill"
-                style={{ width: `${Math.min((summary[status] ?? 0) * 8, 100)}%` }}
-              />
-            </div>
-          </article>
+          <Card
+            key={status}
+            className={cn('border bg-white/80 shadow-lg shadow-stone-900/5', statusTone(status))}
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+                {statusLabel(status)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-3xl font-semibold text-stone-900">
+                {summary[status] ?? 0}
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-white/60">
+                <div
+                  className="h-full rounded-full bg-stone-900/70"
+                  style={{ width: `${Math.min((summary[status] ?? 0) * 8, 100)}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </section>
 
-      <section className="panel">
-        <div className="panel-header">
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-3 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2>Recent jobs</h2>
-            <p>Latest 12 pipeline executions with quick status context.</p>
+            <h2 className="text-2xl font-semibold text-stone-900">Recent jobs</h2>
+            <p className="text-sm text-stone-600">
+              Latest 12 pipeline executions with status context and timing metadata.
+            </p>
           </div>
-          <div className="panel-meta">
-            <span>API: {API_BASE}</span>
-            <span>
-              Updated:{' '}
-              {lastUpdated ? lastUpdated.toLocaleTimeString() : 'waiting for data'}
-            </span>
+          <div className="text-xs text-stone-500">
+            <div>API: {API_BASE}</div>
+            <div>Updated: {summaryUpdatedAt ? summaryUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
           </div>
         </div>
 
-        {loading ? (
-          <div className="state-box">Loading pipeline data…</div>
-        ) : error ? (
-          <div className="state-box state-error">
-            <strong>Failed to load</strong>
-            <span>{error}</span>
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
+        <div className="mt-4 overflow-x-auto">
+          {summaryLoading ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading pipeline data…
+            </div>
+          ) : summaryError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+              <div className="font-semibold">Failed to load</div>
+              <div>{summaryError}</div>
+            </div>
+          ) : (
+            <table className="min-w-[720px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                 <tr>
-                  <th>Status</th>
-                  <th>Job type</th>
-                  <th>Animation</th>
-                  <th>Created</th>
-                  <th>Started</th>
-                  <th>Finished</th>
+                  <th className="px-2 py-3">Status</th>
+                  <th className="px-2 py-3">Job type</th>
+                  <th className="px-2 py-3">Animation</th>
+                  <th className="px-2 py-3">Created</th>
+                  <th className="px-2 py-3">Started</th>
+                  <th className="px-2 py-3">Finished</th>
                 </tr>
               </thead>
               <tbody>
                 {jobs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="table-empty">
+                    <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
                       No jobs yet. Enqueue a pipeline run to populate this list.
                     </td>
                   </tr>
                 ) : (
                   jobs.map((job) => (
-                    <tr key={job.id}>
-                      <td>
-                        <span className={`badge ${statusTone(job.status)}`}>
+                    <tr key={job.id} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4">
+                        <Badge variant="outline" className={cn('border', statusTone(job.status))}>
                           {statusLabel(job.status)}
-                        </span>
+                        </Badge>
                       </td>
-                      <td>{job.job_type ?? '—'}</td>
-                      <td className="mono">{job.animation_id ?? '—'}</td>
-                      <td>{formatDate(job.created_at)}</td>
-                      <td>{formatDate(job.started_at)}</td>
-                      <td>{formatDate(job.finished_at)}</td>
+                      <td className="px-2 py-4 text-stone-700">{job.job_type ?? '—'}</td>
+                      <td className="px-2 py-4 font-mono text-xs text-stone-600">
+                        {job.animation_id ?? '—'}
+                      </td>
+                      <td className="px-2 py-4 text-stone-600">{formatDate(job.created_at)}</td>
+                      <td className="px-2 py-4 text-stone-600">{formatDate(job.started_at)}</td>
+                      <td className="px-2 py-4 text-stone-600">{formatDate(job.finished_at)}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Animations</h2>
+            <p className="text-sm text-stone-600">
+              Filter by status, stage, or idea ID to drill into the latest renders.
+            </p>
           </div>
-        )}
+          <div className="text-xs text-stone-500">
+            <div>Updated: {animationUpdatedAt ? animationUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Status
+            <select
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={animationStatus}
+              onChange={(event) => setAnimationStatus(event.target.value)}
+            >
+              <option value="">All</option>
+              {ANIMATION_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Stage
+            <select
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={pipelineStage}
+              onChange={(event) => setPipelineStage(event.target.value)}
+            >
+              <option value="">All</option>
+              {PIPELINE_STAGES.map((stage) => (
+                <option key={stage} value={stage}>
+                  {stage}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[240px] flex-1 flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Idea ID
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              placeholder="UUID"
+              value={ideaId}
+              onChange={(event) => setIdeaId(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={fetchAnimations} disabled={animationLoading}>
+              Apply filters
+            </Button>
+            <Button
+              variant="ghost"
+              className="rounded-full"
+              onClick={() => {
+                setAnimationStatus('')
+                setPipelineStage('')
+                setIdeaId('')
+                window.setTimeout(fetchAnimations, 0)
+              }}
+              disabled={animationLoading}
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-6 lg:grid-cols-[1.3fr_0.9fr]">
+          <div className="overflow-x-auto">
+            {animationLoading ? (
+              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+                Loading animations…
+              </div>
+            ) : animationError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+                <div className="font-semibold">Failed to load</div>
+                <div>{animationError}</div>
+              </div>
+            ) : (
+              <table className="min-w-[780px] w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                  <tr>
+                    <th className="px-2 py-3">Status</th>
+                    <th className="px-2 py-3">Stage</th>
+                    <th className="px-2 py-3">Animation</th>
+                    <th className="px-2 py-3">Render</th>
+                    <th className="px-2 py-3">QC</th>
+                    <th className="px-2 py-3">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {animationData.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
+                        No animations matched. Adjust filters or run the pipeline.
+                      </td>
+                    </tr>
+                  ) : (
+                    animationData.map((row) => (
+                      <tr
+                        key={row.id}
+                        className={cn(
+                          'border-t border-stone-200/70 transition hover:bg-stone-100/50',
+                          selectedAnimation?.id === row.id && 'bg-stone-100/70',
+                        )}
+                        onClick={() => setSelectedAnimation(row)}
+                      >
+                        <td className="px-2 py-4">
+                          <Badge variant="outline" className={cn('border', chipTone(row.status))}>
+                            {statusLabel(row.status)}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-4">
+                          <Badge variant="outline" className={cn('border', chipTone(row.pipeline_stage))}>
+                            {row.pipeline_stage ?? '—'}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-4 font-mono text-xs text-stone-600">{row.id}</td>
+                        <td className="px-2 py-4 text-stone-600">{row.render?.status ?? '—'}</td>
+                        <td className="px-2 py-4 text-stone-600">{row.qc?.result ?? '—'}</td>
+                        <td className="px-2 py-4 text-stone-600">{formatDate(row.updated_at)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-stone-200/70 bg-stone-50/60 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-stone-900">Render preview</h3>
+                <p className="text-xs text-stone-500">Selected animation detail & QC status.</p>
+              </div>
+              {selectedAnimation?.status && (
+                <Badge variant="outline" className={cn('border', chipTone(selectedAnimation.status))}>
+                  {statusLabel(selectedAnimation.status)}
+                </Badge>
+              )}
+            </div>
+
+            {!selectedAnimation ? (
+              <div className="mt-4 rounded-xl border border-dashed border-stone-200 bg-white/70 p-4 text-sm text-stone-500">
+                Select an animation row to preview render details.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div className="aspect-[9/16] w-full overflow-hidden rounded-2xl border border-stone-200 bg-stone-900">
+                  {previewUrl ? (
+                    <video className="h-full w-full object-cover" controls src={previewUrl} />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-sm text-stone-300">
+                      No video artifact found.
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2 text-xs text-stone-600">
+                  <div className="flex items-center justify-between">
+                    <span>Pipeline stage</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedAnimation.pipeline_stage ?? '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>QC result</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedAnimation.qc?.result ?? '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Render status</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedAnimation.render?.status ?? '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Seed</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedAnimation.render?.seed ?? '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Canvas</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedAnimation.render?.width ?? '—'} x {selectedAnimation.render?.height ?? '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>FPS</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedAnimation.render?.fps ?? '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Duration</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedAnimation.render?.duration_ms ?? '—'} ms
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Renderer</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedAnimation.render?.renderer_version ?? '—'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-stone-200 bg-white/80 p-3 text-xs text-stone-600">
+                  <div className="mb-2 text-[0.65rem] uppercase tracking-[0.2em] text-stone-400">
+                    Artifacts
+                  </div>
+                  {artifactsLoading ? (
+                    <div>Loading artifacts…</div>
+                  ) : artifactsError ? (
+                    <div className="text-rose-600">{artifactsError}</div>
+                  ) : artifacts.length === 0 ? (
+                    <div>No artifacts available.</div>
+                  ) : (
+                    <ul className="space-y-1">
+                      {artifacts.map((item) => (
+                        <li key={item.id} className="flex items-center justify-between">
+                          <span className="font-semibold text-stone-700">{item.artifact_type}</span>
+                          <span className="truncate text-[0.7rem] text-stone-500">
+                            {item.storage_path}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Idea Gate</h2>
+            <p className="text-sm text-stone-600">
+              Candidate pool with similarity signals and selection status.
+            </p>
+          </div>
+          <div className="text-xs text-stone-500">
+            <div>Updated: {ideaUpdatedAt ? ideaUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Similarity
+            <select
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={ideaSimilarity}
+              onChange={(event) => setIdeaSimilarity(event.target.value)}
+            >
+              <option value="">All</option>
+              {IDEA_SIMILARITY.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Selected
+            <select
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={ideaSelected}
+              onChange={(event) => setIdeaSelected(event.target.value)}
+            >
+              <option value="">All</option>
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </label>
+          <label className="flex min-w-[260px] flex-1 flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Idea batch ID
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              placeholder="UUID"
+              value={ideaBatchId}
+              onChange={(event) => setIdeaBatchId(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={fetchIdeaCandidates} disabled={ideaLoading}>
+              Apply filters
+            </Button>
+            <Button
+              variant="ghost"
+              className="rounded-full"
+              onClick={() => {
+                setIdeaBatchId('')
+                setIdeaSimilarity('')
+                setIdeaSelected('')
+                window.setTimeout(fetchIdeaCandidates, 0)
+              }}
+              disabled={ideaLoading}
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="overflow-x-auto">
+            {ideaLoading ? (
+              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+                Loading ideas…
+              </div>
+            ) : ideaError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+                <div className="font-semibold">Failed to load</div>
+                <div>{ideaError}</div>
+              </div>
+            ) : (
+              <table className="min-w-[760px] w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                  <tr>
+                    <th className="px-2 py-3">Title</th>
+                    <th className="px-2 py-3">Similarity</th>
+                    <th className="px-2 py-3">Selected</th>
+                    <th className="px-2 py-3">Source</th>
+                    <th className="px-2 py-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ideaCandidates.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
+                        No idea candidates matched. Generate a new batch to see results.
+                      </td>
+                    </tr>
+                  ) : (
+                    ideaCandidates.map((idea) => (
+                      <tr
+                        key={idea.id}
+                        className={cn(
+                          'border-t border-stone-200/70 transition hover:bg-stone-100/50',
+                          selectedIdea?.id === idea.id && 'bg-stone-100/70',
+                        )}
+                        onClick={() => setSelectedIdea(idea)}
+                      >
+                        <td className="px-2 py-4 text-stone-800">
+                          {idea.title ?? 'Untitled'}
+                        </td>
+                        <td className="px-2 py-4">
+                          <Badge variant="outline" className={cn('border', similarityTone(idea.similarity_status))}>
+                            {idea.similarity_status ?? '—'}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-4">
+                          <Badge variant="outline" className={cn('border', chipTone(String(idea.selected)))}>
+                            {idea.selected ? 'selected' : '—'}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-4 text-stone-600">{idea.generator_source ?? '—'}</td>
+                        <td className="px-2 py-4 text-stone-600">{formatDate(idea.created_at)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-stone-200/70 bg-stone-50/60 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-stone-900">Idea detail</h3>
+                <p className="text-xs text-stone-500">Selection signal and narrative preview.</p>
+              </div>
+              {selectedIdea?.similarity_status && (
+                <Badge variant="outline" className={cn('border', similarityTone(selectedIdea.similarity_status))}>
+                  {selectedIdea.similarity_status}
+                </Badge>
+              )}
+            </div>
+
+            {!selectedIdea ? (
+              <div className="mt-4 rounded-xl border border-dashed border-stone-200 bg-white/70 p-4 text-sm text-stone-500">
+                Select an idea candidate to preview details.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4 text-sm text-stone-700">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Title</div>
+                  <div className="mt-1 text-base font-semibold text-stone-900">
+                    {selectedIdea.title ?? 'Untitled'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Summary</div>
+                  <div className="mt-1 text-sm text-stone-700">
+                    {selectedIdea.summary ?? '—'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">What to expect</div>
+                  <div className="mt-1 text-sm text-stone-700">
+                    {selectedIdea.what_to_expect ?? '—'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Preview</div>
+                  <div className="mt-1 text-sm text-stone-700">
+                    {selectedIdea.preview ?? '—'}
+                  </div>
+                </div>
+                <div className="grid gap-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span>Selected</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedIdea.selected ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Selected at</span>
+                    <span className="font-semibold text-stone-800">
+                      {formatDate(selectedIdea.selected_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Batch ID</span>
+                    <span className="font-mono text-[0.7rem] text-stone-600">
+                      {selectedIdea.idea_batch_id ?? '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Audit log</h2>
+            <p className="text-sm text-stone-600">Chronological stream of system actions with filters.</p>
+          </div>
+          <div className="text-xs text-stone-500">
+            <div>Updated: {auditUpdatedAt ? auditUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Event type
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              placeholder="qc_decision / publish_record"
+              value={auditType}
+              onChange={(event) => setAuditType(event.target.value)}
+            />
+          </label>
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Source
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              placeholder="pipeline / api"
+              value={auditSource}
+              onChange={(event) => setAuditSource(event.target.value)}
+            />
+          </label>
+          <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Actor user ID
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              placeholder="UUID"
+              value={auditActor}
+              onChange={(event) => setAuditActor(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={fetchAuditEvents} disabled={auditLoading}>
+              Apply filters
+            </Button>
+            <Button
+              variant="ghost"
+              className="rounded-full"
+              onClick={() => {
+                setAuditType('')
+                setAuditSource('')
+                setAuditActor('')
+                window.setTimeout(fetchAuditEvents, 0)
+              }}
+              disabled={auditLoading}
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          {auditLoading ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading audit events…
+            </div>
+          ) : auditError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+              <div className="font-semibold">Failed to load</div>
+              <div>{auditError}</div>
+            </div>
+          ) : (
+            <table className="min-w-[780px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr>
+                  <th className="px-2 py-3">Type</th>
+                  <th className="px-2 py-3">Source</th>
+                  <th className="px-2 py-3">Actor</th>
+                  <th className="px-2 py-3">Occurred</th>
+                  <th className="px-2 py-3">Payload</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
+                      No audit events matched. Trigger actions to populate the log.
+                    </td>
+                  </tr>
+                ) : (
+                  auditEvents.map((event) => (
+                    <tr key={event.id} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4 text-stone-800">{event.event_type ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-600">{event.source ?? '—'}</td>
+                      <td className="px-2 py-4 font-mono text-xs text-stone-600">
+                        {event.actor_user_id ?? '—'}
+                      </td>
+                      <td className="px-2 py-4 text-stone-600">{formatDate(event.occurred_at)}</td>
+                      <td className="px-2 py-4 text-xs text-stone-500">
+                        {event.payload ? JSON.stringify(event.payload) : '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Settings snapshot</h2>
+            <p className="text-sm text-stone-600">
+              Read-only view of environment flags and timeouts used by the pipeline.
+            </p>
+          </div>
+          <Badge variant="outline" className="border border-stone-300 text-stone-600">
+            read-only
+          </Badge>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          {SETTINGS_PREVIEW.map((group) => (
+            <div key={group.group} className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+              <div className="text-sm font-semibold text-stone-900">{group.group}</div>
+              <div className="text-xs text-stone-500">{group.description}</div>
+              <div className="mt-3 space-y-2 text-sm">
+                {group.items.map((item) => (
+                  <div key={item.key} className="flex items-center justify-between">
+                    <span className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                      {item.key}
+                    </span>
+                    <span className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-700">
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-4 text-xs text-stone-500">
+          Values are sourced from Vite env variables (VITE_*). If not provided, defaults are shown.
+        </p>
       </section>
     </div>
   )

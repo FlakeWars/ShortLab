@@ -4,11 +4,12 @@
 - [ ] Panel UI: frontend (MVP) (branch: feat/ui-frontend)
   - [x] Bootstrap frontendu (Vite + React + TS) + piny wersji
   - [x] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
-  - [ ] Lista animacji z filtrem po statusie + podglad metadanych
-  - [ ] Podglad renderow (wideo + metadane) + status QC
-  - [ ] Sekcja Idea Gate: propozycje + wybor + podobienstwo
-  - [ ] Historia zdarzen (audit log) + filtr po typie
-  - [ ] Ustawienia (timeouts, .env flags) tylko do podgladu w MVP
+  - [x] Tailwind + shadcn/ui: konfiguracja i spójny design dashboardu
+  - [x] Lista animacji z filtrem po statusie + podglad metadanych
+  - [x] Podglad renderow (wideo + metadane) + status QC
+  - [x] Sekcja Idea Gate: propozycje + wybor + podobienstwo
+  - [x] Historia zdarzen (audit log) + filtr po typie
+  - [x] Ustawienia (timeouts, .env flags) tylko do podgladu w MVP
 
 ## Next (Kolejne)
 - [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)

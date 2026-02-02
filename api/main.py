@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse
 from sqlalchemy import and_, desc, func, select
 
 from db.models import (
     Animation,
     AuditEvent,
+    Artifact,
     IdeaCandidate,
     IdeaEmbedding,
     Job,
@@ -51,7 +54,12 @@ def _animation_row(animation: Animation, render: Render | None, qc: QCDecision |
             "dsl_version_id": render.dsl_version_id,
             "design_system_version_id": render.design_system_version_id,
             "renderer_version": render.renderer_version,
+            "duration_ms": render.duration_ms,
+            "width": render.width,
+            "height": render.height,
+            "fps": float(render.fps) if render.fps is not None else None,
             "created_at": render.created_at,
+            "started_at": render.started_at,
             "finished_at": render.finished_at,
         }
     if qc is not None:
@@ -304,3 +312,47 @@ def list_idea_gate_candidates(
         limit=limit,
         offset=offset,
     )
+
+
+@app.get("/renders/{render_id}/artifacts")
+def list_render_artifacts(render_id: UUID) -> List[dict]:
+    session = SessionLocal()
+    try:
+        stmt = (
+            select(Artifact)
+            .where(Artifact.render_id == render_id)
+            .order_by(desc(Artifact.created_at))
+        )
+        rows = session.execute(stmt).scalars().all()
+        return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
+@app.get("/artifacts/{artifact_id}/file")
+def get_artifact_file(artifact_id: UUID):
+    session = SessionLocal()
+    try:
+        artifact = session.get(Artifact, artifact_id)
+        if artifact is None:
+            raise HTTPException(status_code=404, detail="artifact_not_found")
+
+        storage_path = Path(artifact.storage_path).expanduser().resolve()
+        if not storage_path.exists():
+            raise HTTPException(status_code=404, detail="artifact_missing")
+
+        base_dir = Path.cwd().joinpath("out").resolve()
+        try:
+            storage_path.relative_to(base_dir)
+        except ValueError:
+            raise HTTPException(status_code=403, detail="artifact_outside_allowed_dir")
+
+        media_type = None
+        if artifact.artifact_type == "video":
+            media_type = "video/mp4"
+        elif artifact.artifact_type == "metadata":
+            media_type = "application/json"
+
+        return FileResponse(path=str(storage_path), media_type=media_type)
+    finally:
+        session.close()

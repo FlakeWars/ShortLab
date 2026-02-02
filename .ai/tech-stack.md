@@ -9,10 +9,12 @@ Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline�
 
 ## 2. Backend API i panel review
 - **FastAPI**: szybki backend HTTP/JSON, łatwe walidacje modeli, dokumentacja OpenAPI.
-- **React + Vite**: panel operacyjny systemu (pipeline, Idea Gate, QC, metryki).
+- **React + Vite + TypeScript**: panel operacyjny systemu (pipeline, Idea Gate, QC, metryki).
 - **TanStack Query**: cache danych, odświeżanie statusów jobów (polling).
 - **TanStack Table**: listy animacji/jobów z filtrowaniem.
 - **Wykresy**: **ECharts** lub **Recharts** do metryk i trendów.
+- **Tailwind CSS**: szybkie i spójne budowanie UI w MVP.
+- **shadcn/ui**: gotowe, dostępne komponenty (design primitives) budowane na Tailwind.
 - **Auth**: session-based auth z hashem (Argon2), tylko dla operatora; opcjonalnie podstawowy 2FA (TOTP).
 
 ## 3. Kolejki zadań i workerzy
