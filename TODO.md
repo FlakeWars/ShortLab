@@ -1,7 +1,17 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Panel UI: frontend (MVP) (branch: feat/ui-frontend)
+- [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
+  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
+  - [ ] Minimalne auth/guard (operator-only)
+
+## Next (Kolejne)
+- [ ] API/UI: polityka serwowania artefaktow (branch: fix/api-artifacts)
+  - [ ] Ustalic dozwolony katalog bazowy (obecnie tylko `out/`) i opisac w docs
+- [ ] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm)
+
+## Done (Zrobione)
+- [x] Panel UI: frontend (MVP) (branch: feat/ui-frontend) (2026-02-02)
   - [x] Bootstrap frontendu (Vite + React + TS) + piny wersji
   - [x] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
   - [x] Tailwind + shadcn/ui: konfiguracja i spójny design dashboardu
@@ -10,14 +20,6 @@
   - [x] Sekcja Idea Gate: propozycje + wybor + podobienstwo
   - [x] Historia zdarzen (audit log) + filtr po typie
   - [x] Ustawienia (timeouts, .env flags) tylko do podgladu w MVP
-
-## Next (Kolejne)
-- [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
-  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
-  - [ ] Minimalne auth/guard (operator-only)
-- [ ] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm)
-
-## Done (Zrobione)
 - [x] Panel UI: backend API (MVP) (branch: feat/ui-api) (2026-02-02)
   - [x] Endpointy statusu pipeline (summary + joby)
   - [x] Lista animacji + metadane + status QC
