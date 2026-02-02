@@ -1,7 +1,32 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Baza danych + migracje (branch: feat/db-schema)
+- [ ] Minimalny worker pipeline (branch: feat/pipeline-mvp)
+  - [x] Zdefiniować minimalny kontrakt jobów i statusów (queued/running/succeeded/failed) (2026-02-02)
+  - [x] Dodać modele DB: Job/Stage lub wykorzystać istniejące (AuditLog) do statusów (2026-02-02)
+  - [x] Wpiąć RQ + Redis i dodać worker CLI (start/stop) (2026-02-02)
+  - [x] Zaimplementować minimalny flow: generacja DSL -> render CLI (2026-02-02)
+  - [x] Zastąpić stub generacji DSL (kopiowanie template) prawdziwą generacją (2026-02-02)
+  - [x] Zapis statusów i artefaktów (DSL path, video path, metadata path) (2026-02-02)
+  - [x] Retry podstawowy dla failed (manualny rerun) (2026-02-02)
+  - [x] Dodać make targets: worker, enqueue, status (2026-02-02)
+  - [x] Uruchomić `make db-migrate` lokalnie (tabela jobs) (2026-02-02)
+  - [x] Zainstalować zależności pipeline (`make deps-py-uv`) i potwierdzić `rq`/`redis` (2026-02-02)
+  - [x] Podnieść timeout renderu i dodać hooki on_failure/on_success dla RQ (2026-02-02)
+  - [x] Zweryfikować, czy render job kończy się `succeeded` po zmianie timeoutu (2026-02-02)
+  - [x] Zdiagnozować długotrwały render (ffmpeg/renderer) i ustalić docelowy timeout (2026-02-02)
+  - [x] Sprawdzić ręczny render CLI na DSL z pipeline (czy ffmpeg kończy) (2026-02-02)
+  - [x] Użyć absolutnych ścieżek + `-nostdin` w ffmpeg (unikać zależności od CWD) (2026-02-02)
+  - [x] Dodać timeout i weryfikację outputu ffmpeg w rendererze (2026-02-02)
+
+## Next (Kolejne)
+- [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
+  - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
+  - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
+  - [ ] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów
+
+## Done (Zrobione)
+- [x] Baza danych + migracje (branch: feat/db-schema) (2026-02-02)
   - [x] Szkielet DB (Postgres + Alembic) (2026-02-01)
   - [x] Podstawowy model danych: animacja, render, QC, audit (2026-02-01)
   - [x] Dostosować PGDATA/volume dla Postgresa 18 (2026-02-02)
@@ -12,17 +37,6 @@
   - [x] Rozważyć server_default dla timestamps (created_at/updated_at) na poziomie DB (2026-02-02)
   - [x] Rozwiązać panic uv przy `make db-migrate` na macOS (system-configuration / Tokio executor) (2026-02-02)
   - [x] Uruchomić `make db-migrate` lokalnie (poza sandboxem) i potwierdzić sukces (2026-02-02)
-
-## Next (Kolejne)
-- [ ] Minimalny worker pipeline (branch: feat/pipeline-mvp)
-  - [ ] RQ + Redis: generacja -> render
-  - [ ] Logowanie statusów jobów
-- [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
-  - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
-  - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
-  - [ ] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów
-
-## Done (Zrobione)
 - [x] Renderer: implementacja reguł (branch: feat/renderer-rules) (2026-02-01)
   - [x] Reguły: move / orbit / attract / repel (2026-02-01)
   - [x] Reguły: split / merge / decay (2026-02-01)

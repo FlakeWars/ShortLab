@@ -97,11 +97,19 @@ api: ## Run backend API (placeholder)
 
 .PHONY: worker
 worker: ## Run worker process (placeholder)
-	@echo "Run worker (RQ/Celery)" 
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py
 
 .PHONY: scheduler
 scheduler: ## Run scheduler (placeholder)
 	@echo "Run scheduler (APScheduler)" 
+
+.PHONY: enqueue
+enqueue: ## Enqueue minimal pipeline job
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/enqueue.py
+
+.PHONY: job-status
+job-status: ## Show recent pipeline job statuses
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py
 
 # --- Pipeline stages (PRD-aligned) ---
 .PHONY: gen
@@ -131,7 +139,7 @@ qc: ## Run QC checks (placeholder)
 
 .PHONY: rerender
 rerender: ## Rerender from metadata/seed (placeholder)
-	@echo "Rerender from metadata" 
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/rerun.py --animation-id "$(ANIMATION_ID)"
 
 # --- Data / exports ---
 .PHONY: export

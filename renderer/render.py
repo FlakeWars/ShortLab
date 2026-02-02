@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import math
 import subprocess
 from dataclasses import dataclass, field
@@ -739,6 +740,9 @@ def _apply_move(states: List[EntityState], model, dt: float, rule) -> None:
 
 
 def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path) -> Path:
+    dsl_path = Path(dsl_path).resolve()
+    out_dir = Path(out_dir).resolve()
+    out_video = Path(out_video).resolve()
     model = validate_file(dsl_path)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -869,20 +873,27 @@ def _encode_video(out_dir: Path, fps: int, out_video: Path) -> None:
     ffmpeg_bin = "/opt/homebrew/bin/ffmpeg"
     if not Path(ffmpeg_bin).exists():
         ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
+    try:
+        timeout_s = int(os.getenv("FFMPEG_TIMEOUT_S", "300"))
+    except ValueError:
+        timeout_s = 300
     cmd = [
         ffmpeg_bin,
         "-y",
+        "-nostdin",
         "-r",
         str(fps),
         "-i",
-        str(out_dir / "frame_%05d.png"),
+        str((out_dir / "frame_%05d.png").resolve()),
         "-c:v",
         "libx264",
         "-pix_fmt",
         "yuv420p",
         str(out_video),
     ]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, timeout=timeout_s)
+    if not out_video.exists() or out_video.stat().st_size == 0:
+        raise RuntimeError(f"ffmpeg output missing or empty: {out_video}")
 
 
 def _write_metadata(model, out_dir: Path) -> None:
