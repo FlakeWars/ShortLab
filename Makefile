@@ -1,4 +1,5 @@
 SHELL := /bin/bash
+-include .env
 .DEFAULT_GOAL := help
 
 PROJECT := shortlab
@@ -15,7 +16,8 @@ RENDER_VIDEO ?= out/render.mp4
 # Optional paths (adjust when code exists)
 BACKEND_DIR ?= backend
 FRONTEND_DIR ?= frontend
-DOCKER_COMPOSE ?= docker compose
+DOCKER_BIN ?= docker
+DOCKER_COMPOSE ?= $(DOCKER_BIN) compose
 
 .PHONY: help
 help: ## Show available targets
@@ -141,6 +143,11 @@ export: ## Export data for analysis (placeholder)
 
 db-migrate: ## Run DB migrations (placeholder)
 	@UV_CACHE_DIR=.uv-cache uv run alembic upgrade head
+
+.PHONY: db-revision
+
+db-revision: ## Create Alembic revision (set MSG="...") 
+	@UV_CACHE_DIR=.uv-cache uv run alembic revision --autogenerate -m "$(MSG)"
 
 .PHONY: db-seed
 

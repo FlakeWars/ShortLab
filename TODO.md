@@ -3,8 +3,13 @@
 ## Now (W toku)
 - [ ] Baza danych + migracje (branch: feat/db-schema)
   - [x] Szkielet DB (Postgres + Alembic) (2026-02-01)
-  - [ ] Podstawowy model danych: animacja, render, QC, audit
-  - [ ] Migracje startowe
+  - [x] Podstawowy model danych: animacja, render, QC, audit (2026-02-01)
+  - [x] Dostosować PGDATA/volume dla Postgresa 18 (2026-02-02)
+  - [x] Ustalić działający obraz MinIO (minio/minio vs alpine/minio) (2026-02-02)
+  - [x] Migracje startowe (2026-02-02)
+  - [x] Naprawić nagłówek migracji Alembic (nierenderowane placeholdery) (2026-02-02)
+  - [ ] Zweryfikować konfigurację template Alembic (nagłówki w nowych migracjach)
+  - [ ] Rozważyć server_default dla timestamps (created_at/updated_at) na poziomie DB
 
 ## Next (Kolejne)
 - [ ] Minimalny worker pipeline (branch: feat/pipeline-mvp)
