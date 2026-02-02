@@ -11,11 +11,6 @@
   - [ ] Zastąpić hash-embedding przez moduł Embeddings (dependency)
   - [ ] Zapisać rozszerzone pola (what_to_expect/preview) w DB (Idea) lub metadanych
   - [ ] Źródło pomysłów: generator + fallback do pliku (integracja)
-- [ ] Generator pomysłów (moduł) (branch: feat/idea-generator)
-  - [ ] Generowanie pomysłów przez AI (prompt + parametry)
-  - [ ] Zapisywanie propozycji do DB (Idea) z metadanymi generacji
-  - [ ] Fallback do `.ai/ideas.md` gdy AI niedostępne
-  - [ ] Walidacja jakości i deduplikacja wejścia (hash/embedding)
 - [ ] Panel UI: backend API (MVP) (branch: feat/ui-api)
   - [ ] Endpointy statusu pipeline (summary + joby)
   - [ ] Lista animacji + metadane + status QC
@@ -31,8 +26,14 @@
 - [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
   - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
   - [ ] Minimalne auth/guard (operator-only)
+- [ ] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm)
 
 ## Done (Zrobione)
+- [x] Generator pomysłów (moduł) (branch: feat/idea-generator) (2026-02-02)
+  - [x] Generowanie pomysłów (provider template + prompt) (2026-02-02)
+  - [x] Zapisywanie propozycji do DB (Idea) z metadanymi generacji (2026-02-02)
+  - [x] Fallback do `.ai/ideas.md` gdy provider niedostępny (2026-02-02)
+  - [x] Walidacja jakości i deduplikacja wejścia (hash/embedding) (2026-02-02)
 - [x] Embedding Service: smoke test sklearn hashing (branch: test/embedding-service) (2026-02-02)
   - [x] Dodac smoke test do `scripts/verify-env.sh` (2026-02-02)
   - [x] Zweryfikowac lokalne dzialanie HashingVectorizer w testowym srodowisku (2026-02-02)

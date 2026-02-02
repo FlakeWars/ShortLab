@@ -13,6 +13,12 @@ DSL ?= .ai/examples/dsl-v1-happy.yaml
 RENDER_OUT ?= out/render
 RENDER_VIDEO ?= out/render.mp4
 OLDER_MIN ?= 30
+IDEA_GEN_SOURCE ?= file
+IDEA_GEN_PATH ?= .ai/ideas.md
+IDEA_GEN_LIMIT ?= 5
+IDEA_GEN_SEED ?= 0
+IDEA_GEN_PROMPT ?=
+IDEA_GEN_SIM_THRESHOLD ?= 0.97
 
 # Optional paths (adjust when code exists)
 BACKEND_DIR ?= backend
@@ -115,6 +121,16 @@ job-status: ## Show recent pipeline job statuses
 .PHONY: job-summary
 job-summary: ## Show job status summary
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py --summary
+
+.PHONY: idea-generate
+idea-generate: ## Generate ideas into DB (file/template)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-generate.py \
+		--source "$(IDEA_GEN_SOURCE)" \
+		--ideas-path "$(IDEA_GEN_PATH)" \
+		--limit "$(IDEA_GEN_LIMIT)" \
+		--seed "$(IDEA_GEN_SEED)" \
+		--prompt "$(IDEA_GEN_PROMPT)" \
+		--similarity-threshold "$(IDEA_GEN_SIM_THRESHOLD)"
 
 # --- Pipeline stages (PRD-aligned) ---
 .PHONY: gen
