@@ -56,6 +56,7 @@ METRICS_PULL_ERROR ?=
 # Optional paths (adjust when code exists)
 BACKEND_DIR ?= backend
 FRONTEND_DIR ?= frontend
+UI_PORT ?= 5173
 DOCKER_BIN ?= docker
 DOCKER_COMPOSE ?= $(DOCKER_BIN) compose
 
@@ -116,6 +117,10 @@ deps-frontend: ## Install frontend deps (if frontend exists)
 	else \
 		echo "$(FRONTEND_DIR) not found"; \
 	fi
+
+.PHONY: frontend-init
+frontend-init: ## Initialize frontend (Vite + React + TS)
+	@./scripts/init-frontend.sh "$(FRONTEND_DIR)" "react-ts"
 
 # --- Infra (Postgres/Redis/MinIO) ---
 .PHONY: infra-up
@@ -309,7 +314,11 @@ db-seed: ## Seed DB data (placeholder)
 # --- Frontend ---
 .PHONY: ui
 ui: ## Run review panel (placeholder)
-	@echo "Run frontend (Vite)" 
+	@if [ -d $(FRONTEND_DIR) ]; then \
+		cd $(FRONTEND_DIR) && npm run dev -- --host 0.0.0.0 --port "$(UI_PORT)"; \
+	else \
+		echo "$(FRONTEND_DIR) not found"; \
+	fi
 
 # --- Tests ---
 .PHONY: test

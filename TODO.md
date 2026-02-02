@@ -1,28 +1,29 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Panel UI: backend API (MVP) (branch: feat/ui-api)
-  - [x] Endpointy statusu pipeline (summary + joby)
-  - [x] Lista animacji + metadane + status QC
-  - [x] Audit log (lista + filtry)
-  - [x] Idea Gate: lista propozycji + status podobienstwa
-  - [x] Naprawa API: sesje DB w `api/main.py` + smoke test endpointow
-  - [ ] Usunac warning `nice(5) failed` przy `make api` (fallback bez `nice`)
-
-## Next (Kolejne)
 - [ ] Panel UI: frontend (MVP) (branch: feat/ui-frontend)
-  - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
+  - [x] Bootstrap frontendu (Vite + React + TS) + piny wersji
+  - [x] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
   - [ ] Lista animacji z filtrem po statusie + podglad metadanych
   - [ ] Podglad renderow (wideo + metadane) + status QC
   - [ ] Sekcja Idea Gate: propozycje + wybor + podobienstwo
   - [ ] Historia zdarzen (audit log) + filtr po typie
   - [ ] Ustawienia (timeouts, .env flags) tylko do podgladu w MVP
+
+## Next (Kolejne)
 - [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
   - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
   - [ ] Minimalne auth/guard (operator-only)
 - [ ] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm)
 
 ## Done (Zrobione)
+- [x] Panel UI: backend API (MVP) (branch: feat/ui-api) (2026-02-02)
+  - [x] Endpointy statusu pipeline (summary + joby)
+  - [x] Lista animacji + metadane + status QC
+  - [x] Audit log (lista + filtry)
+  - [x] Idea Gate: lista propozycji + status podobienstwa
+  - [x] Naprawa API: sesje DB w `api/main.py` + smoke test endpointow
+  - [x] Warning `nice(5) failed` przy `make api` to ograniczenie sandboxa (workaround w README) (2026-02-02)
 - [x] API: read-only audit/metrics (pomocnicze) (branch: feat/api-audit-metrics) (2026-02-02)
   - [x] Endpointy: audit_event (lista + filtry), metrics_daily (lista + filtry)
   - [x] Endpointy: idea_candidate + idea_embedding (listy read-only)
