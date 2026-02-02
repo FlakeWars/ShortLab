@@ -83,6 +83,8 @@ class Idea(Base):
     )
     title: Mapped[str] = mapped_column(String(200))
     summary: Mapped[str] = mapped_column(Text)
+    what_to_expect: Mapped[str] = mapped_column(Text, default="")
+    preview: Mapped[str] = mapped_column(Text, default="")
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     embedding: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
     similarity: Mapped[float | None] = mapped_column(Float, nullable=True)

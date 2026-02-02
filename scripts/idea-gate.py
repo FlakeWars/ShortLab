@@ -58,6 +58,8 @@ def main() -> None:
             idea = Idea(
                 title=item["title"],
                 summary=item["summary"],
+                what_to_expect=item.get("what_to_expect", ""),
+                preview=item.get("preview", ""),
                 content_hash=content_hash(item["title"], item["summary"]),
                 embedding=vec,
                 similarity=similarity,

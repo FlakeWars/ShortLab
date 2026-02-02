@@ -10,7 +10,8 @@
   - [x] Wpiąć Idea Gate jako etap opcjonalny w pipeline (przed generacją DSL) (2026-02-02)
   - [x] Rozszerzyć opisy propozycji (co użytkownik ma zobaczyć w animacji) (2026-02-02)
   - [x] Dodać „preview” oczekiwanego efektu (np. kluczowe reguły/skrót DSL) (2026-02-02)
-  - [ ] Zapisać rozszerzone pola (what_to_expect/preview) w DB (Idea) lub metadanych
+  - [x] Zapisać rozszerzone pola (what_to_expect/preview) w DB (Idea) lub metadanych (2026-02-02)
+  - [x] Uruchomić `make db-migrate` lokalnie (idea details fields) (2026-02-02)
   - [ ] Źródło pomysłów: generator + fallback do pliku (integracja)
 
 ## Next (Kolejne)
