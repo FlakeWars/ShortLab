@@ -1,7 +1,24 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Minimalny worker pipeline (branch: feat/pipeline-mvp)
+_brak_
+
+## Next (Kolejne)
+- [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
+  - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
+  - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
+  - [ ] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów
+- [ ] Konfiguracja i dokumentacja pipeline (branch: docs/pipeline-ops)
+  - [ ] Opisać minimalny flow uruchomienia (worker/enqueue/job-status)
+  - [ ] Opisać zmienne `.env` (REDIS_URL, RQ_*_TIMEOUT, FFMPEG_TIMEOUT_S)
+  - [ ] Dodać notkę o typowych problemach (ffmpeg hang + rozwiązanie)
+
+## Done (Zrobione)
+- [x] Cleanup i obserwowalność pipeline (branch: chore/pipeline-maintenance) (2026-02-02)
+  - [x] Wyczyścić/oznaczyć stare joby „running” w DB (po timeoutach) (2026-02-02)
+  - [x] Dodać prosty status komendy: summary (queued/running/failed/succeeded) (2026-02-02)
+  - [x] Dodać instrukcję cleanupu FailedJobRegistry w README/Makefile (2026-02-02)
+- [x] Minimalny worker pipeline (branch: feat/pipeline-mvp) (2026-02-02)
   - [x] Zdefiniować minimalny kontrakt jobów i statusów (queued/running/succeeded/failed) (2026-02-02)
   - [x] Dodać modele DB: Job/Stage lub wykorzystać istniejące (AuditLog) do statusów (2026-02-02)
   - [x] Wpiąć RQ + Redis i dodać worker CLI (start/stop) (2026-02-02)
@@ -18,14 +35,6 @@
   - [x] Sprawdzić ręczny render CLI na DSL z pipeline (czy ffmpeg kończy) (2026-02-02)
   - [x] Użyć absolutnych ścieżek + `-nostdin` w ffmpeg (unikać zależności od CWD) (2026-02-02)
   - [x] Dodać timeout i weryfikację outputu ffmpeg w rendererze (2026-02-02)
-
-## Next (Kolejne)
-- [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
-  - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
-  - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
-  - [ ] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów
-
-## Done (Zrobione)
 - [x] Baza danych + migracje (branch: feat/db-schema) (2026-02-02)
   - [x] Szkielet DB (Postgres + Alembic) (2026-02-01)
   - [x] Podstawowy model danych: animacja, render, QC, audit (2026-02-01)

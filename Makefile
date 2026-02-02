@@ -12,6 +12,7 @@ POETRY := $(VENV_BIN)/poetry
 DSL ?= .ai/examples/dsl-v1-happy.yaml
 RENDER_OUT ?= out/render
 RENDER_VIDEO ?= out/render.mp4
+OLDER_MIN ?= 30
 
 # Optional paths (adjust when code exists)
 BACKEND_DIR ?= backend
@@ -111,6 +112,10 @@ enqueue: ## Enqueue minimal pipeline job
 job-status: ## Show recent pipeline job statuses
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py
 
+.PHONY: job-summary
+job-summary: ## Show job status summary
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py --summary
+
 # --- Pipeline stages (PRD-aligned) ---
 .PHONY: gen
 
@@ -140,6 +145,10 @@ qc: ## Run QC checks (placeholder)
 .PHONY: rerender
 rerender: ## Rerender from metadata/seed (placeholder)
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/rerun.py --animation-id "$(ANIMATION_ID)"
+
+.PHONY: job-cleanup
+job-cleanup: ## Mark stale running jobs as failed
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/cleanup-jobs.py --older-min "$(OLDER_MIN)"
 
 # --- Data / exports ---
 .PHONY: export
