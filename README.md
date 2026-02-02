@@ -44,9 +44,30 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make metrics-daily METRICS_CONTENT_ID=... METRICS_DATE=YYYY-MM-DD` – zapis metryk dziennych.
 - `make metrics-pull-run METRICS_PLATFORM=youtube` – zapis uruchomienia pulla metryk.
 - `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
+- `IDEA_GEN_SOURCE=openai make idea-generate` – generuje pomysły przez OpenAI (wymaga `OPENAI_API_KEY`).
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).
+  - `OPERATOR_TOKEN=sekret make api` – włącza guard operatora dla `/ops/*`.
   - Jeśli pojawia się warning `nice(5) failed`, uruchom `make api` poza sandboxem (to ograniczenie środowiska, nie projektu).
+
+### Operacje (API) – przykłady curl
+Zakładając `OPERATOR_TOKEN=sekret`:
+```bash
+curl -sS -X POST http://localhost:8000/ops/enqueue \
+  -H 'Content-Type: application/json' \
+  -H 'X-Operator-Token: sekret' \
+  -d '{"dsl_template":".ai/examples/dsl-v1-happy.yaml","out_root":"out/pipeline","idea_gate":false}'
+
+curl -sS -X POST http://localhost:8000/ops/rerun \
+  -H 'Content-Type: application/json' \
+  -H 'X-Operator-Token: sekret' \
+  -d '{"animation_id":"<UUID>","out_root":"out/pipeline"}'
+
+curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
+  -H 'Content-Type: application/json' \
+  -H 'X-Operator-Token: sekret' \
+  -d '{"older_min":30}'
+```
 
 ### Pipeline (MVP) – minimalny flow
 1. Uruchom infra: `make infra-up`
@@ -70,6 +91,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `OPENAI_TEMPERATURE` – temperatura generacji (domyślnie `0.7`).
 - `OPENAI_MAX_OUTPUT_TOKENS` – limit tokenów odpowiedzi (domyślnie `800`).
 - `ARTIFACTS_BASE_DIR` – katalog bazowy dla serwowania artefaktów (domyślnie `out`).
+- `OPERATOR_TOKEN` – prosty token operatora dla endpointów `/ops/*` (nagłówek `X-Operator-Token`).
 
 ## Makefile
 Dostępne cele:

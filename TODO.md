@@ -1,16 +1,18 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Stabilizacja operacji i dokumentacji (branch: chore/ops-docs)
-  - [ ] Dokumentacja: OPERATOR_TOKEN + przyklady curl dla /ops/*
-  - [ ] Smoke testy: /ops/enqueue, /ops/rerun, /ops/cleanup-jobs z tokenem
-  - [ ] Dokumentacja: uzycie generatora OpenAI (source=openai, env vars)
+- [ ] Security: wymusic token operatora w prod (branch: fix/ops-guard)
+  - [ ] Blokada uruchomienia /ops/* bez OPERATOR_TOKEN w trybie produkcyjnym
 
 ## Next (Kolejne)
 - [ ] Settings runtime: API endpoint do podgladu configu (branch: feat/settings-api)
   - [ ] UI pobiera ustawienia z API zamiast VITE_*
 
 ## Done (Zrobione)
+- [x] Stabilizacja operacji i dokumentacji (branch: chore/ops-docs) (2026-02-02)
+  - [x] Dokumentacja: OPERATOR_TOKEN + przyklady curl dla /ops/*
+  - [x] Smoke testy: /ops/enqueue, /ops/rerun, /ops/cleanup-jobs z tokenem
+  - [x] Dokumentacja: uzycie generatora OpenAI (source=openai, env vars)
 - [x] API/UI: polityka serwowania artefaktow (branch: fix/api-artifacts) (2026-02-02)
   - [x] Ustalic dozwolony katalog bazowy (obecnie tylko `out/`) i opisac w docs
 - [x] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm) (2026-02-02)
