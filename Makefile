@@ -142,12 +142,20 @@ export: ## Export data for analysis (placeholder)
 .PHONY: db-migrate
 
 db-migrate: ## Run DB migrations (placeholder)
-	@UV_CACHE_DIR=.uv-cache uv run alembic upgrade head
+	@if [ -x "$(VENV_BIN)/alembic" ]; then \
+		$(VENV_BIN)/alembic upgrade head; \
+	else \
+		UV_CACHE_DIR=.uv-cache uv run alembic upgrade head; \
+	fi
 
 .PHONY: db-revision
 
 db-revision: ## Create Alembic revision (set MSG="...") 
-	@UV_CACHE_DIR=.uv-cache uv run alembic revision --autogenerate -m "$(MSG)"
+	@if [ -x "$(VENV_BIN)/alembic" ]; then \
+		$(VENV_BIN)/alembic revision --autogenerate -m "$(MSG)"; \
+	else \
+		UV_CACHE_DIR=.uv-cache uv run alembic revision --autogenerate -m "$(MSG)"; \
+	fi
 
 .PHONY: db-seed
 

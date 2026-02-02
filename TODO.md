@@ -8,8 +8,10 @@
   - [x] Ustalić działający obraz MinIO (minio/minio vs alpine/minio) (2026-02-02)
   - [x] Migracje startowe (2026-02-02)
   - [x] Naprawić nagłówek migracji Alembic (nierenderowane placeholdery) (2026-02-02)
-  - [ ] Zweryfikować konfigurację template Alembic (nagłówki w nowych migracjach)
-  - [ ] Rozważyć server_default dla timestamps (created_at/updated_at) na poziomie DB
+  - [x] Zweryfikować konfigurację template Alembic (nagłówki w nowych migracjach) (2026-02-02)
+  - [x] Rozważyć server_default dla timestamps (created_at/updated_at) na poziomie DB (2026-02-02)
+  - [x] Rozwiązać panic uv przy `make db-migrate` na macOS (system-configuration / Tokio executor) (2026-02-02)
+  - [x] Uruchomić `make db-migrate` lokalnie (poza sandboxem) i potwierdzić sukces (2026-02-02)
 
 ## Next (Kolejne)
 - [ ] Minimalny worker pipeline (branch: feat/pipeline-mvp)
@@ -99,3 +101,4 @@
 - Docker Desktop instalujemy manualnie (bootstrap pomija cask docker).
 - Python/Node instalujemy i pinujemy przez mise (`.mise.toml`).
 - `make verify` traktuje skia-python i usługi z compose jako opcjonalne do czasu uruchomienia renderera i infra.
+- Timestamps zostają na poziomie aplikacji (brak `server_default`) w MVP; ewentualne server-side defaults wymagają nowej migracji/triggerów.
