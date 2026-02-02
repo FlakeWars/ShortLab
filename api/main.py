@@ -24,7 +24,6 @@ from db.models import (
     Job,
 )
 from db.session import SessionLocal
-from pipeline.queue import enqueue_pipeline, enqueue_render
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
 
@@ -417,6 +416,8 @@ def get_artifact_file(artifact_id: UUID):
 
 @app.post("/ops/enqueue")
 def ops_enqueue(request: EnqueueRequest, _guard: None = Depends(_require_operator)) -> dict:
+    from pipeline.queue import enqueue_pipeline
+
     result = enqueue_pipeline(
         request.dsl_template,
         request.out_root,
@@ -427,6 +428,8 @@ def ops_enqueue(request: EnqueueRequest, _guard: None = Depends(_require_operato
 
 @app.post("/ops/rerun")
 def ops_rerun(request: RerunRequest, _guard: None = Depends(_require_operator)) -> dict:
+    from pipeline.queue import enqueue_render
+
     result = enqueue_render(str(request.animation_id), request.out_root)
     return jsonable_encoder(result)
 
