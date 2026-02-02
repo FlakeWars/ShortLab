@@ -28,6 +28,7 @@ QC_RESULT ?= accepted
 QC_NOTES ?=
 QC_DECIDED_BY ?=
 ANIMATION_ID ?=
+API_PORT ?= 8000
 PUBLISH_PLATFORM ?= youtube
 PUBLISH_STATUS ?= queued
 PUBLISH_CONTENT_ID ?=
@@ -132,7 +133,7 @@ infra-logs: ## Tail infra logs
 # --- Backend API / workers ---
 .PHONY: api
 api: ## Run backend API (placeholder)
-	@echo "Run backend API (FastAPI)" 
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/uvicorn api.main:app --host 0.0.0.0 --port "$(API_PORT)"
 
 .PHONY: worker
 worker: ## Run worker process (placeholder)

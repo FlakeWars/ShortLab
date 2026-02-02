@@ -44,6 +44,8 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make metrics-daily METRICS_CONTENT_ID=... METRICS_DATE=YYYY-MM-DD` – zapis metryk dziennych.
 - `make metrics-pull-run METRICS_PLATFORM=youtube` – zapis uruchomienia pulla metryk.
 - `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
+- `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
+  - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).
 
 ### Pipeline (MVP) – minimalny flow
 1. Uruchom infra: `make infra-up`

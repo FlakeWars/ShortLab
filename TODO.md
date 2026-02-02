@@ -1,7 +1,9 @@
 # TODO
 
 ## Now (W toku)
-- _brak_
+- [ ] API: read-only audit/metrics (pomocnicze) (branch: feat/api-audit-metrics)
+  - [x] Endpointy: audit_event (lista + filtry), metrics_daily (lista + filtry)
+  - [x] Endpointy: idea_candidate + idea_embedding (listy read-only)
 
 ## Next (Kolejne)
 - [ ] Panel UI: backend API (MVP) (branch: feat/ui-api)
