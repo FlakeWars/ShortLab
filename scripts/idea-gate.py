@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument(
         "--source",
         default="auto",
-        choices=["auto", "file", "template"],
+        choices=["auto", "file", "template", "openai"],
         help="Idea source provider",
     )
     parser.add_argument(

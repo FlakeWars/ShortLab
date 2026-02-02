@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import hashlib
 import random
+import os
 from typing import Sequence
 from uuid import UUID
 from pathlib import Path
@@ -12,6 +13,7 @@ from db.models import Idea, IdeaCandidate, IdeaEmbedding, IdeaSimilarity
 from embeddings import EmbeddingService, cosine_similarity
 from embeddings.service import EmbeddingResult
 from .parser import ParsedIdea, parse_ideas_file
+from .openai_provider import build_request_payload, call_openai, extract_json_output, load_openai_config
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,17 @@ def generate_ideas(
     prompt: str | None = None,
 ) -> list[IdeaDraft]:
     if source == "auto":
+        if os.getenv("OPENAI_API_KEY"):
+            try:
+                return generate_ideas(
+                    source="openai",
+                    ideas_path=ideas_path,
+                    limit=limit,
+                    seed=seed,
+                    prompt=prompt,
+                )
+            except Exception:
+                pass
         try:
             return generate_ideas(
                 source="template",
@@ -57,6 +70,8 @@ def generate_ideas(
             raise ValueError("ideas_path is required for file source")
         parsed = parse_ideas_file(Path(ideas_path))
         return _drafts_from_parsed(parsed, source="file", meta={"path": ideas_path}, limit=limit)
+    if source == "openai":
+        return _openai_ideas(limit=limit or 5, seed=seed, prompt=prompt or "")
     if source == "template":
         rng = random.Random(seed or 0)
         return _template_ideas(rng, limit or 5, prompt)
@@ -190,6 +205,37 @@ def _template_ideas(rng: random.Random, count: int, prompt: str | None) -> list[
                 source="template",
                 generation_meta={"prompt": prompt, "seed": rng.random()},
                 idea_hash=content_hash,
+            )
+        )
+    return out
+
+
+def _openai_ideas(*, limit: int, seed: int | None, prompt: str) -> list[IdeaDraft]:
+    config = load_openai_config()
+    payload = build_request_payload(prompt=prompt, limit=limit, seed=seed)
+    response = call_openai(config, payload)
+    data = extract_json_output(response)
+    ideas = data.get("ideas", [])
+    out: list[IdeaDraft] = []
+    for item in ideas[:limit]:
+        title = str(item.get("title", "")).strip()
+        summary = str(item.get("summary", "")).strip()
+        what_to_expect = str(item.get("what_to_expect", "")).strip()
+        preview = str(item.get("preview", "")).strip()
+        idea_hash = _hash_content(title, summary)
+        out.append(
+            IdeaDraft(
+                title=title,
+                summary=summary,
+                what_to_expect=what_to_expect,
+                preview=preview,
+                source="openai",
+                generation_meta={
+                    "provider": "openai",
+                    "model": config.model,
+                    "response_id": response.get("id"),
+                },
+                idea_hash=idea_hash,
             )
         )
     return out

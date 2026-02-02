@@ -64,6 +64,11 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `IDEA_GATE_THRESHOLD` – próg podobieństwa (oznaczanie „too_similar”).
 - `IDEA_GATE_AUTO` – jeśli `1`, wybiera automatycznie najniższe podobieństwo.
 - `IDEA_GATE_SELECT` – ręczny wybór (1-based indeks z listy).
+- `OPENAI_API_KEY` – klucz do generatora pomysłów (opcjonalny).
+- `OPENAI_MODEL` – model OpenAI dla generatora pomysłów (np. `gpt-4o-mini`).
+- `OPENAI_BASE_URL` – endpoint API (domyślnie `https://api.openai.com/v1`).
+- `OPENAI_TEMPERATURE` – temperatura generacji (domyślnie `0.7`).
+- `OPENAI_MAX_OUTPUT_TOKENS` – limit tokenów odpowiedzi (domyślnie `800`).
 
 ## Makefile
 Dostępne cele:

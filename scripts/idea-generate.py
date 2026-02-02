@@ -16,7 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--source",
         default="file",
-        choices=["auto", "file", "template"],
+        choices=["auto", "file", "template", "openai"],
         help="Idea source provider",
     )
     parser.add_argument("--ideas-path", default=".ai/ideas.md", help="Path to ideas file")
