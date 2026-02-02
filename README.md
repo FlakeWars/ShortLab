@@ -34,6 +34,13 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make job-summary` – podsumowanie statusów jobów.
 - `make job-cleanup OLDER_MIN=30` – oznacza stare joby `running` jako `failed`.
 
+### Pipeline (MVP) – minimalny flow
+1. Uruchom infra: `make infra-up`
+2. Zainstaluj deps (jeśli zmiany w `pyproject.toml`): `make deps-py-uv`
+3. Start workera: `make worker`
+4. Enqueue: `make enqueue`
+5. Status: `make job-status` lub `make job-summary`
+
 ### Zmienne środowiskowe (.env)
 - `DATABASE_URL` – połączenie do Postgresa.
 - `REDIS_URL` – połączenie do Redis (RQ).
@@ -56,3 +63,4 @@ Dostępne cele:
 - Renderer i FFmpeg uruchamiane natywnie na macOS dla stabilności i dostępności bibliotek.
 - Zmiany wersji narzędzi powinny być wykonywane przez aktualizację `Brewfile` i lockfile.
 - W razie zawieszeń renderu sprawdź `make job-summary` i użyj `make job-cleanup`.
+  - Jeśli render wisi tylko w workerze, upewnij się, że używasz najnowszej wersji (ffmpeg z `-nostdin` + absolutne ścieżki).

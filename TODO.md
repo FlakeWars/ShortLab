@@ -8,12 +8,12 @@ _brak_
   - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
   - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
   - [ ] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów
-- [ ] Konfiguracja i dokumentacja pipeline (branch: docs/pipeline-ops)
-  - [ ] Opisać minimalny flow uruchomienia (worker/enqueue/job-status)
-  - [ ] Opisać zmienne `.env` (REDIS_URL, RQ_*_TIMEOUT, FFMPEG_TIMEOUT_S)
-  - [ ] Dodać notkę o typowych problemach (ffmpeg hang + rozwiązanie)
 
 ## Done (Zrobione)
+- [x] Konfiguracja i dokumentacja pipeline (branch: docs/pipeline-ops) (2026-02-02)
+  - [x] Opisać minimalny flow uruchomienia (worker/enqueue/job-status) (2026-02-02)
+  - [x] Opisać zmienne `.env` (REDIS_URL, RQ_*_TIMEOUT, FFMPEG_TIMEOUT_S) (2026-02-02)
+  - [x] Dodać notkę o typowych problemach (ffmpeg hang + rozwiązanie) (2026-02-02)
 - [x] Cleanup i obserwowalność pipeline (branch: chore/pipeline-maintenance) (2026-02-02)
   - [x] Wyczyścić/oznaczyć stare joby „running” w DB (po timeoutach) (2026-02-02)
   - [x] Dodać prosty status komendy: summary (queued/running/failed/succeeded) (2026-02-02)
