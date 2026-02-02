@@ -18,7 +18,16 @@ def parse_ideas(path: Path) -> list[dict]:
                 ideas.append(
                     {
                         "title": current_title.strip(),
-                        "summary": " ".join([ln.strip() for ln in current_lines]).strip(),
+                        "summary": " ".join(
+                            [
+                                ln.strip()
+                                for ln in current_lines
+                                if not ln.strip().startswith("Co zobaczysz:")
+                                and not ln.strip().startswith("Preview/Reguły:")
+                            ]
+                        ).strip(),
+                        "what_to_expect": _extract_field(current_lines, "Co zobaczysz:"),
+                        "preview": _extract_field(current_lines, "Preview/Reguły:"),
                     }
                 )
             current_title = m.group(1)
@@ -30,10 +39,26 @@ def parse_ideas(path: Path) -> list[dict]:
         ideas.append(
             {
                 "title": current_title.strip(),
-                "summary": " ".join([ln.strip() for ln in current_lines]).strip(),
+                "summary": " ".join(
+                    [
+                        ln.strip()
+                        for ln in current_lines
+                        if not ln.strip().startswith("Co zobaczysz:")
+                        and not ln.strip().startswith("Preview/Reguły:")
+                    ]
+                ).strip(),
+                "what_to_expect": _extract_field(current_lines, "Co zobaczysz:"),
+                "preview": _extract_field(current_lines, "Preview/Reguły:"),
             }
         )
     return ideas
+
+
+def _extract_field(lines: list[str], label: str) -> str:
+    for line in lines:
+        if line.startswith(label):
+            return line.split(label, 1)[1].strip()
+    return ""
 
 
 def tokenize(text: str) -> list[str]:

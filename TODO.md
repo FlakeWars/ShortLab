@@ -9,8 +9,9 @@
   - [ ] Rozważyć podmianę embeddingu hash->model (real embeddings)
   - [x] Wpiąć Idea Gate jako etap opcjonalny w pipeline (przed generacją DSL) (2026-02-02)
   - [ ] UI dla Idea Gate (lista propozycji + wybór)
-  - [ ] Rozszerzyć opisy propozycji (co użytkownik ma zobaczyć w animacji)
-  - [ ] Dodać „preview” oczekiwanego efektu (np. kluczowe reguły/skrót DSL)
+  - [x] Rozszerzyć opisy propozycji (co użytkownik ma zobaczyć w animacji) (2026-02-02)
+  - [x] Dodać „preview” oczekiwanego efektu (np. kluczowe reguły/skrót DSL) (2026-02-02)
+  - [ ] Zapisać rozszerzone pola (what_to_expect/preview) w DB (Idea) lub metadanych
 - [ ] Panel operacyjny UI (moduł systemu) (branch: feat/ui-ops)
   - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
   - [ ] Lista animacji z filtrem po statusie + podgląd metadanych

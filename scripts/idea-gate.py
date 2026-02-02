@@ -51,6 +51,7 @@ def main() -> None:
         history_vecs = [vec for vec in history if isinstance(vec, list)]
 
         saved: list[Idea] = []
+        idea_meta: dict[int, dict] = {}
         for item in chosen:
             vec = text_to_vec(item["title"] + " " + item["summary"])
             similarity = max_similarity(vec, history_vecs)
@@ -66,10 +67,21 @@ def main() -> None:
             session.commit()
             session.refresh(idea)
             saved.append(idea)
+            idea_meta[idea.id] = {
+                "what_to_expect": item.get("what_to_expect", ""),
+                "preview": item.get("preview", ""),
+            }
 
         for idx, idea in enumerate(saved, start=1):
             flag = "too_similar" if idea.is_too_similar else "ok"
             print(f"[{idx}] {idea.title} (sim={idea.similarity:.3f}, {flag})")
+            meta = idea_meta.get(idea.id, {})
+            if idea.summary:
+                print(f"    Opis: {idea.summary}")
+            if meta.get("what_to_expect"):
+                print(f"    Co zobaczysz: {meta['what_to_expect']}")
+            if meta.get("preview"):
+                print(f"    Preview/Reguły: {meta['preview']}")
 
         if args.select is None and not args.auto:
             print("Use --select N or --auto to choose.")

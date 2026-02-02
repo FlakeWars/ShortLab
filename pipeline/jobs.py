@@ -168,6 +168,10 @@ def generate_dsl_job(
             )
             title = selected.title
             summary = selected.summary
+            if selected.content_hash:
+                payload = animation.dsl_payload or {}
+                payload["idea_hash"] = selected.content_hash
+                animation.dsl_payload = payload
 
             audit = AuditLog(
                 event_type="idea_selected",
