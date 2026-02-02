@@ -16,11 +16,6 @@
   - [ ] Zapisywanie propozycji do DB (Idea) z metadanymi generacji
   - [ ] Fallback do `.ai/ideas.md` gdy AI niedostępne
   - [ ] Walidacja jakości i deduplikacja wejścia (hash/embedding)
-- [ ] Embedding Service (moduł) (branch: feat/embedding-service)
-  - [ ] Adapter do providerów (OpenAI / lokalny)
-  - [ ] Cache + retry + rate limit
-  - [ ] Wersjonowanie embeddingu w DB (model + wersja)
-  - [ ] Fallback do hash-embeddingu w trybie offline
 - [ ] Panel UI: backend API (MVP) (branch: feat/ui-api)
   - [ ] Endpointy statusu pipeline (summary + joby)
   - [ ] Lista animacji + metadane + status QC
@@ -36,8 +31,15 @@
 - [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
   - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
   - [ ] Minimalne auth/guard (operator-only)
+- [ ] Embedding Service: smoke test fastembed (branch: test/embedding-service)
+  - [ ] Zweryfikowac lokalne pobranie modelu i embedding w testowym srodowisku
 
 ## Done (Zrobione)
+- [x] Embedding Service (moduł) (branch: feat/embedding-service) (2026-02-02)
+  - [x] Adapter fastembed (lokalne embeddings, CPU) (2026-02-02)
+  - [x] Cache + retry + rate limit (2026-02-02)
+  - [x] Wersjonowanie embeddingu w DB (model + wersja) (2026-02-02)
+  - [x] Fallback do hash-embeddingu w trybie offline (2026-02-02)
 - [x] Mapa zależności modułów (branch: docs/module-deps) (2026-02-02)
   - [x] Wybrać format (Mermaid/UML/ASCII) i zapisać w repo (2026-02-02)
   - [x] Zarysować zależności między modułami (pipeline, Idea Gate, generator, embeddings, UI) (2026-02-02)
