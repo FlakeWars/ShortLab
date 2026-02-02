@@ -46,6 +46,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).
+  - Jeśli pojawia się warning `nice(5) failed`, uruchom `make api` poza sandboxem (to ograniczenie środowiska, nie projektu).
 
 ### Pipeline (MVP) – minimalny flow
 1. Uruchom infra: `make infra-up`

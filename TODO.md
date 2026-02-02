@@ -1,16 +1,15 @@
 # TODO
 
 ## Now (W toku)
-- [ ] API: read-only audit/metrics (pomocnicze) (branch: feat/api-audit-metrics)
-  - [x] Endpointy: audit_event (lista + filtry), metrics_daily (lista + filtry)
-  - [x] Endpointy: idea_candidate + idea_embedding (listy read-only)
+- [ ] Panel UI: backend API (MVP) (branch: feat/ui-api)
+  - [x] Endpointy statusu pipeline (summary + joby)
+  - [x] Lista animacji + metadane + status QC
+  - [x] Audit log (lista + filtry)
+  - [x] Idea Gate: lista propozycji + status podobienstwa
+  - [x] Naprawa API: sesje DB w `api/main.py` + smoke test endpointow
+  - [ ] Usunac warning `nice(5) failed` przy `make api` (fallback bez `nice`)
 
 ## Next (Kolejne)
-- [ ] Panel UI: backend API (MVP) (branch: feat/ui-api)
-  - [ ] Endpointy statusu pipeline (summary + joby)
-  - [ ] Lista animacji + metadane + status QC
-  - [ ] Audit log (lista + filtry)
-  - [ ] Idea Gate: lista propozycji + status podobienstwa
 - [ ] Panel UI: frontend (MVP) (branch: feat/ui-frontend)
   - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
   - [ ] Lista animacji z filtrem po statusie + podglad metadanych
@@ -24,6 +23,9 @@
 - [ ] Generator pomyslow: integracja LLM provider (branch: feat/idea-generator-llm)
 
 ## Done (Zrobione)
+- [x] API: read-only audit/metrics (pomocnicze) (branch: feat/api-audit-metrics) (2026-02-02)
+  - [x] Endpointy: audit_event (lista + filtry), metrics_daily (lista + filtry)
+  - [x] Endpointy: idea_candidate + idea_embedding (listy read-only)
 - [x] Konsolidacja schematu DB pod `.ai/db-plan.md` (branch: fix/db-schema-core) (2026-02-02)
   - [x] Rozwiązać rozgałęzione heady Alembica (co najmniej 6e3cbd8f7f45, 1d7b9a2f6c3e, 1b9b3c2d9c1a, 9f3a2c7d8b1e) i przygotować plan merge-migracji
   - [x] Ustalić jeden kanoniczny schemat dokładnie wg `.ai/db-plan.md` (nazwy tabel, PK UUID, pola/typy/constrainty)
