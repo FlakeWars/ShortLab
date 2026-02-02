@@ -219,6 +219,26 @@ function App() {
   const [auditSource, setAuditSource] = useState('')
   const [auditActor, setAuditActor] = useState('')
 
+  const [enqueueDsl, setEnqueueDsl] = useState('.ai/examples/dsl-v1-happy.yaml')
+  const [enqueueOutRoot, setEnqueueOutRoot] = useState('out/pipeline')
+  const [enqueueIdeaGate, setEnqueueIdeaGate] = useState(false)
+  const [rerunAnimationId, setRerunAnimationId] = useState('')
+  const [rerunOutRoot, setRerunOutRoot] = useState('out/pipeline')
+  const [cleanupOlderMin, setCleanupOlderMin] = useState('30')
+  const [opsMessage, setOpsMessage] = useState<string | null>(null)
+  const [opsError, setOpsError] = useState<string | null>(null)
+  const [opsEnqueueLoading, setOpsEnqueueLoading] = useState(false)
+  const [opsRerunLoading, setOpsRerunLoading] = useState(false)
+  const [opsCleanupLoading, setOpsCleanupLoading] = useState(false)
+
+  const opsHeaders = () => {
+    const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
+    if (token) {
+      return { 'Content-Type': 'application/json', 'X-Operator-Token': token }
+    }
+    return { 'Content-Type': 'application/json' }
+  }
+
   const fetchSummary = async () => {
     setSummaryLoading(true)
     setSummaryError(null)
@@ -333,6 +353,84 @@ function App() {
       setAuditError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setAuditLoading(false)
+    }
+  }
+
+  const handleEnqueue = async () => {
+    setOpsEnqueueLoading(true)
+    setOpsError(null)
+    setOpsMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/ops/enqueue`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          dsl_template: enqueueDsl,
+          out_root: enqueueOutRoot,
+          idea_gate: enqueueIdeaGate,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setOpsMessage(`Enqueued: ${JSON.stringify(payload)}`)
+      fetchSummary()
+    } catch (err) {
+      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setOpsEnqueueLoading(false)
+    }
+  }
+
+  const handleRerun = async () => {
+    setOpsRerunLoading(true)
+    setOpsError(null)
+    setOpsMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/ops/rerun`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          animation_id: rerunAnimationId,
+          out_root: rerunOutRoot,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setOpsMessage(`Rerun queued: ${JSON.stringify(payload)}`)
+      fetchSummary()
+    } catch (err) {
+      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setOpsRerunLoading(false)
+    }
+  }
+
+  const handleCleanup = async () => {
+    setOpsCleanupLoading(true)
+    setOpsError(null)
+    setOpsMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/ops/cleanup-jobs`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          older_min: Number(cleanupOlderMin || 30),
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setOpsMessage(`Cleanup done: ${JSON.stringify(payload)}`)
+      fetchSummary()
+    } catch (err) {
+      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setOpsCleanupLoading(false)
     }
   }
 
@@ -1039,6 +1137,113 @@ function App() {
               </tbody>
             </table>
           )}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Operations</h2>
+            <p className="text-sm text-stone-600">
+              Trigger pipeline actions (enqueue, rerun, cleanup) directly from the panel.
+            </p>
+          </div>
+          <Badge variant="outline" className="border border-amber-200 text-amber-800">
+            operator-only
+          </Badge>
+        </div>
+
+        {opsMessage ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
+            {opsMessage}
+          </div>
+        ) : null}
+        {opsError ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
+            {opsError}
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <div className="text-sm font-semibold text-stone-900">Enqueue pipeline</div>
+            <div className="text-xs text-stone-500">Start a fresh pipeline run.</div>
+            <div className="mt-3 space-y-2 text-sm">
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                DSL template
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={enqueueDsl}
+                  onChange={(event) => setEnqueueDsl(event.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                Output root
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={enqueueOutRoot}
+                  onChange={(event) => setEnqueueOutRoot(event.target.value)}
+                />
+              </label>
+              <label className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-stone-500">
+                Idea Gate
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-stone-300"
+                  checked={enqueueIdeaGate}
+                  onChange={(event) => setEnqueueIdeaGate(event.target.checked)}
+                />
+              </label>
+              <Button className="w-full rounded-full" onClick={handleEnqueue} disabled={opsEnqueueLoading}>
+                {opsEnqueueLoading ? 'Enqueuing…' : 'Enqueue'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <div className="text-sm font-semibold text-stone-900">Rerun render</div>
+            <div className="text-xs text-stone-500">Requeue a render for a chosen animation.</div>
+            <div className="mt-3 space-y-2 text-sm">
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                Animation ID
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  placeholder="UUID"
+                  value={rerunAnimationId}
+                  onChange={(event) => setRerunAnimationId(event.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                Output root
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={rerunOutRoot}
+                  onChange={(event) => setRerunOutRoot(event.target.value)}
+                />
+              </label>
+              <Button className="w-full rounded-full" onClick={handleRerun} disabled={opsRerunLoading}>
+                {opsRerunLoading ? 'Requeuing…' : 'Rerun render'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <div className="text-sm font-semibold text-stone-900">Cleanup jobs</div>
+            <div className="text-xs text-stone-500">Mark stale running jobs as failed.</div>
+            <div className="mt-3 space-y-2 text-sm">
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                Older than (min)
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={cleanupOlderMin}
+                  onChange={(event) => setCleanupOlderMin(event.target.value)}
+                />
+              </label>
+              <Button className="w-full rounded-full" onClick={handleCleanup} disabled={opsCleanupLoading}>
+                {opsCleanupLoading ? 'Cleaning…' : 'Cleanup jobs'}
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -2,8 +2,8 @@
 
 ## Now (W toku)
 - [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
-  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
-  - [ ] Minimalne auth/guard (operator-only)
+  - [x] Akcje operacyjne: enqueue, rerun, cleanup jobow
+  - [x] Minimalne auth/guard (operator-only)
 
 ## Next (Kolejne)
 - [ ] API/UI: polityka serwowania artefaktow (branch: fix/api-artifacts)

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
+from os import getenv
 from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import and_, desc, func, select
 
 from db.models import (
@@ -16,12 +18,13 @@ from db.models import (
     Artifact,
     IdeaCandidate,
     IdeaEmbedding,
-    Job,
     MetricsDaily,
     QCDecision,
     Render,
+    Job,
 )
 from db.session import SessionLocal
+from pipeline.queue import enqueue_pipeline, enqueue_render
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
 
@@ -34,6 +37,14 @@ def _paginate(limit: int, offset: int) -> tuple[int, int]:
 
 def _encode(obj) -> dict:
     return jsonable_encoder(obj)
+
+
+def _require_operator(x_operator_token: str | None = Header(default=None)) -> None:
+    expected = getenv("OPERATOR_TOKEN", "")
+    if not expected:
+        return
+    if x_operator_token != expected:
+        raise HTTPException(status_code=401, detail="operator_token_required")
 
 
 def _animation_row(animation: Animation, render: Render | None, qc: QCDecision | None) -> dict:
@@ -70,6 +81,21 @@ def _animation_row(animation: Animation, render: Render | None, qc: QCDecision |
             "decided_at": qc.decided_at,
         }
     return jsonable_encoder(payload)
+
+
+class EnqueueRequest(BaseModel):
+    dsl_template: str = Field(default=".ai/examples/dsl-v1-happy.yaml")
+    out_root: str = Field(default="out/pipeline")
+    idea_gate: bool = Field(default=False)
+
+
+class RerunRequest(BaseModel):
+    animation_id: UUID
+    out_root: str = Field(default="out/pipeline")
+
+
+class CleanupRequest(BaseModel):
+    older_min: int = Field(default=30, ge=1, le=1440)
 
 
 @app.get("/health")
@@ -354,5 +380,39 @@ def get_artifact_file(artifact_id: UUID):
             media_type = "application/json"
 
         return FileResponse(path=str(storage_path), media_type=media_type)
+    finally:
+        session.close()
+
+
+@app.post("/ops/enqueue")
+def ops_enqueue(request: EnqueueRequest, _guard: None = Depends(_require_operator)) -> dict:
+    result = enqueue_pipeline(
+        request.dsl_template,
+        request.out_root,
+        request.idea_gate,
+    )
+    return jsonable_encoder(result)
+
+
+@app.post("/ops/rerun")
+def ops_rerun(request: RerunRequest, _guard: None = Depends(_require_operator)) -> dict:
+    result = enqueue_render(str(request.animation_id), request.out_root)
+    return jsonable_encoder(result)
+
+
+@app.post("/ops/cleanup-jobs")
+def ops_cleanup_jobs(request: CleanupRequest, _guard: None = Depends(_require_operator)) -> dict:
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=request.older_min)
+    session = SessionLocal()
+    try:
+        stmt = select(Job).where(and_(Job.status == "running", Job.updated_at < cutoff))
+        jobs = session.execute(stmt).scalars().all()
+        for job in jobs:
+            job.status = "failed"
+            job.error_payload = {"message": f"auto-cleanup: running > {request.older_min} min"}
+            job.updated_at = datetime.now(timezone.utc)
+            session.add(job)
+        session.commit()
+        return {"marked_failed": len(jobs)}
     finally:
         session.close()
