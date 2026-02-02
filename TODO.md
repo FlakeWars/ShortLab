@@ -1,11 +1,9 @@
 # TODO
 
 ## Now (W toku)
-_brak_
+- _brak_
 
 ## Next (Kolejne)
-- [ ] Sync TODO po merge (moduły/zależności) (branch: chore/todo-sync)
-  - [ ] Sprawdzić, czy nowe moduły są wpisane w `TODO.md` na `main`
 - [ ] Mapa zależności modułów (branch: docs/module-deps)
   - [ ] Wybrać format (Mermaid/UML/ASCII) i zapisać w repo
   - [ ] Zarysować zależności między modułami (pipeline, Idea Gate, generator, embeddings, UI)
@@ -13,8 +11,31 @@ _brak_
   - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
   - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
   - [ ] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów
+  - [ ] Zastąpić hash-embedding przez moduł Embeddings (dependency)
+  - [ ] Zapisać rozszerzone pola (what_to_expect/preview) w DB (Idea) lub metadanych
+  - [ ] Źródło pomysłów: generator + fallback do pliku (integracja)
+- [ ] Generator pomysłów (moduł) (branch: feat/idea-generator)
+  - [ ] Generowanie pomysłów przez AI (prompt + parametry)
+  - [ ] Zapisywanie propozycji do DB (Idea) z metadanymi generacji
+  - [ ] Fallback do `.ai/ideas.md` gdy AI niedostępne
+  - [ ] Walidacja jakości i deduplikacja wejścia (hash/embedding)
+- [ ] Embedding Service (moduł) (branch: feat/embedding-service)
+  - [ ] Adapter do providerów (OpenAI / lokalny)
+  - [ ] Cache + retry + rate limit
+  - [ ] Wersjonowanie embeddingu w DB (model + wersja)
+  - [ ] Fallback do hash-embeddingu w trybie offline
+- [ ] Panel operacyjny UI (moduł systemu) (branch: feat/ui-ops)
+  - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
+  - [ ] Lista animacji z filtrem po statusie + podgląd metadanych
+  - [ ] Podgląd renderów (wideo + metadane) + status QC
+  - [ ] Sekcja Idea Gate: propozycje + wybór + podobieństwo
+  - [ ] Historia zdarzeń (audit log) + filtr po typie
+  - [ ] Ustawienia (timeouts, .env flags) tylko do podglądu w MVP
+  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobów
 
 ## Done (Zrobione)
+- [x] Sync TODO po merge (moduły/zależności) (branch: chore/todo-sync) (2026-02-02)
+  - [x] Sprawdzić, czy nowe moduły są wpisane w `TODO.md` na `main` (2026-02-02)
 - [x] Konfiguracja i dokumentacja pipeline (branch: docs/pipeline-ops) (2026-02-02)
   - [x] Opisać minimalny flow uruchomienia (worker/enqueue/job-status) (2026-02-02)
   - [x] Opisać zmienne `.env` (REDIS_URL, RQ_*_TIMEOUT, FFMPEG_TIMEOUT_S) (2026-02-02)
