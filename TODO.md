@@ -21,14 +21,21 @@
   - [ ] Cache + retry + rate limit
   - [ ] Wersjonowanie embeddingu w DB (model + wersja)
   - [ ] Fallback do hash-embeddingu w trybie offline
-- [ ] Panel operacyjny UI (moduł systemu) (branch: feat/ui-ops)
+- [ ] Panel UI: backend API (MVP) (branch: feat/ui-api)
+  - [ ] Endpointy statusu pipeline (summary + joby)
+  - [ ] Lista animacji + metadane + status QC
+  - [ ] Audit log (lista + filtry)
+  - [ ] Idea Gate: lista propozycji + status podobienstwa
+- [ ] Panel UI: frontend (MVP) (branch: feat/ui-frontend)
   - [ ] Dashboard stanu pipeline (queued/running/failed/succeeded) + ostatnie joby
-  - [ ] Lista animacji z filtrem po statusie + podgląd metadanych
-  - [ ] Podgląd renderów (wideo + metadane) + status QC
-  - [ ] Sekcja Idea Gate: propozycje + wybór + podobieństwo
-  - [ ] Historia zdarzeń (audit log) + filtr po typie
-  - [ ] Ustawienia (timeouts, .env flags) tylko do podglądu w MVP
-  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobów
+  - [ ] Lista animacji z filtrem po statusie + podglad metadanych
+  - [ ] Podglad renderow (wideo + metadane) + status QC
+  - [ ] Sekcja Idea Gate: propozycje + wybor + podobienstwo
+  - [ ] Historia zdarzen (audit log) + filtr po typie
+  - [ ] Ustawienia (timeouts, .env flags) tylko do podgladu w MVP
+- [ ] Panel UI: integracja operacyjna (branch: feat/ui-ops)
+  - [ ] Akcje operacyjne: enqueue, rerun, cleanup jobow
+  - [ ] Minimalne auth/guard (operator-only)
 
 ## Done (Zrobione)
 - [x] Mapa zależności modułów (branch: docs/module-deps) (2026-02-02)
