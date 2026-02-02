@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     JSON,
     DateTime,
     Float,
@@ -82,8 +83,10 @@ class Idea(Base):
     )
     title: Mapped[str] = mapped_column(String(200))
     summary: Mapped[str] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
     embedding: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
     similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_too_similar: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

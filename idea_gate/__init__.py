@@ -1,0 +1,1 @@
+"""Idea gate package."""

@@ -33,6 +33,8 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make job-status` – pokazuje ostatnie joby.
 - `make job-summary` – podsumowanie statusów jobów.
 - `make job-cleanup OLDER_MIN=30` – oznacza stare joby `running` jako `failed`.
+- `make idea-gate` – proponuje pomysły i wybór (Idea Gate).
+  - Używa `.ai/ideas.md`, wybór przez `IDEA_GATE_SELECT` lub `IDEA_GATE_AUTO=1`.
 
 ### Pipeline (MVP) – minimalny flow
 1. Uruchom infra: `make infra-up`
@@ -46,6 +48,10 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `REDIS_URL` – połączenie do Redis (RQ).
 - `RQ_JOB_TIMEOUT` / `RQ_RENDER_TIMEOUT` – timeouty jobów w sekundach.
 - `FFMPEG_TIMEOUT_S` – timeout ffmpeg w rendererze.
+- `IDEA_GATE_COUNT` – liczba propozycji w Idea Gate.
+- `IDEA_GATE_THRESHOLD` – próg podobieństwa (oznaczanie „too_similar”).
+- `IDEA_GATE_AUTO` – jeśli `1`, wybiera automatycznie najniższe podobieństwo.
+- `IDEA_GATE_SELECT` – ręczny wybór (1-based indeks z listy).
 
 ## Makefile
 Dostępne cele:

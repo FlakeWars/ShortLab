@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 -include .env
 .DEFAULT_GOAL := help
+export
 
 PROJECT := shortlab
 PYTHON ?= python3
@@ -13,6 +14,8 @@ DSL ?= .ai/examples/dsl-v1-happy.yaml
 RENDER_OUT ?= out/render
 RENDER_VIDEO ?= out/render.mp4
 OLDER_MIN ?= 30
+IDEA_GATE_SELECT ?=
+IDEA_GATE_AUTO ?= 0
 
 # Optional paths (adjust when code exists)
 BACKEND_DIR ?= backend
@@ -149,6 +152,16 @@ rerender: ## Rerender from metadata/seed (placeholder)
 .PHONY: job-cleanup
 job-cleanup: ## Mark stale running jobs as failed
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/cleanup-jobs.py --older-min "$(OLDER_MIN)"
+
+.PHONY: idea-gate
+idea-gate: ## Propose ideas and select one (Idea Gate)
+	@if [ -n "$(IDEA_GATE_SELECT)" ]; then \
+		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py --select "$(IDEA_GATE_SELECT)"; \
+	elif [ "$(IDEA_GATE_AUTO)" = "1" ]; then \
+		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py --auto; \
+	else \
+		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py; \
+	fi
 
 # --- Data / exports ---
 .PHONY: export

@@ -1,13 +1,16 @@
 # TODO
 
 ## Now (W toku)
-_brak_
+- [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
+  - [x] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto) (2026-02-02)
+  - [x] Hash DSL + embedding pomysłu do wykrywania podobieństw (2026-02-02)
+  - [x] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów (2026-02-02)
+  - [x] Uruchomić `make db-migrate` lokalnie (kolumny Idea Gate) (2026-02-02)
+  - [ ] Rozważyć podmianę embeddingu hash->model (real embeddings)
+  - [ ] Wpiąć Idea Gate jako etap opcjonalny w pipeline (przed generacją DSL)
+  - [x] Usunąć warning datetime.utcnow + poprawić auto-selekcję przy `too_similar` (2026-02-02)
 
 ## Next (Kolejne)
-- [ ] Idea Gate + unikalność pomysłów (branch: feat/idea-gate)
-  - [ ] Propozycja 3–5 pomysłów i wybór operatora (opcjonalnie auto)
-  - [ ] Hash DSL + embedding pomysłu do wykrywania podobieństw
-  - [ ] Próg podobieństwa + oznaczanie zbyt podobnych pomysłów
 
 ## Done (Zrobione)
 - [x] Konfiguracja i dokumentacja pipeline (branch: docs/pipeline-ops) (2026-02-02)
