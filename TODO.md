@@ -1,12 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Idea Repository (branch: feat/idea-repo)
-  - [x] Doprecyzować kontrakt (stany: new/later/rejected/picked) i losowanie N
-  - [x] Zmiany DB: status/decyzje + audit (rejected -> delete)
-  - [x] Losowanie: status in (new,later), natychmiastowy powrót "later"
-  - [x] Pipeline zatrzymuje się bez wyboru (brak auto-selekcji)
-  - [x] API/UI: losowanie + klasyfikacja wszystkich N (picked/later/rejected)
 
 ## Next (Kolejne)
 - [ ] LLM DSL Compiler (module planning) (branch: feat/llm-dsl-compiler)
@@ -109,6 +103,12 @@
   - [ ] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Idea Repository (branch: feat/idea-repo) (2026-02-03)
+  - [x] Doprecyzować kontrakt (stany: new/later/rejected/picked) i losowanie N
+  - [x] Zmiany DB: status/decyzje + audit (rejected -> delete)
+  - [x] Losowanie: status in (new,later), natychmiastowy powrót "later"
+  - [x] Pipeline zatrzymuje się bez wyboru (brak auto-selekcji)
+  - [x] API/UI: losowanie + klasyfikacja wszystkich N (picked/later/rejected)
 - [x] Stabilizacja pycairo na ARM64 (branch: fix/pycairo-arm) (2026-02-03)
   - [x] Dodać instrukcję budowy pycairo z źródeł (ENV flags) i target Makefile
   - [x] Zweryfikować `make pycairo-arm` na czystym setupie (Xcode CLT + Brew cairo)
