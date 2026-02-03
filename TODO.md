@@ -1,11 +1,24 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Brak aktywnych zadan
+- Brak aktywnych zadan
 
 ## Next (Kolejne)
+- [ ] Stabilizacja pycairo na ARM64 (branch: fix/pycairo-arm)
+  - [x] Dodać instrukcję budowy pycairo z źródeł (ENV flags) i target Makefile
+  - [ ] Zweryfikować `make pycairo-arm` na czystym setupie (Xcode CLT + Brew cairo)
+  - [ ] Dopisać meson do Brewfile i instrukcji (wymagany przez pycairo build)
+- [ ] Re-lock zależności dla Python 3.12 (branch: chore/py312-lock)
+  - [ ] `make deps-py-lock` + `make deps-py-uv` bez błędów na cp312
 
 ## Done (Zrobione)
+- [x] Dev runner: make run-dev / stop-dev (branch: chore/run-dev) (2026-02-02)
+  - [x] Skrypt uruchamiania API+UI+worker z jednymi portami i REDIS db=1
+  - [x] Skrypt zatrzymywania procesow
+- [x] Ujednolicenie Pythona do 3.12 w całym repo (branch: chore/python-3-12) (2026-02-02)
+  - [x] versions.env + .mise.toml + pyproject + uv.lock
+  - [x] Makefile + run-dev bez osobnego venv
+  - [x] Usunięcie lokalnego .venv312
 - [x] Settings runtime: API endpoint do podgladu configu (branch: feat/settings-api) (2026-02-02)
   - [x] UI pobiera ustawienia z API zamiast VITE_*
 - [x] Security: wymusic token operatora w prod (branch: fix/ops-guard) (2026-02-02)

@@ -7,5 +7,6 @@ brew "ffmpeg"
 brew "cairo"
 brew "uv"
 brew "poetry"
+brew "meson"
 
 cask "docker"

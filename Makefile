@@ -8,7 +8,8 @@ PYTHON ?= python3
 VENV_DIR ?= .venv
 VENV_BIN := $(VENV_DIR)/bin
 PIP := $(VENV_BIN)/pip
-UV := $(VENV_BIN)/uv
+UV_CMD := $(if $(wildcard $(VENV_BIN)/uv),$(VENV_BIN)/uv,uv)
+UV_LOCK_ARGS ?=
 POETRY := $(VENV_BIN)/poetry
 DSL ?= .ai/examples/dsl-v1-happy.yaml
 RENDER_OUT ?= out/render
@@ -29,6 +30,7 @@ QC_NOTES ?=
 QC_DECIDED_BY ?=
 ANIMATION_ID ?=
 API_PORT ?= 8000
+REDIS_URL_DEV ?= redis://localhost:6379/1
 PUBLISH_PLATFORM ?= youtube
 PUBLISH_STATUS ?= queued
 PUBLISH_CONTENT_ID ?=
@@ -85,7 +87,7 @@ venv: ## Create Python venv
 .PHONY: deps-py-uv
 deps-py-uv: venv ## Install Python deps with uv (if lock exists)
 	@if [ -f pyproject.toml ]; then \
-		UV_CACHE_DIR=.uv-cache uv sync --group dev; \
+		UV_CACHE_DIR=.uv-cache $(UV_CMD) sync --python "$(VENV_BIN)/python" --group dev; \
 	else \
 		echo "pyproject.toml not found"; \
 	fi
@@ -93,7 +95,7 @@ deps-py-uv: venv ## Install Python deps with uv (if lock exists)
 .PHONY: deps-py-lock
 deps-py-lock: ## Update uv lockfile
 	@if [ -f pyproject.toml ]; then \
-		UV_CACHE_DIR=.uv-cache uv lock; \
+		UV_CACHE_DIR=.uv-cache $(UV_CMD) lock --python "$(VENV_BIN)/python" $(UV_LOCK_ARGS); \
 	else \
 		echo "pyproject.toml not found"; \
 	fi
@@ -109,6 +111,11 @@ deps-py-poetry: venv ## Install Python deps with poetry (if lock exists)
 	else \
 		echo "pyproject.toml not found"; \
 	fi
+
+.PHONY: pycairo-arm
+pycairo-arm: ## Rebuild pycairo from source for macOS ARM64
+	@chmod +x ./scripts/install-pycairo-arm.sh
+	@./scripts/install-pycairo-arm.sh
 
 .PHONY: deps-frontend
 deps-frontend: ## Install frontend deps (if frontend exists)
@@ -144,6 +151,10 @@ api: ## Run backend API (placeholder)
 worker: ## Run worker process (placeholder)
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py
 
+.PHONY: worker-dev
+worker-dev: ## Run worker with isolated Redis DB
+	@REDIS_URL="$(REDIS_URL_DEV)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py
+
 .PHONY: worker-burst
 worker-burst: ## Run worker in burst mode (process jobs then exit)
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py --burst
@@ -156,9 +167,17 @@ scheduler: ## Run scheduler (placeholder)
 enqueue: ## Enqueue minimal pipeline job
 	@IDEA_GATE_ENABLED="$(IDEA_GATE_ENABLED)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/enqueue.py
 
+.PHONY: enqueue-dev
+enqueue-dev: ## Enqueue pipeline job with isolated Redis DB
+	@REDIS_URL="$(REDIS_URL_DEV)" IDEA_GATE_ENABLED="$(IDEA_GATE_ENABLED)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/enqueue.py
+
 .PHONY: job-status
 job-status: ## Show recent pipeline job statuses
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py
+
+.PHONY: job-status-dev
+job-status-dev: ## Show job statuses with isolated Redis DB
+	@REDIS_URL="$(REDIS_URL_DEV)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py
 
 .PHONY: job-summary
 job-summary: ## Show job status summary
@@ -320,6 +339,14 @@ ui: ## Run review panel (placeholder)
 		echo "$(FRONTEND_DIR) not found"; \
 	fi
 
+.PHONY: run-dev
+run-dev: ## Run API + UI + worker with shared dev settings
+	@API_PORT=8016 UI_PORT=5173 REDIS_URL=redis://localhost:6379/1 ./scripts/run-dev.sh
+
+.PHONY: stop-dev
+stop-dev: ## Stop processes started by run-dev
+	@./scripts/stop-dev.sh
+
 # --- Tests ---
 .PHONY: test
 
@@ -353,7 +380,11 @@ format: ## Format code (placeholder)
 .PHONY: doctor
 
 doctor: ## Quick environment checks
-	@echo "Python: $$($(PYTHON) --version 2>/dev/null || echo 'missing')"
+	@echo "python: $$(command -v python || echo missing)"
+	@echo "python -V: $$($(PYTHON) -V 2>/dev/null || echo missing)"
+	@echo "VENV_DIR: $(VENV_DIR)"
+	@echo ".venv python: $$($(VENV_BIN)/python -V 2>/dev/null || echo missing)"
+	@echo "VIRTUAL_ENV: $${VIRTUAL_ENV:-unset}"
 	@echo "Node: $$(node --version 2>/dev/null || echo 'missing')"
 	@echo "FFmpeg: $$(ffmpeg -version 2>/dev/null | head -n 1 || echo 'missing')"
 	@echo "Docker: $$(docker --version 2>/dev/null || echo 'missing')"

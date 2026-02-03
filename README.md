@@ -19,6 +19,10 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 3. Utwórz venv i zależności:
    - `make venv`
    - `make deps-py-uv` lub `make deps-py-poetry`
+   - Jeśli pycairo nie ładuje się na ARM64: `make pycairo-arm`
+   - Jeśli widzisz ostrzeżenie o `VIRTUAL_ENV`, wykonaj `deactivate` lub `unset VIRTUAL_ENV`
+   - Jeśli zmieniasz wersję Pythona: `make deps-py-lock UV_LOCK_ARGS=--upgrade`
+   - Jeśli masz `pyenv` w PATH, uruchamiaj polecenia przez `.venv/bin/python` lub Makefile
 4. Uruchom infrastrukturę:
    - Docker Desktop zainstaluj manualnie (bootstrap pomija cask)
    - `make infra-up`
@@ -26,6 +30,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
    - `make api`
    - `make worker`
    - `make ui`
+   - `make run-dev` – uruchamia API+UI+worker z domyślnymi portami i REDIS db=1
 
 ### Pipeline (MVP) – komendy operacyjne
 - `make worker` – startuje workera RQ.
@@ -49,6 +54,8 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).
   - `OPERATOR_TOKEN=sekret make api` – włącza guard operatora dla `/ops/*`.
   - Jeśli pojawia się warning `nice(5) failed`, uruchom `make api` poza sandboxem (to ograniczenie środowiska, nie projektu).
+- `make run-dev` – spójne uruchomienie API+UI+worker (PORT API=8016, UI=5173, REDIS db=1).
+- `make stop-dev` – zatrzymuje procesy uruchomione przez `make run-dev`.
 
 ### Operacje (API) – przykłady curl
 Zakładając `OPERATOR_TOKEN=sekret`:

@@ -5,14 +5,15 @@ import path from 'node:path'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const apiTarget = env.VITE_API_TARGET || 'http://localhost:8000'
+  const apiTarget = process.env.VITE_API_TARGET || env.VITE_API_TARGET || 'http://localhost:8000'
 
   return {
     plugins: [react()],
     resolve: {
-      alias: {
-        '@': path.resolve(__dirname, './src'),
-      },
+      alias: [
+        { find: /^@\//, replacement: `${path.resolve(__dirname, './src')}/` },
+        { find: '@', replacement: path.resolve(__dirname, './src') },
+      ],
     },
     server: {
       proxy: {
@@ -20,6 +21,7 @@ export default defineConfig(({ mode }) => {
           target: apiTarget,
           changeOrigin: true,
           secure: false,
+          rewrite: (path) => path.replace(/^\/api/, ''),
         },
       },
     },

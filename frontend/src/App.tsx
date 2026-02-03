@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
+import { Badge } from './components/ui/badge'
+import { Button } from './components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
+import { cn } from './lib/utils'
 
 type Job = {
   id: string
@@ -98,7 +98,17 @@ const ANIMATION_STATUSES = [
 const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
 const IDEA_SIMILARITY = ['ok', 'too_similar', 'unknown']
 
-const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')
+const explicitApiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_TARGET
+const fallbackApiBase = (() => {
+  if (typeof window === 'undefined') return '/api'
+  const host = window.location.hostname
+  const port = window.location.port
+  if ((host === 'localhost' || host === '127.0.0.1') && port === '5173') {
+    return 'http://localhost:8016'
+  }
+  return '/api'
+})()
+const API_BASE = (explicitApiBase || fallbackApiBase).replace(/\/$/, '')
 
 type SettingsResponse = {
   database_url?: string

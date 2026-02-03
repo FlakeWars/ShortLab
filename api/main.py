@@ -7,6 +7,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -26,6 +27,14 @@ from db.models import (
 from db.session import SessionLocal
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def _paginate(limit: int, offset: int) -> tuple[int, int]:

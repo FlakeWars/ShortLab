@@ -1,8 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
-@plugin 'tailwindcss-animate';
 @import 'tailwindcss';
 @import "tw-animate-css";
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@config "../tailwind.config.js";
+@source "../src/**/*.{ts,tsx}";
+@plugin 'tailwindcss-animate';
 
 @custom-variant dark (&:is(.dark *));
 
