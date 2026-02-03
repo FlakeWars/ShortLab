@@ -266,15 +266,20 @@ end$$;
         sa.Column("preview", sa.Text(), nullable=True),
         sa.Column("generator_source", sa.Text(), nullable=False),
         sa.Column("similarity_status", sa.Text(), nullable=False),
+        sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'new'")),
         sa.Column("selected", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("selected_by", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("selected_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("decision_by", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column("decision_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["idea_batch_id"], ["idea_batch.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["selected_by"], ["user_account.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["decision_by"], ["user_account.id"], ondelete="SET NULL"),
         sa.CheckConstraint("generator_source in ('ai', 'fallback', 'manual')", name="ck_idea_candidate_generator_source"),
         sa.CheckConstraint("similarity_status in ('ok', 'too_similar', 'unknown')", name="ck_idea_candidate_similarity_status"),
+        sa.CheckConstraint("status in ('new', 'later', 'picked')", name="ck_idea_candidate_status"),
     )
 
     op.create_table(

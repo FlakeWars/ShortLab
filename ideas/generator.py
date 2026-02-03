@@ -111,6 +111,7 @@ def save_ideas(
             preview=idea.preview,
             generator_source=_map_generator_source(idea.source),
             similarity_status=similarity_status,
+            status="new",
             created_at=datetime.utcnow(),
         )
         session.add(record)

@@ -36,14 +36,13 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make worker` – startuje workera RQ.
 - `make worker-burst` – worker w trybie burst (przetwarza i kończy).
 - `make enqueue` – wrzuca minimalny job (generacja DSL -> render).
-  - `IDEA_GATE_ENABLED=1 make enqueue` – włącza Idea Gate w pipeline.
+  - Idea Gate: najpierw wybierz pomysł z repozytorium (UI lub `make idea-gate`), potem uruchom enqueue z wybraną ideą.
 - `make job-status` – pokazuje ostatnie joby.
 - `make job-summary` – podsumowanie statusów jobów.
 - `make job-failed` – lista jobów `failed` z payloadem błędu.
 - `make cleanup-jobs OLDER_MIN=30` – oznacza stare joby `running` jako `failed`.
 - `make purge-failed-jobs OLDER_MIN=60` – usuwa stare joby `failed`.
-- `make idea-gate` – proponuje pomysły i wybór (Idea Gate).
-  - Używa `.ai/ideas.md`, wybór przez `IDEA_GATE_SELECT` lub `IDEA_GATE_AUTO=1`.
+- `make idea-gate` – losuje propozycje z repo i wymusza klasyfikację (picked/later/rejected).
 - `make qc-decide ANIMATION_ID=... QC_RESULT=accepted` – zapis decyzji QC.
 - `make publish-record RENDER_ID=... PUBLISH_PLATFORM=youtube` – zapis publikacji.
 - `make metrics-daily METRICS_CONTENT_ID=... METRICS_DATE=YYYY-MM-DD` – zapis metryk dziennych.
@@ -88,10 +87,7 @@ curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
 - `REDIS_URL` – połączenie do Redis (RQ).
 - `RQ_JOB_TIMEOUT` / `RQ_RENDER_TIMEOUT` – timeouty jobów w sekundach.
 - `FFMPEG_TIMEOUT_S` – timeout ffmpeg w rendererze.
-- `IDEA_GATE_COUNT` – liczba propozycji w Idea Gate.
-- `IDEA_GATE_THRESHOLD` – próg podobieństwa (oznaczanie „too_similar”).
-- `IDEA_GATE_AUTO` – jeśli `1`, wybiera automatycznie najniższe podobieństwo.
-- `IDEA_GATE_SELECT` – ręczny wybór (1-based indeks z listy).
+- `IDEA_GATE_COUNT` – liczba propozycji losowanych w Idea Gate.
 - `OPENAI_API_KEY` – klucz do generatora pomysłów (opcjonalny).
 - `OPENAI_MODEL` – model OpenAI dla generatora pomysłów (np. `gpt-4o-mini`).
 - `OPENAI_BASE_URL` – endpoint API (domyślnie `https://api.openai.com/v1`).
@@ -106,6 +102,7 @@ Dostępne cele:
 - `make help` – lista targetów.
 - `make doctor` – szybka diagnostyka środowiska.
 - `make infra-up` / `infra-down` – Postgres/Redis/MinIO.
+- `make db-reset` – resetuje schemat DB (drop + migrate, używa `DATABASE_URL`; jeśli brak psql, użyje kontenera Postgres z compose).
 
 ## Dokumentacja
 - `/.ai/prd.md` – wymagania produktu.

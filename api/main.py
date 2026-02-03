@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+import hashlib
 from os import getenv
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -17,6 +18,7 @@ from db.models import (
     Animation,
     AuditEvent,
     Artifact,
+    Idea,
     IdeaCandidate,
     IdeaEmbedding,
     MetricsDaily,
@@ -45,6 +47,11 @@ def _paginate(limit: int, offset: int) -> tuple[int, int]:
 
 def _encode(obj) -> dict:
     return jsonable_encoder(obj)
+
+
+def _hash_idea(title: str, summary: str) -> str:
+    payload = f"{title}\n{summary}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _require_operator(x_operator_token: str | None = Header(default=None)) -> None:
@@ -102,6 +109,16 @@ class EnqueueRequest(BaseModel):
     dsl_template: str = Field(default=".ai/examples/dsl-v1-happy.yaml")
     out_root: str = Field(default="out/pipeline")
     idea_gate: bool = Field(default=False)
+    idea_id: UUID | None = Field(default=None)
+
+
+class IdeaDecisionItem(BaseModel):
+    idea_candidate_id: UUID
+    decision: Literal["picked", "later", "rejected"]
+
+
+class IdeaDecisionRequest(BaseModel):
+    decisions: List[IdeaDecisionItem]
 
 
 class RerunRequest(BaseModel):
@@ -228,6 +245,111 @@ def list_idea_candidates(
         stmt = stmt.order_by(desc(IdeaCandidate.created_at)).limit(limit).offset(offset)
         rows = session.execute(stmt).scalars().all()
         return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
+@app.get("/idea-repo/sample")
+def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
+    session = SessionLocal()
+    try:
+        stmt = (
+            select(IdeaCandidate)
+            .where(IdeaCandidate.status.in_(["new", "later"]))
+            .order_by(func.random())
+            .limit(limit)
+        )
+        rows = session.execute(stmt).scalars().all()
+        return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
+@app.post("/idea-repo/decide")
+def decide_idea_repo(
+    request: IdeaDecisionRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        if not request.decisions:
+            raise HTTPException(status_code=400, detail="decisions_required")
+
+        picked = [item for item in request.decisions if item.decision == "picked"]
+        if len(picked) != 1:
+            raise HTTPException(status_code=400, detail="exactly_one_picked_required")
+
+        ids = [item.idea_candidate_id for item in request.decisions]
+        stmt = select(IdeaCandidate).where(IdeaCandidate.id.in_(ids))
+        candidates = session.execute(stmt).scalars().all()
+        if len(candidates) != len(ids):
+            raise HTTPException(status_code=404, detail="idea_candidate_not_found")
+
+        by_id = {candidate.id: candidate for candidate in candidates}
+        now = datetime.now(timezone.utc)
+
+        picked_candidate = by_id[picked[0].idea_candidate_id]
+        if picked_candidate.status == "picked":
+            raise HTTPException(status_code=409, detail="already_picked")
+
+        picked_candidate.status = "picked"
+        picked_candidate.selected = True
+        picked_candidate.selected_at = now
+        picked_candidate.decision_at = now
+
+        if picked_candidate.idea is None:
+            idea = Idea(
+                idea_candidate_id=picked_candidate.id,
+                title=picked_candidate.title,
+                summary=picked_candidate.summary,
+                what_to_expect=picked_candidate.what_to_expect,
+                preview=picked_candidate.preview,
+                idea_hash=_hash_idea(picked_candidate.title, picked_candidate.summary or ""),
+                created_at=now,
+            )
+            session.add(idea)
+            session.flush()
+        else:
+            idea = picked_candidate.idea
+
+        for item in request.decisions:
+            candidate = by_id[item.idea_candidate_id]
+            if item.decision == "later":
+                candidate.status = "later"
+                candidate.decision_at = now
+                session.add(
+                    AuditEvent(
+                        event_type="idea_decision",
+                        source="ui",
+                        occurred_at=now,
+                        payload={"idea_candidate_id": str(candidate.id), "decision": "later"},
+                    )
+                )
+            elif item.decision == "rejected":
+                session.add(
+                    AuditEvent(
+                        event_type="idea_decision",
+                        source="ui",
+                        occurred_at=now,
+                        payload={"idea_candidate_id": str(candidate.id), "decision": "rejected"},
+                    )
+                )
+                session.delete(candidate)
+
+        session.add(
+            AuditEvent(
+                event_type="idea_decision",
+                source="ui",
+                occurred_at=now,
+                payload={
+                    "idea_id": str(idea.id),
+                    "idea_candidate_id": str(picked_candidate.id),
+                    "decision": "picked",
+                },
+            )
+        )
+        session.commit()
+        return jsonable_encoder({"idea_id": idea.id, "idea_candidate_id": picked_candidate.id})
     finally:
         session.close()
 
@@ -427,10 +549,14 @@ def get_artifact_file(artifact_id: UUID):
 def ops_enqueue(request: EnqueueRequest, _guard: None = Depends(_require_operator)) -> dict:
     from pipeline.queue import enqueue_pipeline
 
+    if request.idea_gate and request.idea_id is None:
+        raise HTTPException(status_code=400, detail="idea_selection_required")
+
     result = enqueue_pipeline(
         request.dsl_template,
         request.out_root,
         request.idea_gate,
+        str(request.idea_id) if request.idea_id else None,
     )
     return jsonable_encoder(result)
 

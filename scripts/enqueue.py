@@ -25,9 +25,14 @@ def main() -> None:
         default=os.getenv("IDEA_GATE_ENABLED", "0") == "1",
         help="Enable Idea Gate selection before DSL generation",
     )
+    parser.add_argument(
+        "--idea-id",
+        default=None,
+        help="Use a selected idea (UUID) to start pipeline",
+    )
     args = parser.parse_args()
 
-    result = enqueue_pipeline(args.dsl_template, args.out_root, args.idea_gate)
+    result = enqueue_pipeline(args.dsl_template, args.out_root, args.idea_gate, args.idea_id)
     print("[enqueue] animation_id:", result["animation_id"])
     print("[enqueue] rq_generate_id:", result["rq_generate_id"])
     print("[enqueue] rq_render_id:", result["rq_render_id"])

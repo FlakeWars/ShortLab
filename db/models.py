@@ -111,6 +111,7 @@ class IdeaCandidate(Base):
     preview: Mapped[str | None] = mapped_column(Text)
     generator_source: Mapped[str] = mapped_column(Text)
     similarity_status: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, default="new")
     selected: Mapped[bool] = mapped_column(Boolean, default=False)
     selected_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -118,6 +119,12 @@ class IdeaCandidate(Base):
         nullable=True,
     )
     selected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("user_account.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    decision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     idea_batch: Mapped["IdeaBatch"] = relationship(back_populates="candidates")
@@ -131,6 +138,10 @@ class IdeaCandidate(Base):
         CheckConstraint(
             "similarity_status in ('ok', 'too_similar', 'unknown')",
             name="ck_idea_candidate_similarity_status",
+        ),
+        CheckConstraint(
+            "status in ('new', 'later', 'picked')",
+            name="ck_idea_candidate_status",
         ),
     )
 

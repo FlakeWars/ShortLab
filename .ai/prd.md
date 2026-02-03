@@ -18,7 +18,7 @@
    1.1. System generuje pomysły animacji i zapisuje je jako deterministyczną specyfikację DSL.
    1.2. DSL jest wersjonowany i kompatybilny wstecz; każda animacja referencjonuje wersję DSL.
    1.3. Logika animacji oparta o FSM jako kontrakt API; AI parametryzuje predefiniowane stany i przejścia.
-   1.4. (Opcjonalnie) System proponuje kilka krótkich opisów pomysłów; operator wybiera jeden do renderu (Idea Gate).
+   1.4. System posiada Idea Repository: generator zapisuje pomysły do repo, Idea Gate losuje N propozycji i wymusza klasyfikację (picked/later/rejected).
    1.5. System sprawdza unikalność pomysłu względem historii (hash + similarity/embedding) i oznacza zbyt podobne.
    1.6. System korzysta z osobnego modulu generatora pomyslow (AI) i zapisuje propozycje w bazie; w razie braku AI uzywa fallbacku z pliku.
    1.7. System posiada osobny modul embeddings (provider + fallback), wspoldzielony przez Idea Gate i generator pomyslow.
@@ -28,6 +28,8 @@
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.
    2.2. Render jest deterministyczny i możliwy do odtworzenia 1:1 z metadanych.
    2.3. Każdy render zapisuje komplet metadanych: seed, wersja DSL, wersja design systemu, parametry symulacji.
+   2.4. Renderer emituje zdarzenia audio do pliku `events.json` (MVP).
+       - Pola: `t` (czas w sekundach), `type` (np. collision/spawn/merge/split), `payload` opcjonalny.
 3. Design system i warstwa wizualna
    3.1. Warstwa wizualna jest minimalistyczna i oparta o zamrożony Design System MVP.
    3.2. Design System jest wersjonowany i przypisywany do każdej animacji.
@@ -49,10 +51,13 @@
    6.1. System umożliwia półautomatyczny upload na YouTube i TikTok.
    6.2. Publikacja zapisuje identyfikatory materiałów na platformach.
    6.3. System wspiera harmonogram publikacji 1 animacja dziennie.
+   6.4. Platformy publikacji są obsługiwane przez ujednolicony interfejs (publish/status/metrics) i rejestr pluginów.
 7. Metryki i analiza
    7.1. System pobiera i agreguje metryki dziennie dla każdej platformy.
    7.2. Metryki są analizowane w oknach 72h, 7 dni i rolling 14 dni.
    7.3. Dane są przechowywane wraz z tagami i metadanymi dla analiz przyczynowych.
+   7.4. System przechowuje cechy idei (np. tagi, typ ruchu, dynamika, tempo) do analizy wpływu na metryki.
+   7.5. System generuje proste insighty (korelacje/segmentacje) wspierające generator idei.
 8. Tagowanie i archiwizacja
    8.1. System wspiera tagi eksperymentalne i kanoniczne oraz retroaktywne tagowanie.
    8.2. Tylko zaakceptowane animacje są archiwizowane długoterminowo; odrzucone mają TTL 7 dni.
@@ -62,6 +67,11 @@
 10. Eksport i inspekcja danych
    10.1. System umożliwia eksport metadanych i metryk do pliku dla dalszej analizy.
    10.2. System umożliwia podgląd historii decyzji i powiązań między animacjami a wynikami.
+
+## 3a. Audio (MVP)
+1. System miksuje dźwięki zdarzeń (SFX) z wideo na podstawie `events.json`.
+2. Repozytorium SFX zawiera podstawowe kolizje i zdarzenia (tagi/rodzaj/głośność).
+3. Muzyka tła jest opcjonalna; w MVP może być wyłączona lub wybierana ręcznie.
 
 ## 6. Panel operacyjny (moduł UI)
 1. Zakres MVP

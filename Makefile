@@ -330,6 +330,10 @@ db-revision: ## Create Alembic revision (set MSG="...")
 db-seed: ## Seed DB data (placeholder)
 	@echo "Seed database" 
 
+.PHONY: db-reset
+db-reset: ## Reset local database (drop schema + migrate)
+	@./scripts/db-reset.sh
+
 # --- Frontend ---
 .PHONY: ui
 ui: ## Run review panel (placeholder)

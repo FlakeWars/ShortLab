@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date, datetime
-import os
-from random import Random
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -15,11 +13,9 @@ from rq.job import Job as RQJob
 from db.models import (
     Animation,
     Artifact,
-    AuditEvent,
     DesignSystemVersion,
     DslVersion,
     Idea,
-    IdeaBatch,
     Job,
     Render,
 )
@@ -62,8 +58,12 @@ def rq_on_failure(job: RQJob, connection, exc_type, exc_value, traceback) -> Non
         job_id = job.args[0] if job.args else None
         if job_id is None:
             return
-        _update_job(session, job_id, "failed", error=str(exc_value))
-        session.commit()
+        try:
+            _update_job(session, job_id, "failed", error=str(exc_value))
+            session.commit()
+        except ValueError:
+            # Guard: bad/legacy job_id should not crash worker maintenance.
+            session.rollback()
     finally:
         session.close()
 
@@ -74,8 +74,12 @@ def rq_on_success(job: RQJob, connection, result, *args, **kwargs) -> None:  # t
         job_id = job.args[0] if job.args else None
         if job_id is None:
             return
-        _update_job(session, job_id, "succeeded")
-        session.commit()
+        try:
+            _update_job(session, job_id, "succeeded")
+            session.commit()
+        except ValueError:
+            # Guard: bad/legacy job_id should not crash worker maintenance.
+            session.rollback()
     finally:
         session.close()
 
@@ -97,6 +101,7 @@ def _write_dsl_from_template(
     target_path: Path,
     animation_code: str,
     title: str | None = None,
+    idea: Idea | None = None,
 ) -> None:
     data = _load_template(template_path)
     if not isinstance(data, dict):
@@ -110,14 +115,107 @@ def _write_dsl_from_template(
     if title:
         meta["title"] = title
     meta.setdefault("title", "auto-generated")
+    if idea is not None:
+        meta["seed"] = _idea_seed(idea)
     if "seed" not in meta:
-        seed = int(hashlib.sha256(animation_code.encode("utf-8")).hexdigest(), 16) % (
+        meta["seed"] = int(hashlib.sha256(animation_code.encode("utf-8")).hexdigest(), 16) % (
             2**31
         )
-        meta["seed"] = seed
 
     data["meta"] = meta
+    if idea is not None:
+        _apply_idea_mapping(data, idea)
     target_path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+
+def _idea_seed(idea: Idea) -> int:
+    payload = f"{idea.title}\n{idea.summary or ''}".encode("utf-8")
+    return int(hashlib.sha256(payload).hexdigest(), 16) % (2**31)
+
+
+def _apply_idea_mapping(data: dict, idea: Idea) -> None:
+    idea_hash = _hash_idea(idea.title, idea.summary or "")
+    idea_num = int(idea_hash[:8], 16)
+    meta = data.get("meta") or {}
+    meta["seed"] = _idea_seed(idea)
+    data["meta"] = meta
+
+    palettes = [
+        ["#0B0D0E", "#F2F4F5", "#4CC3FF", "#FFB84C"],
+        ["#0F172A", "#F8FAFC", "#38BDF8", "#F43F5E"],
+        ["#0B0F1A", "#F1F5F9", "#22C55E", "#F97316"],
+        ["#111827", "#E5E7EB", "#A855F7", "#22D3EE"],
+        ["#0B0D0E", "#F8FAFC", "#F59E0B", "#10B981"],
+    ]
+    palette = palettes[idea_num % len(palettes)]
+
+    scene = data.get("scene") or {}
+    canvas = scene.get("canvas") or {}
+    base_duration = float(canvas.get("duration_s", 12))
+    duration_delta = (idea_num % 9) - 4  # -4..+4
+    duration = max(8.0, min(30.0, base_duration + duration_delta))
+    canvas["duration_s"] = duration
+    scene["canvas"] = canvas
+    scene["palette"] = palette
+    scene["background"] = palette[0]
+    data["scene"] = scene
+
+    systems = data.get("systems") or {}
+    entities = systems.get("entities") or []
+    if entities:
+        core_color = palette[2]
+        particle_color = palette[1]
+        for ent in entities:
+            if not isinstance(ent, dict):
+                continue
+            if ent.get("id") == "core":
+                ent["color"] = core_color
+                ent["shape"] = "circle" if idea_num % 2 == 0 else "square"
+                if "size" in ent and isinstance(ent["size"], (int, float)):
+                    ent["size"] = max(60, min(180, int(ent["size"] * (0.8 + (idea_num % 4) * 0.1))))
+            if ent.get("id") == "particle":
+                ent["color"] = particle_color
+                if "size" in ent and isinstance(ent["size"], (int, float)):
+                    ent["size"] = max(8, min(26, int(ent["size"] * (0.8 + (idea_num % 3) * 0.1))))
+    systems["entities"] = entities
+    spawns = systems.get("spawns") or []
+    count_factor = 0.8 + (idea_num % 5) * 0.1  # 0.8..1.2
+    for spawn in spawns:
+        if not isinstance(spawn, dict):
+            continue
+        if "count" in spawn and isinstance(spawn["count"], (int, float)):
+            spawn["count"] = max(1, int(round(spawn["count"] * count_factor)))
+        dist = spawn.get("distribution")
+        if isinstance(dist, dict) and dist.get("type") == "orbit":
+            params = dist.get("params") or {}
+            if "radius" in params and isinstance(params["radius"], (int, float)):
+                params["radius"] = max(120, min(420, int(params["radius"] * (0.7 + (idea_num % 6) * 0.1))))
+            if "speed" in params and isinstance(params["speed"], (int, float)):
+                params["speed"] = max(0.2, min(2.0, float(params["speed"]) * (0.7 + (idea_num % 6) * 0.1)))
+            dist["params"] = params
+            spawn["distribution"] = dist
+    systems["spawns"] = spawns
+
+    rules = systems.get("rules") or []
+    speed_factor = 0.7 + (idea_num % 7) * 0.1  # 0.7..1.3
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        params = rule.get("params")
+        if isinstance(params, dict) and "speed" in params:
+            try:
+                params["speed"] = max(0.1, float(params["speed"]) * speed_factor)
+            except (TypeError, ValueError):
+                pass
+        if isinstance(params, dict) and rule.get("type") == "split":
+            if "into" in params and isinstance(params["into"], (int, float)):
+                params["into"] = max(2, min(6, int(params["into"] + (idea_num % 3) - 1)))
+            if "speed_multiplier" in params and isinstance(params["speed_multiplier"], (int, float)):
+                params["speed_multiplier"] = max(
+                    0.8, min(2.2, float(params["speed_multiplier"]) * (0.8 + (idea_num % 4) * 0.1))
+                )
+    systems["rules"] = rules
+    data["systems"] = systems
 
 
 def generate_dsl_job(
@@ -125,6 +223,7 @@ def generate_dsl_job(
     animation_id: UUID | str,
     dsl_template: str,
     out_root: str,
+    idea_id: UUID | str | None = None,
     use_idea_gate: bool = False,
 ) -> dict:
     session = SessionLocal()
@@ -143,89 +242,25 @@ def generate_dsl_job(
         if not template_path.exists():
             raise FileNotFoundError(f"DSL template not found: {template_path}")
 
-        if use_idea_gate:
-            from embeddings import EmbeddingConfig, EmbeddingService
-            from ideas.generator import generate_ideas, save_ideas
-
-            count = int(os.getenv("IDEA_GATE_COUNT", "3"))
-            threshold = float(os.getenv("IDEA_GATE_THRESHOLD", "0.85"))
-            rng = Random(
-                int(hashlib.sha256(animation.animation_code.encode("utf-8")).hexdigest(), 16)
-                % (2**31)
-            )
-
-            drafts = generate_ideas(
-                source="auto",
-                ideas_path=".ai/ideas.md",
-                limit=max(1, count),
-                seed=rng.randint(0, 10**6),
-            )
-            if not drafts:
-                raise RuntimeError("Idea Gate enabled but no ideas found")
-
-            rng.shuffle(drafts)
-            pool = drafts[: max(1, min(count, len(drafts)))]
-
-            embedder = EmbeddingService(EmbeddingConfig(provider="sklearn-hash"))
-            idea_batch = IdeaBatch(
-                run_date=date.today(),
-                window_id=f"pipeline-{animation.animation_code}",
-                source="manual",
-                created_at=datetime.utcnow(),
-            )
-            session.add(idea_batch)
-            session.flush()
-
-            saved = save_ideas(
-                session,
-                pool,
-                embedder,
-                similarity_threshold=threshold,
-                idea_batch_id=idea_batch.id,
-            )
-            if not saved:
-                raise RuntimeError("Idea Gate saved no ideas (dedupe/validation)")
-
-            candidates = [i for i in saved if i.similarity_status != "too_similar"]
-            selected = (
-                min(candidates, key=lambda i: getattr(i, "max_similarity", 0.0) or 0.0)
-                if candidates
-                else min(saved, key=lambda i: getattr(i, "max_similarity", 0.0) or 0.0)
-            )
-            title = selected.title
-            selected.selected = True
-            selected.selected_at = datetime.utcnow()
-            idea = Idea(
-                idea_candidate_id=selected.id,
-                title=selected.title,
-                summary=selected.summary,
-                what_to_expect=selected.what_to_expect,
-                preview=selected.preview,
-                idea_hash=_hash_idea(selected.title, selected.summary or ""),
-                created_at=datetime.utcnow(),
-            )
-            session.add(idea)
-            session.flush()
+        title = "auto-generated"
+        idea = None
+        if idea_id:
+            idea = session.get(Idea, _coerce_uuid(idea_id))
+            if idea is None:
+                raise RuntimeError(f"Idea not found: {idea_id}")
+            title = idea.title
             animation.idea_id = idea.id
-
-            audit = AuditEvent(
-                event_type="idea_selected",
-                source="worker",
-                occurred_at=datetime.utcnow(),
-                payload={
-                    "idea_id": idea.id,
-                    "selection_mode": "pipeline",
-                    "threshold": threshold,
-                },
-            )
-            session.add(audit)
-            session.commit()
-        else:
-            title = "auto-generated"
-            summary = ""
+        if use_idea_gate:
+            raise RuntimeError("idea_selection_required")
 
         target_path = _dsl_path(out_dir)
-        _write_dsl_from_template(template_path, target_path, animation.animation_code, title=title)
+        _write_dsl_from_template(
+            template_path,
+            target_path,
+            animation.animation_code,
+            title=title,
+            idea=idea,
+        )
 
         validate_file(target_path)
         dsl_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()

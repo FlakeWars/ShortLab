@@ -1,17 +1,105 @@
 # TODO
 
 ## Now (W toku)
-- Brak aktywnych zadan
+- [ ] Idea Repository (branch: feat/idea-repo)
+  - [x] Doprecyzować kontrakt (stany: new/later/rejected/picked) i losowanie N
+  - [x] Zmiany DB: status/decyzje + audit (rejected -> delete)
+  - [x] Losowanie: status in (new,later), natychmiastowy powrót "later"
+  - [x] Pipeline zatrzymuje się bez wyboru (brak auto-selekcji)
+  - [x] API/UI: losowanie + klasyfikacja wszystkich N (picked/later/rejected)
 
 ## Next (Kolejne)
-- [ ] Stabilizacja pycairo na ARM64 (branch: fix/pycairo-arm)
-  - [x] Dodać instrukcję budowy pycairo z źródeł (ENV flags) i target Makefile
-  - [ ] Zweryfikować `make pycairo-arm` na czystym setupie (Xcode CLT + Brew cairo)
-  - [ ] Dopisać meson do Brewfile i instrukcji (wymagany przez pycairo build)
-- [ ] Re-lock zależności dla Python 3.12 (branch: chore/py312-lock)
-  - [ ] `make deps-py-lock` + `make deps-py-uv` bez błędów na cp312
+- [ ] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability)
+  - [ ] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
+  - [ ] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)
+  - [ ] `make run-dev` automatycznie sprząta zaległy PID file
+- [ ] UI: Idea Gate (branch: feat/ui-idea-gate)
+  - [ ] Wyświetla kilka propozycji + wybór (radio/CTA)
+  - [ ] Rozszerzony opis propozycji (what_to_expect/preview)
+  - [ ] Akcja wyboru propozycji zapisywana w DB
+- [ ] UI: auto‑refresh i ergonomia (branch: feat/ui-refresh)
+  - [ ] Automatyczne odświeżanie listy animacji/jobów (polling)
+  - [ ] Wyraźny przycisk „Odśwież” obok filtrów
+- [ ] UI: układ i nawigacja (branch: feat/ui-layout)
+  - [ ] Przeprojektowanie układu (tabs/sekcje) + kolejność paneli
+  - [ ] UX review paneli (czytelność, hierarchia)
+- [ ] UI: QC (branch: feat/ui-qc)
+  - [ ] Panel QC w UI + akcja accept/reject/regenerate
+- [ ] UI: publikacja (branch: feat/ui-publish)
+  - [ ] Panel publikacji + zapis `publish_record`
+  - [ ] Widok statusu publikacji i metryk
+- [ ] Pipeline: jobs wiszą w queued (branch: fix/queue-stuck)
+  - [ ] Diagnostyka: worker/redis/queue
+  - [ ] UI: sygnalizacja „worker offline”
+- [ ] Pipeline: worker crash przy niepoprawnym UUID (branch: fix/worker-failure-callback)
+  - [ ] Zabezpieczyć rq_on_failure/_coerce_uuid przed ValueError (nie crashować workera)
+  - [ ] Dodać test lub smoke case dla błędnego job_id
+- [ ] Pipeline: UUID w JSON payload (branch: fix/uuid-json)
+  - [ ] Zamieniać UUID -> str przed zapisem JSON (psycopg JSON dump)
+  - [ ] Dodać test dla payload z UUID
+- [ ] Idea → DSL mapping (branch: feat/idea-to-dsl)
+  - [ ] Mapowanie pola idei na parametry DSL (seed, liczba bytów, tempo/duration)
+  - [ ] Warianty reguł/parametrów w oparciu o preview/summary
+  - [ ] Wymusić widoczne różnice (paleta, tło, kształty, promień orbity)
+  - [ ] Test: różne idee → różne DSL
+- [ ] Audio: SFX repo + kolizje (branch: feat/audio-sfx)
+  - [ ] Repozytorium efektów (SFX) + metadane (tagi/rodzaj/poziom głośności)
+  - [ ] Mapowanie zdarzeń w rendererze -> SFX (kolizje, spawn, merge/split)
+  - [ ] Mixer: złożenie SFX z wideo (FFmpeg)
+  - [ ] Konfiguracja w DSL/metadata (włącz/wyłącz, głośność)
+- [ ] Audio: muzyka tła (branch: feat/audio-music)
+  - [ ] Repozytorium podkładów (licencja, długość, BPM, nastrój)
+  - [ ] Wybór podkładu per animacja + miks z SFX
+  - [ ] Prosta reguła wyboru (tagi/nastrój/długość)
+- [ ] Audio: kontrakt danych (branch: feat/audio-events)
+  - [ ] Zdarzenia audio emitowane z renderera (timestamp + typ)
+  - [ ] Format pliku events.json dla miksowania
+- [ ] Feedback Analytics (branch: feat/feedback-analytics)
+  - [ ] Model danych: parametry idei + metryki wynikowe (views, retention, CTR, itp.)
+  - [ ] Eksperymenty/atrybucja: korelacje między cechami idei a wynikami
+  - [ ] Raport/insight: rekomendacje dla generatora idei
+  - [ ] Interfejs (UI/API) do przeglądu insightów
+- [ ] Platform Registry (branch: feat/platform-registry)
+  - [ ] Ujednolicony interfejs publikacji (publish/status/metrics)
+  - [ ] Rejestr platform + pluginy (YouTube/TikTok jako pierwsze)
+  - [ ] Konfiguracja per platforma (klucze, limity, pola opcjonalne)
+- [ ] Experiment Planner (branch: feat/experiment-planner)
+  - [ ] Planowanie serii animacji z kontrolą zmiennych (A/B, serie, warianty)
+  - [ ] Metadane eksperymentu powiązane z animacjami
+  - [ ] Raport porównawczy wyników (prosty MVP)
+- [ ] Style Pack Manager (branch: feat/style-pack)
+  - [ ] Repo stylów (palety, tła, typografia, grubości linii)
+  - [ ] Przypisanie style_pack do animacji/renderu
+  - [ ] UI: wybór stylu dla serii/eksperymentu
+- [ ] Auto-QC (branch: feat/auto-qc)
+  - [ ] Heurystyki jakości (dynamika, kontrast, „pusty kadr”)
+  - [ ] Flagi ostrzegawcze w UI + sugerowane działania
+- [ ] Trend Scanner (branch: feat/trend-scanner)
+  - [ ] Ręczne tagi trendów/tematów + ważność
+  - [ ] Powiązanie trendów z pomysłami/animacjami
+- [ ] Retention Proxy (branch: feat/retention-proxy)
+  - [ ] Heurystyki „nudnych” odcinków (brak zdarzeń > X s)
+  - [ ] Flagi jakości przed publikacją
+- [ ] Seed Explorer (branch: feat/seed-explorer)
+  - [ ] Mini‑render K wariantów seed
+  - [ ] Wybór najlepszego na podstawie heurystyk
+- [ ] Content Calendar (branch: feat/content-calendar)
+  - [ ] Kalendarz publikacji + tematy/styl dnia
+  - [ ] Generator dobiera pomysł pod dzień
+- [ ] Asset Policy / Licenses (branch: feat/asset-policy)
+  - [ ] Repo assetów z licencją i ograniczeniami użycia
+  - [ ] Blokady użycia niezgodnych assetów
+- [ ] Dev: spójny REDIS_URL dla run-dev/job-status (branch: chore/dev-redis)
+  - [ ] Ujednolicić DB index (0/1) i opisać w README/Makefile
+  - [ ] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Stabilizacja pycairo na ARM64 (branch: fix/pycairo-arm) (2026-02-03)
+  - [x] Dodać instrukcję budowy pycairo z źródeł (ENV flags) i target Makefile
+  - [x] Zweryfikować `make pycairo-arm` na czystym setupie (Xcode CLT + Brew cairo)
+  - [x] Dopisać meson do Brewfile i instrukcji (wymagany przez pycairo build)
+- [x] Re-lock zależności dla Python 3.12 (branch: chore/py312-lock) (2026-02-03)
+  - [x] `make deps-py-lock` + `make deps-py-uv` bez błędów na cp312
 - [x] Dev runner: make run-dev / stop-dev (branch: chore/run-dev) (2026-02-02)
   - [x] Skrypt uruchamiania API+UI+worker z jednymi portami i REDIS db=1
   - [x] Skrypt zatrzymywania procesow

@@ -2,72 +2,39 @@
 from __future__ import annotations
 
 from argparse import ArgumentParser
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 import hashlib
-from random import Random
 import os
 
-from db.models import AuditEvent, Idea, IdeaBatch
+from sqlalchemy import func, select
+
+from db.models import AuditEvent, Idea, IdeaCandidate
 from db.session import SessionLocal
-from embeddings import EmbeddingConfig, EmbeddingService
-from ideas.generator import generate_ideas, save_ideas
 
 
 def main() -> None:
-    parser = ArgumentParser(description="Idea Gate: propose ideas and select one")
-    parser.add_argument("--ideas-file", default=".ai/ideas.md")
-    parser.add_argument(
-        "--source",
-        default="auto",
-        choices=["auto", "file", "template", "openai"],
-        help="Idea source provider",
-    )
+    parser = ArgumentParser(description="Idea Gate: sample ideas from repository and classify")
     parser.add_argument(
         "--count",
         type=int,
         default=int(os.getenv("IDEA_GATE_COUNT", "3")),
     )
-    parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--auto", action="store_true")
-    parser.add_argument("--select", type=int, default=None)
-    parser.add_argument(
-        "--threshold",
-        type=float,
-        default=float(os.getenv("IDEA_GATE_THRESHOLD", "0.85")),
-    )
+    parser.add_argument("--pick", type=int, default=None, help="Index to pick (1-based)")
+    parser.add_argument("--later", default="", help="Comma-separated indices to keep for later")
+    parser.add_argument("--reject", default="", help="Comma-separated indices to reject")
     args = parser.parse_args()
-
-    rng = Random(args.seed or int(datetime.now(timezone.utc).strftime("%Y%m%d")))
-    drafts = generate_ideas(
-        source=args.source,
-        ideas_path=args.ideas_file,
-        limit=max(1, args.count),
-        seed=args.seed or int(rng.random() * 1_000_000),
-    )
-    if not drafts:
-        raise SystemExit("No ideas found")
-    rng.shuffle(drafts)
-    chosen = drafts[: max(1, min(args.count, len(drafts)))]
 
     session = SessionLocal()
     try:
-        embedder = EmbeddingService(EmbeddingConfig(provider="sklearn-hash"))
-        idea_batch = IdeaBatch(
-            run_date=date.today(),
-            window_id=datetime.now(timezone.utc).strftime("cli-%Y%m%d-%H%M%S"),
-            source="manual",
-            created_at=datetime.now(timezone.utc),
+        stmt = (
+            select(IdeaCandidate)
+            .where(IdeaCandidate.status.in_(["new", "later"]))
+            .order_by(func.random())
+            .limit(max(1, args.count))
         )
-        session.add(idea_batch)
-        session.flush()
-
-        saved = save_ideas(
-            session,
-            chosen,
-            embedder,
-            similarity_threshold=args.threshold,
-            idea_batch_id=idea_batch.id,
-        )
+        saved = session.execute(stmt).scalars().all()
+        if not saved:
+            raise SystemExit("No ideas in repository (status new/later)")
 
         for idx, idea in enumerate(saved, start=1):
             flag = idea.similarity_status
@@ -80,52 +47,81 @@ def main() -> None:
             if getattr(idea, "preview", ""):
                 print(f"    Preview/Reguły: {idea.preview}")
 
-        if args.select is None and not args.auto:
-            print("Use --select N or --auto to choose.")
+        if args.pick is None and not args.later and not args.reject:
+            print("Use --pick N and classify remaining with --later/--reject.")
             return
 
-        if args.select is not None:
-            if args.select < 1 or args.select > len(saved):
-                raise SystemExit("Invalid selection")
-            selected = saved[args.select - 1]
-            selection_mode = "manual"
-        else:
-            candidates = [i for i in saved if i.similarity_status != "too_similar"]
-            if candidates:
-                selected = min(candidates, key=lambda i: getattr(i, "max_similarity", 0.0) or 0.0)
-                selection_mode = "auto"
-            else:
-                selected = min(saved, key=lambda i: getattr(i, "max_similarity", 0.0) or 0.0)
-                selection_mode = "auto-all-too-similar"
+        def parse_indices(value: str) -> set[int]:
+            if not value:
+                return set()
+            return {int(item.strip()) for item in value.split(",") if item.strip()}
 
-        selected.selected = True
-        selected.selected_at = datetime.now(timezone.utc)
+        picked = {args.pick} if args.pick else set()
+        later = parse_indices(args.later)
+        rejected = parse_indices(args.reject)
+        all_indices = set(range(1, len(saved) + 1))
+        selected_indices = picked | later | rejected
+
+        if len(picked) != 1:
+            raise SystemExit("Exactly one idea must be picked.")
+        if selected_indices != all_indices:
+            raise SystemExit("All ideas must be classified (pick/later/reject).")
+        if picked & (later | rejected):
+            raise SystemExit("Picked idea cannot be in later/reject.")
+
+        now = datetime.now(timezone.utc)
+        picked_candidate = saved[args.pick - 1]
+        picked_candidate.selected = True
+        picked_candidate.selected_at = now
+        picked_candidate.status = "picked"
+        picked_candidate.decision_at = now
+
         idea = Idea(
-            idea_candidate_id=selected.id,
-            title=selected.title,
-            summary=selected.summary,
-            what_to_expect=selected.what_to_expect,
-            preview=selected.preview,
-            idea_hash=_hash_idea(selected.title, selected.summary or ""),
-            created_at=datetime.now(timezone.utc),
+            idea_candidate_id=picked_candidate.id,
+            title=picked_candidate.title,
+            summary=picked_candidate.summary,
+            what_to_expect=picked_candidate.what_to_expect,
+            preview=picked_candidate.preview,
+            idea_hash=_hash_idea(picked_candidate.title, picked_candidate.summary or ""),
+            created_at=now,
         )
         session.add(idea)
         session.flush()
 
-        audit = AuditEvent(
-            event_type="idea_selected",
-            source="ui",
-            occurred_at=datetime.now(timezone.utc),
-            payload={
-                "idea_id": idea.id,
-                "selection_mode": selection_mode,
-                "threshold": args.threshold,
-            },
+        for idx, candidate in enumerate(saved, start=1):
+            if idx in later:
+                candidate.status = "later"
+                candidate.decision_at = now
+                session.add(
+                    AuditEvent(
+                        event_type="idea_decision",
+                        source="cli",
+                        occurred_at=now,
+                        payload={"idea_candidate_id": candidate.id, "decision": "later"},
+                    )
+                )
+            elif idx in rejected:
+                session.add(
+                    AuditEvent(
+                        event_type="idea_decision",
+                        source="cli",
+                        occurred_at=now,
+                        payload={"idea_candidate_id": candidate.id, "decision": "rejected"},
+                    )
+                )
+                session.delete(candidate)
+
+        session.add(
+            AuditEvent(
+                event_type="idea_decision",
+                source="cli",
+                occurred_at=now,
+                payload={"idea_id": idea.id, "idea_candidate_id": picked_candidate.id, "decision": "picked"},
+            )
         )
-        session.add(audit)
         session.commit()
 
-        print(f"[selected] id={idea.id} title={selected.title}")
+        print(f"[picked] idea_id={idea.id} title={picked_candidate.title}")
     finally:
         session.close()
 

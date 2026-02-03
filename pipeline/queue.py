@@ -38,14 +38,22 @@ def enqueue_pipeline(
     dsl_template: str,
     out_root: str,
     use_idea_gate: bool = False,
+    idea_id: str | None = None,
 ) -> dict:
     session = SessionLocal()
     try:
+        if use_idea_gate and not idea_id:
+            raise RuntimeError("idea_selection_required")
+        if idea_id:
+            use_idea_gate = False
+
         animation = Animation(
             animation_code=uuid4().hex,
             status="queued",
             pipeline_stage="idea",
         )
+        if idea_id:
+            animation.idea_id = idea_id
         session.add(animation)
         session.commit()
         session.refresh(animation)
@@ -55,6 +63,7 @@ def enqueue_pipeline(
             status="queued",
             payload={
                 "animation_id": str(animation.id),
+                "idea_id": str(idea_id) if idea_id else None,
                 "dsl_template": dsl_template,
                 "out_root": out_root,
                 "use_idea_gate": use_idea_gate,
@@ -72,6 +81,7 @@ def enqueue_pipeline(
             animation.id,
             dsl_template,
             out_root,
+            idea_id,
             use_idea_gate,
             job_timeout=_timeout_seconds("generate"),
             on_failure=rq_on_failure,

@@ -64,9 +64,11 @@ type IdeaCandidate = {
   preview?: string | null
   generator_source?: string | null
   similarity_status?: string | null
+  status?: string | null
   selected?: boolean | null
   selected_at?: string | null
   selected_by?: string | null
+  decision_at?: string | null
   created_at?: string | null
 }
 
@@ -96,7 +98,6 @@ const ANIMATION_STATUSES = [
   'archived',
 ]
 const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
-const IDEA_SIMILARITY = ['ok', 'too_similar', 'unknown']
 
 const explicitApiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_TARGET
 const fallbackApiBase = (() => {
@@ -209,9 +210,11 @@ function App() {
   const [ideaUpdatedAt, setIdeaUpdatedAt] = useState<Date | null>(null)
   const [selectedIdea, setSelectedIdea] = useState<IdeaCandidate | null>(null)
 
-  const [ideaBatchId, setIdeaBatchId] = useState('')
-  const [ideaSimilarity, setIdeaSimilarity] = useState('')
-  const [ideaSelected, setIdeaSelected] = useState('')
+  const [ideaSampleCount, setIdeaSampleCount] = useState('3')
+  const [ideaDecisions, setIdeaDecisions] = useState<Record<string, string>>({})
+  const [ideaDecisionError, setIdeaDecisionError] = useState<string | null>(null)
+  const [ideaDecisionMessage, setIdeaDecisionMessage] = useState<string | null>(null)
+  const [ideaDecisionLoading, setIdeaDecisionLoading] = useState(false)
 
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [auditError, setAuditError] = useState<string | null>(null)
@@ -224,7 +227,6 @@ function App() {
 
   const [enqueueDsl, setEnqueueDsl] = useState('.ai/examples/dsl-v1-happy.yaml')
   const [enqueueOutRoot, setEnqueueOutRoot] = useState('out/pipeline')
-  const [enqueueIdeaGate, setEnqueueIdeaGate] = useState(false)
   const [rerunAnimationId, setRerunAnimationId] = useState('')
   const [rerunOutRoot, setRerunOutRoot] = useState('out/pipeline')
   const [cleanupOlderMin, setCleanupOlderMin] = useState('30')
@@ -315,27 +317,77 @@ function App() {
   const fetchIdeaCandidates = async () => {
     setIdeaLoading(true)
     setIdeaError(null)
+    setIdeaDecisionError(null)
+    setIdeaDecisionMessage(null)
     try {
-      const params = new URLSearchParams()
-      params.set('limit', '12')
-      if (ideaBatchId) params.set('idea_batch_id', ideaBatchId)
-      if (ideaSimilarity) params.set('similarity_status', ideaSimilarity)
-      if (ideaSelected) params.set('selected', ideaSelected)
-
-      const response = await fetch(`${API_BASE}/idea-gate/candidates?${params.toString()}`)
+      const count = Number(ideaSampleCount || '3')
+      const limit = Number.isNaN(count) ? 3 : Math.max(1, Math.min(count, 10))
+      const response = await fetch(`${API_BASE}/idea-repo/sample?limit=${limit}`)
       if (!response.ok) {
         throw new Error(`API error ${response.status}`)
       }
       const payload = (await response.json()) as IdeaCandidate[]
       setIdeaCandidates(payload)
+      setIdeaDecisions({})
       setIdeaUpdatedAt(new Date())
-      if (payload.length && !selectedIdea) {
-        setSelectedIdea(payload[0])
-      }
+      setSelectedIdea(payload[0] ?? null)
     } catch (err) {
       setIdeaError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setIdeaLoading(false)
+    }
+  }
+
+  const submitIdeaDecisions = async () => {
+    setIdeaDecisionLoading(true)
+    setIdeaDecisionError(null)
+    setIdeaDecisionMessage(null)
+    try {
+      if (ideaCandidates.length === 0) {
+        throw new Error('Brak propozycji do klasyfikacji.')
+      }
+      const decisions = ideaCandidates.map((idea) => ({
+        idea_candidate_id: idea.id,
+        decision: ideaDecisions[idea.id],
+      }))
+      if (decisions.some((item) => !item.decision)) {
+        throw new Error('Ustaw decyzję dla każdej propozycji.')
+      }
+      const picked = decisions.filter((item) => item.decision === 'picked')
+      if (picked.length !== 1) {
+        throw new Error('Wybierz dokładnie jedną propozycję do generowania.')
+      }
+      const response = await fetch(`${API_BASE}/idea-repo/decide`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({ decisions }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as { idea_id?: string }
+      if (!payload.idea_id) {
+        throw new Error('Brak idea_id po decyzji.')
+      }
+      const enqueueResponse = await fetch(`${API_BASE}/ops/enqueue`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          dsl_template: enqueueDsl,
+          out_root: enqueueOutRoot,
+          idea_id: payload.idea_id,
+          idea_gate: false,
+        }),
+      })
+      if (!enqueueResponse.ok) {
+        throw new Error(`API error ${enqueueResponse.status}`)
+      }
+      setIdeaDecisionMessage('Wybrana idea przekazana do pipeline.')
+      fetchSummary()
+    } catch (err) {
+      setIdeaDecisionError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setIdeaDecisionLoading(false)
     }
   }
 
@@ -374,7 +426,6 @@ function App() {
         body: JSON.stringify({
           dsl_template: enqueueDsl,
           out_root: enqueueOutRoot,
-          idea_gate: enqueueIdeaGate,
         }),
       })
       if (!response.ok) {
@@ -864,7 +915,7 @@ function App() {
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Idea Gate</h2>
             <p className="text-sm text-stone-600">
-              Candidate pool with similarity signals and selection status.
+              Losuj propozycje z repozytorium i sklasifikuj każdą z nich.
             </p>
           </div>
           <div className="text-xs text-stone-500">
@@ -873,64 +924,48 @@ function App() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Similarity
-            <select
-              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
-              value={ideaSimilarity}
-              onChange={(event) => setIdeaSimilarity(event.target.value)}
-            >
-              <option value="">All</option>
-              {IDEA_SIMILARITY.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Selected
-            <select
-              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
-              value={ideaSelected}
-              onChange={(event) => setIdeaSelected(event.target.value)}
-            >
-              <option value="">All</option>
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </select>
-          </label>
-          <label className="flex min-w-[260px] flex-1 flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Idea batch ID
+          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Liczba propozycji
             <input
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
-              placeholder="UUID"
-              value={ideaBatchId}
-              onChange={(event) => setIdeaBatchId(event.target.value)}
+              value={ideaSampleCount}
+              onChange={(event) => setIdeaSampleCount(event.target.value)}
             />
           </label>
           <div className="flex flex-wrap gap-2">
             <Button className="rounded-full" onClick={fetchIdeaCandidates} disabled={ideaLoading}>
-              Apply filters
+              Losuj propozycje
             </Button>
             <Button
               variant="ghost"
               className="rounded-full"
               onClick={() => {
-                setIdeaBatchId('')
-                setIdeaSimilarity('')
-                setIdeaSelected('')
-                window.setTimeout(fetchIdeaCandidates, 0)
+                setIdeaCandidates([])
+                setIdeaDecisions({})
+                setSelectedIdea(null)
+                setIdeaDecisionError(null)
+                setIdeaDecisionMessage(null)
               }}
               disabled={ideaLoading}
             >
-              Reset
+              Wyczyść
             </Button>
           </div>
         </div>
 
+        {ideaDecisionMessage ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
+            {ideaDecisionMessage}
+          </div>
+        ) : null}
+        {ideaDecisionError ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
+            {ideaDecisionError}
+          </div>
+        ) : null}
+
         <div className="mt-4 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="overflow-x-auto">
+          <div className="space-y-3">
             {ideaLoading ? (
               <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
                 Loading ideas…
@@ -940,54 +975,75 @@ function App() {
                 <div className="font-semibold">Failed to load</div>
                 <div>{ideaError}</div>
               </div>
+            ) : ideaCandidates.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+                No ideas sampled yet. Click “Losuj propozycje”.
+              </div>
             ) : (
-              <table className="min-w-[760px] w-full text-left text-sm">
-                <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
-                  <tr>
-                    <th className="px-2 py-3">Title</th>
-                    <th className="px-2 py-3">Similarity</th>
-                    <th className="px-2 py-3">Selected</th>
-                    <th className="px-2 py-3">Source</th>
-                    <th className="px-2 py-3">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ideaCandidates.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
-                        No idea candidates matched. Generate a new batch to see results.
-                      </td>
-                    </tr>
-                  ) : (
-                    ideaCandidates.map((idea) => (
-                      <tr
-                        key={idea.id}
-                        className={cn(
-                          'border-t border-stone-200/70 transition hover:bg-stone-100/50',
-                          selectedIdea?.id === idea.id && 'bg-stone-100/70',
-                        )}
-                        onClick={() => setSelectedIdea(idea)}
-                      >
-                        <td className="px-2 py-4 text-stone-800">
+              ideaCandidates.map((idea) => {
+                const decision = ideaDecisions[idea.id] || ''
+                return (
+                  <div
+                    key={idea.id}
+                    className={cn(
+                      'rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm transition hover:bg-stone-50',
+                      selectedIdea?.id === idea.id && 'border-stone-400 bg-stone-50',
+                    )}
+                    onClick={() => setSelectedIdea(idea)}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-semibold text-stone-900">
                           {idea.title ?? 'Untitled'}
-                        </td>
-                        <td className="px-2 py-4">
-                          <Badge variant="outline" className={cn('border', similarityTone(idea.similarity_status))}>
-                            {idea.similarity_status ?? '—'}
-                          </Badge>
-                        </td>
-                        <td className="px-2 py-4">
-                          <Badge variant="outline" className={cn('border', chipTone(String(idea.selected)))}>
-                            {idea.selected ? 'selected' : '—'}
-                          </Badge>
-                        </td>
-                        <td className="px-2 py-4 text-stone-600">{idea.generator_source ?? '—'}</td>
-                        <td className="px-2 py-4 text-stone-600">{formatDate(idea.created_at)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                        </div>
+                        <div className="mt-1 text-sm text-stone-600">
+                          {idea.summary ?? '—'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={cn('border', similarityTone(idea.similarity_status))}>
+                          {idea.similarity_status ?? '—'}
+                        </Badge>
+                        <Badge variant="outline" className={cn('border', chipTone(idea.status))}>
+                          {idea.status ?? '—'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                      <span>Source: {idea.generator_source ?? '—'}</span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button
+                        variant={decision === 'picked' ? 'default' : 'outline'}
+                        className="rounded-full"
+                        onClick={() =>
+                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'picked' }))
+                        }
+                      >
+                        Do generowania
+                      </Button>
+                      <Button
+                        variant={decision === 'later' ? 'default' : 'outline'}
+                        className="rounded-full"
+                        onClick={() =>
+                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'later' }))
+                        }
+                      >
+                        Na później
+                      </Button>
+                      <Button
+                        variant={decision === 'rejected' ? 'destructive' : 'outline'}
+                        className="rounded-full"
+                        onClick={() =>
+                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'rejected' }))
+                        }
+                      >
+                        Odrzuć
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })
             )}
           </div>
 
@@ -1036,27 +1092,35 @@ function App() {
                 </div>
                 <div className="grid gap-2 text-xs">
                   <div className="flex items-center justify-between">
-                    <span>Selected</span>
+                    <span>Status</span>
                     <span className="font-semibold text-stone-800">
-                      {selectedIdea.selected ? 'Yes' : 'No'}
+                      {selectedIdea.status ?? '—'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Selected at</span>
+                    <span>Decision at</span>
                     <span className="font-semibold text-stone-800">
-                      {formatDate(selectedIdea.selected_at)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Batch ID</span>
-                    <span className="font-mono text-[0.7rem] text-stone-600">
-                      {selectedIdea.idea_batch_id ?? '—'}
+                      {formatDate(selectedIdea.decision_at)}
                     </span>
                   </div>
                 </div>
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-stone-500">
+            Wymagana klasyfikacja wszystkich propozycji. Decyzje:{" "}
+            {Object.values(ideaDecisions).filter(Boolean).length}/{ideaCandidates.length}
+          </div>
+          <Button
+            className="rounded-full"
+            onClick={submitIdeaDecisions}
+            disabled={ideaDecisionLoading || ideaCandidates.length === 0}
+          >
+            {ideaDecisionLoading ? 'Zapisywanie…' : 'Zatwierdź wybór i uruchom'}
+          </Button>
         </div>
       </section>
 
@@ -1211,15 +1275,6 @@ function App() {
                   className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                   value={enqueueOutRoot}
                   onChange={(event) => setEnqueueOutRoot(event.target.value)}
-                />
-              </label>
-              <label className="flex items-center justify-between text-xs uppercase tracking-[0.18em] text-stone-500">
-                Idea Gate
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-stone-300"
-                  checked={enqueueIdeaGate}
-                  onChange={(event) => setEnqueueIdeaGate(event.target.checked)}
                 />
               </label>
               <Button className="w-full rounded-full" onClick={handleEnqueue} disabled={opsEnqueueLoading}>

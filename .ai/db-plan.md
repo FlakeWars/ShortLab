@@ -42,9 +42,12 @@
 - preview TEXT
 - generator_source TEXT NOT NULL CHECK (generator_source IN ('ai','fallback','manual'))
 - similarity_status TEXT NOT NULL CHECK (similarity_status IN ('ok','too_similar','unknown'))
+- status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','later','picked'))
 - selected BOOLEAN NOT NULL DEFAULT false
 - selected_by UUID REFERENCES user_account(id)
 - selected_at TIMESTAMPTZ
+- decision_by UUID REFERENCES user_account(id)
+- decision_at TIMESTAMPTZ
 - created_at TIMESTAMPTZ NOT NULL
 
 **idea**
