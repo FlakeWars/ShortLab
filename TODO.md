@@ -9,6 +9,21 @@
   - [x] API/UI: losowanie + klasyfikacja wszystkich N (picked/later/rejected)
 
 ## Next (Kolejne)
+- [ ] LLM DSL Compiler (module planning) (branch: feat/llm-dsl-compiler)
+  - [ ] Discovery: cele, zakres, ryzyka, granice odpowiedzialności
+  - [ ] Kontrakt wej/wyj + wersjonowanie (Idea → DSL + metadata)
+  - [ ] Spec DSL v1 (minimalny, jednoznaczny, z przykładami)
+  - [ ] Plan walidacji: syntaktyczna + semantyczna + jakościowa
+  - [ ] Strategie awaryjne: repair → retry → fallback
+  - [ ] Telemetria: log błędów, dsl_gaps, koszt/latencja
+  - [ ] Kryteria akceptacji E2E
+  - [ ] Prototyp: LLM prompt + 3–5 testowych idei
+- [ ] LLM DSL Compiler (implementation) (branch: feat/llm-dsl-compiler-impl)
+  - [ ] Generator DSL z LLM (prompt + schema)
+  - [ ] Walidator + repair prompt
+  - [ ] Fallback do deterministycznego mappingu
+  - [ ] Zapis dsl_gaps + audit_event
+  - [ ] Testy: poprawny DSL, naprawa błędów, fallback
 - [ ] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability)
   - [ ] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
   - [ ] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)
