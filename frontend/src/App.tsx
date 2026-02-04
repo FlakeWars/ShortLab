@@ -875,6 +875,20 @@ function App() {
   const readyIdeas = ideaStatusSummary.ready_for_gate ?? 0
   const blockedIdeasCount = ideaStatusSummary.blocked_by_gaps ?? 0
   const queuedJobs = (summary.queued ?? 0) + (summary.running ?? 0)
+  const compiledIdeas = ideaStatusSummary.compiled ?? 0
+  const renderQueue = animationData.filter((row) =>
+    row.pipeline_stage === 'render' || row.status === 'queued' || row.status === 'running',
+  ).length
+  const qcQueue = animationData.filter((row) => row.pipeline_stage === 'qc').length
+  const publishReady = animationData.filter((row) => row.status === 'accepted').length
+
+  const scrollToSection = (sectionId: string) => {
+    if (typeof window === 'undefined') return
+    const target = window.document.getElementById(sectionId)
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 
   const previewUrl = videoArtifact ? `${API_BASE}/artifacts/${videoArtifact.id}/file` : null
 
@@ -1136,8 +1150,73 @@ function App() {
             ))}
           </div>
         </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => {
+            fetchSummary()
+            fetchAnimations()
+            fetchIdeaStatuses()
+            fetchDslGaps()
+          }}>
+            Odśwież Flow
+          </Button>
+          <Button variant="ghost" className="rounded-full" onClick={() => setActiveView('home')}>
+            Wróć do Home
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Idea Gate</div>
+              <div className="text-2xl font-semibold text-stone-900">{readyIdeas}</div>
+              <div className="text-xs text-stone-500">gotowe do wyboru</div>
+              <Button className="w-full rounded-full" onClick={() => scrollToSection('idea-gate-panel')}>
+                Otwórz
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Compile</div>
+              <div className="text-2xl font-semibold text-stone-900">{compiledIdeas}</div>
+              <div className="text-xs text-stone-500">idei skompilowanych</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('dsl-capability-panel')}>
+                DSL Gaps
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Render</div>
+              <div className="text-2xl font-semibold text-stone-900">{renderQueue}</div>
+              <div className="text-xs text-stone-500">w toku / w kolejce</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('animations-panel')}>
+                Animations
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">QC</div>
+              <div className="text-2xl font-semibold text-stone-900">{qcQueue}</div>
+              <div className="text-xs text-stone-500">do decyzji QC</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('animations-panel')}>
+                Sprawdź
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Publish</div>
+              <div className="text-2xl font-semibold text-stone-900">{publishReady}</div>
+              <div className="text-xs text-stone-500">gotowe do publikacji</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => setActiveView('plan')}>
+                Zaplanuj
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </section>
-      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+      <section id="dsl-capability-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-3 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Recent jobs</h2>
@@ -1209,7 +1288,7 @@ function App() {
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+      <section id="idea-gate-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">DSL Capability</h2>
@@ -1339,7 +1418,7 @@ function App() {
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+      <section id="operations-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Animations</h2>
@@ -1587,7 +1666,7 @@ function App() {
 
       {activeView === 'repositories' ? (
       <>
-      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+      <section id="animations-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Idea Gate</h2>
