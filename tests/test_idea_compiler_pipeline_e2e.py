@@ -37,9 +37,12 @@ def _require_db() -> None:
                 present = {row[0] for row in rows}
                 if not required_cols.issubset(present):
                     missing = ",".join(sorted(required_cols - present))
-                    pytest.skip(
-                        f"DB schema drift for table '{table_name}' (missing: {missing}); run make db-reset"
+                    raise RuntimeError(
+                        f"DB schema drift for table '{table_name}' (missing: {missing}); "
+                        "run make test-idea-compiler-pipeline-e2e"
                     )
+    except RuntimeError:
+        raise
     except Exception as exc:  # pragma: no cover - depends on local env
         pytest.skip(f"DB not ready for pipeline e2e test: {exc}")
 

@@ -56,6 +56,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make metrics-pull-run METRICS_PLATFORM=youtube` – zapis uruchomienia pulla metryk.
 - `make llm-mediator-retention` – czyści historyczne metryki/budżet mediatora LLM (retention).
 - `make test-llm-mediator-db` – uruchamia testy persystencji mediatora LLM z wymaganym Postgres (bez skipów integracyjnych).
+- `make test-idea-compiler-pipeline-e2e` – uruchamia E2E kompilatora Idea->DSL+render; resetuje schemat DB do kanonicznego przed testem.
 - `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
 - `make idea-verify-capability` – weryfikuje wykonalność idei względem DSL i uzupełnia `dsl_gap`.
 - `make dsl-gap-status DSL_GAP_ID=<UUID> DSL_GAP_STATUS=implemented` – aktualizuje status gapa i robi re-verification powiązanych idei.
