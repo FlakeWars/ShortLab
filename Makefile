@@ -408,6 +408,11 @@ test-llm-mediator-db: ## Run mediator persistence tests with required Postgres i
 	@chmod +x ./scripts/test-llm-mediator-db.sh
 	@./scripts/test-llm-mediator-db.sh
 
+.PHONY: test-idea-compiler-pipeline-e2e
+test-idea-compiler-pipeline-e2e: ## Run Idea->DSL compiler pipeline E2E test on canonical DB schema
+	@chmod +x ./scripts/test-idea-compiler-pipeline-e2e.sh
+	@./scripts/test-idea-compiler-pipeline-e2e.sh
+
 .PHONY: test-render
 
 test-render: ## Run render determinism tests (placeholder)
