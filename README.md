@@ -77,6 +77,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - routing mediatora: `LLM_ROUTE_IDEA_COMPILE_DSL_*`
   - limity/retry: `IDEA_DSL_COMPILER_MAX_ATTEMPTS`, `IDEA_DSL_COMPILER_MAX_REPAIRS`
   - fallback awaryjny do template: `IDEA_DSL_COMPILER_FALLBACK_TEMPLATE=1`
+  - wynik kompilacji zawiera `validation_report` (syntax/semantic/errors)
   - ręczne wymuszenie kompilacji:
     - API (operator-only): `POST /ideas/{idea_id}/compile-dsl`
     - CLI: `make idea-compile-dsl IDEA_COMPILE_ID=<UUID>`

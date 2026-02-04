@@ -289,6 +289,7 @@ def generate_dsl_job(
         result = {"dsl_path": str(target_path), "dsl_hash": dsl_hash}
         if compiler_meta:
             result["compiler_meta"] = compiler_meta
+            result["validation_report"] = compiled.validation_report
         _update_job(session, job_id, "succeeded", result=result)
         session.commit()
         return result

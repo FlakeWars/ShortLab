@@ -18,6 +18,7 @@ ALLOWED_IDEA_STATUSES = {"feasible", "ready_for_gate"}
 class CompileResult:
     dsl_hash: str
     compiler_meta: dict[str, Any]
+    validation_report: dict[str, Any]
 
 
 def compile_idea_to_dsl(
@@ -72,7 +73,10 @@ def compile_idea_to_dsl(
             if not dsl_yaml:
                 raise RuntimeError("empty_dsl_yaml")
             target_path.write_text(dsl_yaml)
-            validate_file(target_path)
+            model = validate_file(target_path)
+            semantic_errors = _semantic_validate(model)
+            if semantic_errors:
+                raise RuntimeError("semantic_validation_failed: " + "; ".join(semantic_errors))
             dsl_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()
             return CompileResult(
                 dsl_hash=dsl_hash,
@@ -85,6 +89,11 @@ def compile_idea_to_dsl(
                     "repair_count": repairs,
                     "fallback_used": False,
                 },
+                validation_report={
+                    "syntax_ok": True,
+                    "semantic_ok": True,
+                    "errors": [],
+                },
             )
         except Exception as exc:
             errors = [str(exc)]
@@ -94,7 +103,10 @@ def compile_idea_to_dsl(
 
     if os.getenv("IDEA_DSL_COMPILER_FALLBACK_TEMPLATE", "1") == "1":
         target_path.write_text(template_yaml)
-        validate_file(target_path)
+        model = validate_file(target_path)
+        semantic_errors = _semantic_validate(model)
+        if semantic_errors:
+            raise RuntimeError("fallback_semantic_validation_failed: " + "; ".join(semantic_errors))
         dsl_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()
         return CompileResult(
             dsl_hash=dsl_hash,
@@ -107,6 +119,11 @@ def compile_idea_to_dsl(
                 "repair_count": repairs,
                 "fallback_used": True,
                 "errors": errors,
+            },
+            validation_report={
+                "syntax_ok": True,
+                "semantic_ok": True,
+                "errors": [],
             },
         )
     raise RuntimeError(f"idea_compile_failed:{'; '.join(errors)}")
@@ -145,3 +162,39 @@ def _read_text(path: Path) -> str:
         return path.read_text()
     except Exception:
         return ""
+
+
+def _semantic_validate(model) -> list[str]:
+    errors: list[str] = []
+
+    entities = list(model.systems.entities)
+    spawns = list(model.systems.spawns)
+    rules = list(model.systems.rules)
+    emitters = list(model.systems.emitters or [])
+
+    if not entities:
+        errors.append("systems.entities must not be empty")
+    if not spawns and not emitters:
+        errors.append("systems.spawns or systems.emitters must define at least one source")
+    if not rules:
+        errors.append("systems.rules must not be empty")
+
+    entity_ids = [e.id for e in entities]
+    if len(entity_ids) != len(set(entity_ids)):
+        errors.append("systems.entities contains duplicate ids")
+
+    if len(model.scene.palette) < 3:
+        errors.append("scene.palette must contain at least 3 colors")
+
+    duration = float(model.scene.canvas.duration_s)
+    if duration < 6.0 or duration > 60.0:
+        errors.append("scene.canvas.duration_s must be in range 6..60")
+
+    if model.termination.time is not None:
+        t = float(model.termination.time)
+        if t <= 0:
+            errors.append("termination.time must be > 0")
+        if t > duration:
+            errors.append("termination.time cannot exceed scene.canvas.duration_s")
+
+    return errors
