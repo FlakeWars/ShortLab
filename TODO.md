@@ -1,24 +1,21 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Testy dla persystencji DB mediatora LLM (branch: test/llm-mediator-persistence)
-  - [x] Testy jednostkowe: serializacja/liczniki i odczyt snapshotu `/llm/metrics`
-  - [x] Test round-trip backendu `db` na fake session (bez prawdziwego Postgresa)
-  - [x] Test integracyjny: zapis/odczyt tabel `llm_mediator_*` + fallback plikowy przy awarii DB
-  - [x] Smoke dla `make llm-mediator-retention` z kontrolą cutoffów
-  - [ ] Dodać ten pakiet testów do automatycznego joba z uruchomionym Postgres (obecnie lokalnie może być skip)
-
-## Next (Kolejne)
-- [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
-  - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
-  - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
-  - [ ] Wymusić rytuał po merge: krótka analiza wpływu + aktualizacja TODO (Now/Next/Done)
 - [ ] LLM Idea->DSL Compiler (branch: feat/llm-dsl-compiler-impl)
   - [ ] Kompilacja tylko dla idei `feasible`/`ready_for_gate`
   - [ ] Pętla lokalna: `generate -> validate -> repair -> retry`
   - [ ] Twarde walidacje syntax + semantics + raport błędów
   - [ ] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
   - [ ] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
+
+## Next (Kolejne)
+- [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
+  - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
+  - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
+  - [ ] Wymusić rytuał po merge: krótka analiza wpływu + aktualizacja TODO (Now/Next/Done)
+- [ ] Warning debt: `datetime.utcnow()` deprecations (branch: fix/datetime-utcnow)
+  - [ ] Zamienić domyślne timestampy modeli i logiki na timezone-aware `datetime.now(datetime.UTC)`
+  - [ ] Uruchomić testy bez deprecation warningów SQLAlchemy/Python
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [ ] `idea_generate` -> profil kreatywny
   - [ ] `idea_verify_capability` -> profil analityczny/skrupulatny
@@ -129,6 +126,12 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Testy dla persystencji DB mediatora LLM (branch: test/llm-mediator-db-workflow) (2026-02-04)
+  - [x] Testy jednostkowe: serializacja/liczniki i odczyt snapshotu `/llm/metrics`
+  - [x] Test round-trip backendu `db` na fake session (bez prawdziwego Postgresa)
+  - [x] Test integracyjny: zapis/odczyt tabel `llm_mediator_*` + fallback plikowy przy awarii DB
+  - [x] Smoke dla `make llm-mediator-retention` z kontrolą cutoffów
+  - [x] Dodać pakiet testów do lokalnego workflow z uruchomionym Postgres (`make test-llm-mediator-db`)
 - [x] Process: sync dokumentacji po każdym merge (branch: chore/docs-sync-post-merge) (2026-02-04)
   - [x] Dodać checklistę "PRD/Tech-Stack/README sync" do rytuału post-merge
   - [x] Przy każdym merge wpisywać w TODO, które sekcje dokumentacji zmieniono i dlaczego
