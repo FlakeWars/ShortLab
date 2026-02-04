@@ -28,6 +28,8 @@ IDEA_GEN_SIM_THRESHOLD ?= 0.97
 IDEA_VERIFY_LIMIT ?= 20
 IDEA_VERIFY_ID ?=
 IDEA_DSL_VERSION ?= v1
+DSL_GAP_ID ?=
+DSL_GAP_STATUS ?= accepted
 QC_RESULT ?= accepted
 QC_NOTES ?=
 QC_DECIDED_BY ?=
@@ -218,6 +220,12 @@ idea-verify-capability: ## Verify ideas against DSL capability (supports IDEA_VE
 		--limit "$(IDEA_VERIFY_LIMIT)" \
 		--dsl-version "$(IDEA_DSL_VERSION)" \
 		$(if $(IDEA_VERIFY_ID),--idea-id "$(IDEA_VERIFY_ID)",)
+
+.PHONY: dsl-gap-status
+dsl-gap-status: ## Update DSL gap status and reverify linked ideas (DSL_GAP_ID required)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/dsl-gap-status.py \
+		--gap-id "$(DSL_GAP_ID)" \
+		--status "$(DSL_GAP_STATUS)"
 
 .PHONY: qc-decide
 qc-decide: ## Create QC decision for an animation (ANIMATION_ID, QC_RESULT, QC_NOTES, QC_DECIDED_BY)

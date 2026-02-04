@@ -40,6 +40,8 @@ GAP_SIGNALS: tuple[GapSignal, ...] = (
     ),
 )
 
+BLOCKING_GAP_STATUSES = {"new", "accepted", "in_progress", "rejected"}
+
 
 def _gap_key(dsl_version: str, feature: str, reason: str) -> str:
     payload = f"{dsl_version}|{feature}|{reason}".lower().encode("utf-8")
@@ -70,6 +72,8 @@ def verify_idea_capability(
     now = datetime.now(timezone.utc)
     new_gap_ids: list[UUID] = []
     existing_gap_ids: list[UUID] = []
+    blocking_gap_ids: list[UUID] = []
+    resolved_gap_ids: list[UUID] = []
     evidence: list[str] = []
 
     for signal in signals:
@@ -107,8 +111,12 @@ def verify_idea_capability(
                 )
             )
         evidence.append(f"{signal.feature}: {signal.reason}")
+        if gap.status in BLOCKING_GAP_STATUSES:
+            blocking_gap_ids.append(gap.id)
+        else:
+            resolved_gap_ids.append(gap.id)
 
-    feasible = len(signals) == 0
+    feasible = len(blocking_gap_ids) == 0
     if feasible:
         if idea.status not in {"picked", "compiled"}:
             idea.status = "ready_for_gate"
@@ -124,9 +132,43 @@ def verify_idea_capability(
         "feasible": feasible,
         "new_gap_ids": [str(gid) for gid in new_gap_ids],
         "existing_gap_ids": [str(gid) for gid in existing_gap_ids],
+        "blocking_gap_ids": [str(gid) for gid in blocking_gap_ids],
+        "resolved_gap_ids": [str(gid) for gid in resolved_gap_ids],
         "verification_report": {
             "summary": "feasible" if feasible else "blocked_by_gaps",
             "confidence": 0.95 if feasible else 0.8,
             "evidence": evidence,
         },
+    }
+
+
+def reverify_ideas_for_gap(
+    session: Session,
+    *,
+    dsl_gap_id: UUID,
+    policy_version: str = "capability-v1",
+) -> dict:
+    gap = session.get(DslGap, dsl_gap_id)
+    if gap is None:
+        raise RuntimeError(f"DSL gap not found: {dsl_gap_id}")
+
+    rows = session.execute(
+        select(IdeaGapLink.idea_id).where(IdeaGapLink.dsl_gap_id == dsl_gap_id)
+    ).all()
+    reports = [
+        verify_idea_capability(
+            session,
+            idea_id=idea_id,
+            dsl_version=gap.dsl_version,
+            policy_version=policy_version,
+        )
+        for (idea_id,) in rows
+    ]
+    feasible_count = sum(1 for report in reports if report["feasible"])
+    blocked_count = len(reports) - feasible_count
+    return {
+        "dsl_gap_id": str(dsl_gap_id),
+        "reverified": len(reports),
+        "feasible": feasible_count,
+        "blocked": blocked_count,
     }

@@ -28,7 +28,7 @@ from db.models import (
     Job,
 )
 from db.session import SessionLocal
-from ideas.capability import verify_idea_capability
+from ideas.capability import reverify_ideas_for_gap, verify_idea_capability
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
 
@@ -155,6 +155,10 @@ class IdeaCapabilityVerifyRequest(BaseModel):
 class IdeaCapabilityVerifyBatchRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=200)
     dsl_version: str = Field(default="v1")
+
+
+class DslGapStatusRequest(BaseModel):
+    status: Literal["new", "accepted", "in_progress", "implemented", "rejected"]
 
 
 class RerunRequest(BaseModel):
@@ -453,6 +457,35 @@ def list_dsl_gaps(
         stmt = stmt.order_by(desc(DslGap.updated_at), desc(DslGap.created_at)).limit(limit).offset(offset)
         rows = session.execute(stmt).scalars().all()
         return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
+@app.post("/dsl-gaps/{gap_id}/status")
+def update_dsl_gap_status(
+    gap_id: UUID,
+    request: DslGapStatusRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        gap = session.get(DslGap, gap_id)
+        if gap is None:
+            raise HTTPException(status_code=404, detail="dsl_gap_not_found")
+
+        gap.status = request.status
+        gap.updated_at = datetime.now(timezone.utc)
+        session.add(gap)
+
+        reverify_report = reverify_ideas_for_gap(session, dsl_gap_id=gap.id)
+
+        session.commit()
+        return jsonable_encoder(
+            {
+                "gap": gap,
+                "reverify": reverify_report,
+            }
+        )
     finally:
         session.close()
 
