@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,9 @@ import time
 from typing import Any
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
+
+from db.models import LLMMediatorBudgetDaily, LLMMediatorRouteMetric
+from db.session import SessionLocal
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,7 @@ class LLMMediator:
         self._spent_usd_total = 0.0
         self._daily_budget_usd = float(os.getenv("LLM_DAILY_BUDGET_USD", "0") or 0)
         self._budget_day = self._today_utc()
+        self._persist_backend = os.getenv("LLM_MEDIATOR_PERSIST_BACKEND", "db").strip().lower()
         self._state_file = Path(os.getenv("LLM_MEDIATOR_STATE_FILE", ".state/llm-mediator-state.json"))
         self._load_state()
 
@@ -99,7 +104,8 @@ class LLMMediator:
                 "daily_budget_usd": self._daily_budget_usd,
                 "budget_day": self._budget_day,
             },
-            "state_file": str(self._state_file),
+            "state_backend": self._persist_backend,
+            "state_file": str(self._state_file) if self._persist_backend != "db" else None,
         }
 
     def generate_json(
@@ -386,6 +392,11 @@ class LLMMediator:
             self._spent_usd_total = 0.0
 
     def _load_state(self) -> None:
+        if self._persist_backend == "db" and self._load_state_db():
+            return
+        self._load_state_file()
+
+    def _load_state_file(self) -> None:
         try:
             if not self._state_file.exists():
                 return
@@ -405,6 +416,12 @@ class LLMMediator:
             self._budget_day = self._today_utc()
 
     def _persist_state(self) -> None:
+        if self._persist_backend == "db":
+            if self._persist_state_db():
+                return
+        self._persist_state_file()
+
+    def _persist_state_file(self) -> None:
         try:
             self._state_file.parent.mkdir(parents=True, exist_ok=True)
             payload = {
@@ -421,6 +438,99 @@ class LLMMediator:
         except Exception:
             # Non-fatal: failure to persist should not block runtime calls.
             return
+
+    def _load_state_db(self) -> bool:
+        try:
+            with SessionLocal() as session:
+                latest_budget = (
+                    session.query(LLMMediatorBudgetDaily)
+                    .order_by(LLMMediatorBudgetDaily.day.desc())
+                    .limit(1)
+                    .one_or_none()
+                )
+                if latest_budget:
+                    self._budget_day = latest_budget.day.isoformat()
+                    self._spent_usd_total = float(latest_budget.spent_usd_total or 0.0)
+                    if latest_budget.daily_budget_usd is not None:
+                        self._daily_budget_usd = float(latest_budget.daily_budget_usd)
+                self._roll_budget_day_if_needed()
+                current_day = self._parse_day(self._budget_day)
+                metrics = (
+                    session.query(LLMMediatorRouteMetric)
+                    .filter(LLMMediatorRouteMetric.day == current_day)
+                    .all()
+                )
+                loaded: dict[str, dict[str, float]] = {}
+                for row in metrics:
+                    key = f"{row.task_type}|{row.provider}|{row.model}"
+                    loaded[key] = {
+                        "calls": float(row.calls or 0),
+                        "success": float(row.success or 0),
+                        "errors": float(row.errors or 0),
+                        "retries": float(row.retries or 0),
+                        "latency_ms_total": float(row.latency_ms_total or 0),
+                        "prompt_tokens_total": float(row.prompt_tokens_total or 0),
+                        "completion_tokens_total": float(row.completion_tokens_total or 0),
+                        "estimated_cost_usd_total": float(row.estimated_cost_usd_total or 0),
+                    }
+                self._metrics = loaded
+            return True
+        except Exception:
+            self._metrics = {}
+            self._spent_usd_total = 0.0
+            self._budget_day = self._today_utc()
+            return False
+
+    def _persist_state_db(self) -> bool:
+        try:
+            day_value = self._parse_day(self._budget_day)
+            with SessionLocal() as session:
+                budget_row = session.get(LLMMediatorBudgetDaily, day_value)
+                if budget_row is None:
+                    budget_row = LLMMediatorBudgetDaily(day=day_value)
+                    session.add(budget_row)
+                budget_row.spent_usd_total = self._spent_usd_total
+                budget_row.daily_budget_usd = self._daily_budget_usd
+
+                for key, bucket in self._metrics.items():
+                    task_type, provider, model = self._route_key_parts(key)
+                    metric_row = (
+                        session.query(LLMMediatorRouteMetric)
+                        .filter(
+                            LLMMediatorRouteMetric.day == day_value,
+                            LLMMediatorRouteMetric.task_type == task_type,
+                            LLMMediatorRouteMetric.provider == provider,
+                            LLMMediatorRouteMetric.model == model,
+                        )
+                        .one_or_none()
+                    )
+                    if metric_row is None:
+                        metric_row = LLMMediatorRouteMetric(
+                            day=day_value,
+                            task_type=task_type,
+                            provider=provider,
+                            model=model,
+                        )
+                        session.add(metric_row)
+                    metric_row.calls = int(bucket.get("calls", 0) or 0)
+                    metric_row.success = int(bucket.get("success", 0) or 0)
+                    metric_row.errors = int(bucket.get("errors", 0) or 0)
+                    metric_row.retries = int(bucket.get("retries", 0) or 0)
+                    metric_row.latency_ms_total = float(bucket.get("latency_ms_total", 0) or 0)
+                    metric_row.prompt_tokens_total = int(bucket.get("prompt_tokens_total", 0) or 0)
+                    metric_row.completion_tokens_total = int(bucket.get("completion_tokens_total", 0) or 0)
+                    metric_row.estimated_cost_usd_total = float(bucket.get("estimated_cost_usd_total", 0) or 0)
+                session.commit()
+            return True
+        except Exception:
+            return False
+
+    def _parse_day(self, day_value: str) -> date:
+        return date.fromisoformat(day_value)
+
+    def _route_key_parts(self, key: str) -> tuple[str, str, str]:
+        task_type, provider, model = key.split("|", 2)
+        return task_type, provider, model
 
 
 _MEDIATOR = LLMMediator()

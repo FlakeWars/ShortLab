@@ -1,10 +1,10 @@
 # TODO
 
 ## Now (W toku)
-- [ ] LLM Mediator - trwała persystencja DB (branch: feat/llm-mediator-db-persistence)
-  - [ ] Przenieść metryki i budżet z JSON state file do DB
-  - [ ] Dodać migracje + retention polityki dla metryk mediatora
-  - [ ] Zachować kompatybilność z obecnym endpointem `/llm/metrics`
+- [ ] Testy dla persystencji DB mediatora LLM (branch: test/llm-mediator-persistence)
+  - [ ] Testy jednostkowe: serializacja/liczniki i odczyt snapshotu `/llm/metrics`
+  - [ ] Test integracyjny: zapis/odczyt tabel `llm_mediator_*` + fallback plikowy przy awarii DB
+  - [ ] Smoke dla `make llm-mediator-retention` z kontrolą cutoffów
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
@@ -136,6 +136,10 @@
   - [x] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
   - [x] Persist/eksport metryk mediatora (plik stanu + endpoint `/llm/metrics`)
   - [x] Twarde limity budżetu dziennego z persystencją
+- [x] LLM Mediator - trwała persystencja DB (branch: feat/llm-mediator-db-persistence) (2026-02-04)
+  - [x] Przenieść metryki i budżet z JSON state file do DB
+  - [x] Dodać migracje + retention polityki dla metryk mediatora
+  - [x] Zachować kompatybilność z obecnym endpointem `/llm/metrics`
 - [x] Idea Gate: filtrowanie tylko idei wykonalnych (branch: feat/idea-gate-feasible-only) (2026-02-04)
   - [x] Gate pobiera wyłącznie idee o statusie `ready_for_gate`
   - [x] Komunikaty UI dla idei zablokowanych przez `dsl_gaps`
