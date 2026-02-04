@@ -2,7 +2,8 @@
 
 ## Now (W toku)
 - [ ] Testy dla persystencji DB mediatora LLM (branch: test/llm-mediator-persistence)
-  - [ ] Testy jednostkowe: serializacja/liczniki i odczyt snapshotu `/llm/metrics`
+  - [x] Testy jednostkowe: serializacja/liczniki i odczyt snapshotu `/llm/metrics`
+  - [x] Test round-trip backendu `db` na fake session (bez prawdziwego Postgresa)
   - [ ] Test integracyjny: zapis/odczyt tabel `llm_mediator_*` + fallback plikowy przy awarii DB
   - [ ] Smoke dla `make llm-mediator-retention` z kontrolą cutoffów
 
