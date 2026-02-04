@@ -49,6 +49,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make metrics-daily METRICS_CONTENT_ID=... METRICS_DATE=YYYY-MM-DD` – zapis metryk dziennych.
 - `make metrics-pull-run METRICS_PLATFORM=youtube` – zapis uruchomienia pulla metryk.
 - `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
+- `make idea-verify-capability` – weryfikuje wykonalność idei względem DSL i uzupełnia `dsl_gap`.
 - `IDEA_GEN_SOURCE=openai make idea-generate` – generuje pomysły przez OpenAI (wymaga `OPENAI_API_KEY`).
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).

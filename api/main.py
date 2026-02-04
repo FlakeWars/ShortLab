@@ -18,6 +18,7 @@ from db.models import (
     Animation,
     AuditEvent,
     Artifact,
+    DslGap,
     Idea,
     IdeaCandidate,
     IdeaEmbedding,
@@ -27,6 +28,7 @@ from db.models import (
     Job,
 )
 from db.session import SessionLocal
+from ideas.capability import verify_idea_capability
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
 
@@ -143,6 +145,16 @@ class IdeaDecisionItem(BaseModel):
 
 class IdeaDecisionRequest(BaseModel):
     decisions: List[IdeaDecisionItem]
+
+
+class IdeaCapabilityVerifyRequest(BaseModel):
+    idea_id: UUID
+    dsl_version: str = Field(default="v1")
+
+
+class IdeaCapabilityVerifyBatchRequest(BaseModel):
+    limit: int = Field(default=20, ge=1, le=200)
+    dsl_version: str = Field(default="v1")
 
 
 class RerunRequest(BaseModel):
@@ -374,6 +386,73 @@ def decide_idea_repo(
         )
         session.commit()
         return jsonable_encoder({"idea_id": idea.id, "idea_candidate_id": picked_candidate.id})
+    finally:
+        session.close()
+
+
+@app.post("/ideas/verify-capability")
+def verify_capability(
+    request: IdeaCapabilityVerifyRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        report = verify_idea_capability(
+            session,
+            idea_id=request.idea_id,
+            dsl_version=request.dsl_version,
+        )
+        session.commit()
+        return jsonable_encoder(report)
+    finally:
+        session.close()
+
+
+@app.post("/ideas/verify-capability/batch")
+def verify_capability_batch(
+    request: IdeaCapabilityVerifyBatchRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        idea_ids = session.execute(
+            select(Idea.id)
+            .where(Idea.status == "unverified")
+            .order_by(desc(Idea.created_at))
+            .limit(request.limit)
+        ).all()
+        reports = [
+            verify_idea_capability(
+                session,
+                idea_id=idea_id,
+                dsl_version=request.dsl_version,
+            )
+            for (idea_id,) in idea_ids
+        ]
+        session.commit()
+        return jsonable_encoder({"verified": len(reports), "reports": reports})
+    finally:
+        session.close()
+
+
+@app.get("/dsl-gaps")
+def list_dsl_gaps(
+    status: Optional[str] = None,
+    dsl_version: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> List[dict]:
+    limit, offset = _paginate(limit, offset)
+    session = SessionLocal()
+    try:
+        stmt = select(DslGap)
+        if status:
+            stmt = stmt.where(DslGap.status == status)
+        if dsl_version:
+            stmt = stmt.where(DslGap.dsl_version == dsl_version)
+        stmt = stmt.order_by(desc(DslGap.updated_at), desc(DslGap.created_at)).limit(limit).offset(offset)
+        rows = session.execute(stmt).scalars().all()
+        return jsonable_encoder(rows)
     finally:
         session.close()
 

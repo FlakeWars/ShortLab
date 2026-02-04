@@ -11,7 +11,7 @@ Purpose:
 
 Touched tables / objects:
 - user_account, dsl_version, design_system_version, idea_batch, idea_candidate, idea,
-  idea_similarity, idea_embedding, animation, render, artifact, qc_checklist_version, qc_checklist_item,
+  dsl_gap, idea_gap_link, idea_similarity, idea_embedding, animation, render, artifact, qc_checklist_version, qc_checklist_item,
   qc_decision, publish_record, metrics_pull_run, metrics_daily, tag, animation_tag,
   tag_event, pipeline_run, job, job_stage_run, platform_config, audit_event
 - indexes as listed in the db plan (including gin indexes for jsonb payloads)

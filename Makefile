@@ -25,6 +25,9 @@ IDEA_GEN_LIMIT ?= 5
 IDEA_GEN_SEED ?= 0
 IDEA_GEN_PROMPT ?=
 IDEA_GEN_SIM_THRESHOLD ?= 0.97
+IDEA_VERIFY_LIMIT ?= 20
+IDEA_VERIFY_ID ?=
+IDEA_DSL_VERSION ?= v1
 QC_RESULT ?= accepted
 QC_NOTES ?=
 QC_DECIDED_BY ?=
@@ -208,6 +211,13 @@ idea-generate: ## Generate ideas into DB (file/template)
 		--seed "$(IDEA_GEN_SEED)" \
 		--prompt "$(IDEA_GEN_PROMPT)" \
 		--similarity-threshold "$(IDEA_GEN_SIM_THRESHOLD)"
+
+.PHONY: idea-verify-capability
+idea-verify-capability: ## Verify ideas against DSL capability (supports IDEA_VERIFY_ID)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-verify-capability.py \
+		--limit "$(IDEA_VERIFY_LIMIT)" \
+		--dsl-version "$(IDEA_DSL_VERSION)" \
+		$(if $(IDEA_VERIFY_ID),--idea-id "$(IDEA_VERIFY_ID)",)
 
 .PHONY: qc-decide
 qc-decide: ## Create QC decision for an animation (ANIMATION_ID, QC_RESULT, QC_NOTES, QC_DECIDED_BY)
