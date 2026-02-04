@@ -52,29 +52,123 @@ def _provider_defaults(provider: str) -> tuple[str, str]:
     return "https://api.openai.com/v1", "OPENAI_API_KEY"
 
 
+DEFAULT_TASK_PROFILES: dict[str, str] = {
+    "idea_generate": "creative",
+    "idea_verify_capability": "analytical",
+    "idea_compile_dsl": "structured",
+    "dsl_repair": "structured",
+}
+
+
+def _task_profile(task_type: str) -> str | None:
+    key = task_type.upper()
+    profile_override = os.getenv(f"LLM_TASK_PROFILE_{key}", "").strip().lower()
+    if profile_override:
+        return profile_override
+    return DEFAULT_TASK_PROFILES.get(task_type)
+
+
+def _first_non_empty(*values: str | None) -> str | None:
+    for value in values:
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
+
+
 def _load_route(task_type: str) -> TaskRoute:
     key = task_type.upper()
-    provider = os.getenv(f"LLM_ROUTE_{key}_PROVIDER", "openai").strip().lower()
+    profile = _task_profile(task_type)
+    profile_key = f"LLM_PROFILE_{profile.upper()}_" if profile else None
+
+    provider = _first_non_empty(
+        os.getenv(f"LLM_ROUTE_{key}_PROVIDER"),
+        os.getenv(f"{profile_key}PROVIDER") if profile_key else None,
+        "openai",
+    )
+    assert provider is not None
+    provider = provider.lower()
     default_base, default_key_env = _provider_defaults(provider)
-    base_url = os.getenv(f"LLM_ROUTE_{key}_BASE_URL", default_base).strip().rstrip("/")
-    model = os.getenv(f"LLM_ROUTE_{key}_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini")).strip()
-    key_env = os.getenv(f"LLM_ROUTE_{key}_API_KEY_ENV", default_key_env).strip()
+    base_url = (
+        _first_non_empty(
+            os.getenv(f"LLM_ROUTE_{key}_BASE_URL"),
+            os.getenv(f"{profile_key}BASE_URL") if profile_key else None,
+            default_base,
+        )
+        or default_base
+    ).rstrip("/")
+    model = _first_non_empty(
+        os.getenv(f"LLM_ROUTE_{key}_MODEL"),
+        os.getenv(f"{profile_key}MODEL") if profile_key else None,
+        os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    )
+    key_env = _first_non_empty(
+        os.getenv(f"LLM_ROUTE_{key}_API_KEY_ENV"),
+        os.getenv(f"{profile_key}API_KEY_ENV") if profile_key else None,
+        default_key_env,
+    )
+    assert model is not None and key_env is not None
     api_key = os.getenv(key_env, "").strip()
     if not api_key:
         raise RuntimeError(f"Missing API key for task '{task_type}' (env: {key_env})")
-    api_key_header = os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADER", "Authorization").strip()
-    timeout_s = int(os.getenv(f"LLM_ROUTE_{key}_TIMEOUT_S", "45"))
-    retries = int(os.getenv(f"LLM_ROUTE_{key}_RETRIES", "2"))
-    breaker_threshold = int(os.getenv(f"LLM_ROUTE_{key}_BREAKER_THRESHOLD", "5"))
-    breaker_cooldown_s = int(os.getenv(f"LLM_ROUTE_{key}_BREAKER_COOLDOWN_S", "60"))
-    max_tokens = int(os.getenv(f"LLM_ROUTE_{key}_MAX_TOKENS", "1200"))
-    max_cost_usd = float(os.getenv(f"LLM_ROUTE_{key}_MAX_COST_USD", "0"))
+    api_key_header = _first_non_empty(
+        os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADER"),
+        os.getenv(f"{profile_key}API_KEY_HEADER") if profile_key else None,
+        "Authorization",
+    )
+    timeout_s = int(
+        _first_non_empty(
+            os.getenv(f"LLM_ROUTE_{key}_TIMEOUT_S"),
+            os.getenv(f"{profile_key}TIMEOUT_S") if profile_key else None,
+            "45",
+        )
+        or "45"
+    )
+    retries = int(
+        _first_non_empty(
+            os.getenv(f"LLM_ROUTE_{key}_RETRIES"),
+            os.getenv(f"{profile_key}RETRIES") if profile_key else None,
+            "2",
+        )
+        or "2"
+    )
+    breaker_threshold = int(
+        _first_non_empty(
+            os.getenv(f"LLM_ROUTE_{key}_BREAKER_THRESHOLD"),
+            os.getenv(f"{profile_key}BREAKER_THRESHOLD") if profile_key else None,
+            "5",
+        )
+        or "5"
+    )
+    breaker_cooldown_s = int(
+        _first_non_empty(
+            os.getenv(f"LLM_ROUTE_{key}_BREAKER_COOLDOWN_S"),
+            os.getenv(f"{profile_key}BREAKER_COOLDOWN_S") if profile_key else None,
+            "60",
+        )
+        or "60"
+    )
+    max_tokens = int(
+        _first_non_empty(
+            os.getenv(f"LLM_ROUTE_{key}_MAX_TOKENS"),
+            os.getenv(f"{profile_key}MAX_TOKENS") if profile_key else None,
+            "1200",
+        )
+        or "1200"
+    )
+    max_cost_usd = float(
+        _first_non_empty(
+            os.getenv(f"LLM_ROUTE_{key}_MAX_COST_USD"),
+            os.getenv(f"{profile_key}MAX_COST_USD") if profile_key else None,
+            "0",
+        )
+        or "0"
+    )
     return TaskRoute(
         provider=provider,
         model=model,
         base_url=base_url,
         api_key=api_key,
-        api_key_header=api_key_header,
+        api_key_header=api_key_header or "Authorization",
         timeout_s=timeout_s,
         retries=retries,
         breaker_threshold=breaker_threshold,

@@ -2,10 +2,11 @@
 
 ## Now (W toku)
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
-  - [ ] `idea_generate` -> profil kreatywny
-  - [ ] `idea_verify_capability` -> profil analityczny/skrupulatny
-  - [ ] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
-  - [ ] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
+  - [x] `idea_generate` -> profil kreatywny
+  - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
+  - [x] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
+  - [x] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
+  - [ ] Dodać test integracyjny mapowania profili na realnych providerach (OpenRouter/Groq/LiteLLM) poza mockami
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
