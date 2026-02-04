@@ -7,7 +7,8 @@
   - [ ] Twarde walidacje syntax + semantics + raport błędów
   - [x] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
   - [ ] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
-  - [ ] Dodać endpoint/CLI do wymuszenia kompilacji Idea->DSL (obecnie ścieżka aktywowana w pipeline przez feature-flag)
+  - [x] Dodać endpoint/CLI do wymuszenia kompilacji Idea->DSL (obecnie ścieżka aktywowana w pipeline przez feature-flag)
+  - [ ] Dodać test API dla `/ideas/{idea_id}/compile-dsl` (success + idea_not_feasible)
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)

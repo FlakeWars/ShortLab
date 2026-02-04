@@ -28,6 +28,11 @@ IDEA_GEN_SIM_THRESHOLD ?= 0.97
 IDEA_VERIFY_LIMIT ?= 20
 IDEA_VERIFY_ID ?=
 IDEA_DSL_VERSION ?= v1
+IDEA_COMPILE_ID ?=
+IDEA_COMPILE_TEMPLATE ?= .ai/examples/dsl-v1-happy.yaml
+IDEA_COMPILE_OUT ?= out/manual-compile
+IDEA_COMPILE_MAX_ATTEMPTS ?= 3
+IDEA_COMPILE_MAX_REPAIRS ?= 2
 DSL_GAP_ID ?=
 DSL_GAP_STATUS ?= accepted
 QC_RESULT ?= accepted
@@ -328,6 +333,15 @@ idea-gate: ## Propose ideas and select one (Idea Gate)
 	else \
 		PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-gate.py --source "$(IDEA_GATE_SOURCE)"; \
 	fi
+
+.PHONY: idea-compile-dsl
+idea-compile-dsl: ## Force compile one idea to DSL (LLM compiler path)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-compile-dsl.py \
+		--idea-id "$(IDEA_COMPILE_ID)" \
+		--dsl-template "$(IDEA_COMPILE_TEMPLATE)" \
+		--out-root "$(IDEA_COMPILE_OUT)" \
+		--max-attempts "$(IDEA_COMPILE_MAX_ATTEMPTS)" \
+		--max-repairs "$(IDEA_COMPILE_MAX_REPAIRS)"
 
 # --- Data / exports ---
 .PHONY: export
