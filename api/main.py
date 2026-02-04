@@ -312,13 +312,45 @@ def list_ideas(
 def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
     session = SessionLocal()
     try:
+        base_candidates = session.execute(
+            select(IdeaCandidate).where(IdeaCandidate.status.in_(["new", "later"]))
+        ).scalars().all()
+
+        now = datetime.now(timezone.utc)
+        for candidate in base_candidates:
+            if candidate.idea is None:
+                idea = Idea(
+                    idea_candidate_id=candidate.id,
+                    title=candidate.title,
+                    summary=candidate.summary,
+                    what_to_expect=candidate.what_to_expect,
+                    preview=candidate.preview,
+                    idea_hash=_hash_idea(candidate.title, candidate.summary or ""),
+                    status="unverified",
+                    created_at=now,
+                )
+                session.add(idea)
+        session.flush()
+
+        unverified_ids = session.execute(
+            select(Idea.id).where(Idea.status == "unverified").limit(200)
+        ).all()
+        for (idea_id,) in unverified_ids:
+            verify_idea_capability(session, idea_id=idea_id)
+        session.flush()
+
         stmt = (
             select(IdeaCandidate)
-            .where(IdeaCandidate.status.in_(["new", "later"]))
+            .join(Idea, Idea.idea_candidate_id == IdeaCandidate.id)
+            .where(
+                IdeaCandidate.status.in_(["new", "later"]),
+                Idea.status == "ready_for_gate",
+            )
             .order_by(func.random())
             .limit(limit)
         )
         rows = session.execute(stmt).scalars().all()
+        session.commit()
         return jsonable_encoder(rows)
     finally:
         session.close()
@@ -364,12 +396,15 @@ def decide_idea_repo(
                 what_to_expect=picked_candidate.what_to_expect,
                 preview=picked_candidate.preview,
                 idea_hash=_hash_idea(picked_candidate.title, picked_candidate.summary or ""),
+                status="picked",
                 created_at=now,
             )
             session.add(idea)
             session.flush()
         else:
             idea = picked_candidate.idea
+            idea.status = "picked"
+            session.add(idea)
 
         for item in request.decisions:
             candidate = by_id[item.idea_candidate_id]

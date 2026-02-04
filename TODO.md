@@ -14,7 +14,7 @@
   - [ ] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
   - [ ] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
 - [ ] Idea Gate: filtrowanie tylko idei wykonalnych (branch: feat/idea-gate-feasible-only)
-  - [ ] Gate pobiera wyłącznie idee o statusie `ready_for_gate`
+  - [x] Gate pobiera wyłącznie idee o statusie `ready_for_gate`
   - [ ] Komunikaty UI dla idei zablokowanych przez `dsl_gaps`
 - [ ] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability)
   - [x] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
