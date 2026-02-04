@@ -36,6 +36,7 @@
   - [ ] Linki CTA z panelu statusu do widoków szczegółowych repozytoriów
   - [ ] Definicja SLO panelu (czas odświeżania, timeouty, fallback przy częściowej niedostępności)
   - [x] UX: panel statusu jako domyślny pierwszy panel po wejściu do UI
+  - [ ] Lepsza obsługa niezgodności wersji API/UI (gdy działa stary backend bez `/system/status`, pokazać czytelny komunikat i hint restartu)
 - [ ] API: agregaty dla panelu stanu systemu (branch: feat/api-system-status)
   - [x] Endpoint zbiorczy health + repo counters (jedno źródło dla UI status)
   - [x] Standaryzacja kontraktu: `service_status[]`, `repo_counts`, `updated_at`, `partial_failures[]`
