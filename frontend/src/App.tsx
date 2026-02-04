@@ -109,6 +109,13 @@ type IdeaStatusRow = {
   status?: string | null
 }
 
+type BlockedIdea = {
+  id: string
+  title?: string | null
+  status?: string | null
+  gaps?: Array<{ feature?: string | null; status?: string | null }>
+}
+
 const STATUS_ORDER = ['queued', 'running', 'failed', 'succeeded']
 const ANIMATION_STATUSES = [
   'draft',
@@ -270,6 +277,7 @@ function App() {
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [gapActionLoading, setGapActionLoading] = useState<Record<string, boolean>>({})
   const [ideaStatusRows, setIdeaStatusRows] = useState<IdeaStatusRow[]>([])
+  const [blockedIdeas, setBlockedIdeas] = useState<BlockedIdea[]>([])
 
   const opsHeaders = () => {
     const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
@@ -569,6 +577,17 @@ function App() {
     }
   }
 
+  const fetchBlockedIdeas = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/ideas/blocked?limit=6`)
+      if (!response.ok) return
+      const payload = (await response.json()) as BlockedIdea[]
+      setBlockedIdeas(payload)
+    } catch {
+      // Non-critical panel, ignore transient fetch issues.
+    }
+  }
+
   const handleVerifyIdeas = async () => {
     setVerifyLoading(true)
     setOpsError(null)
@@ -588,6 +607,7 @@ function App() {
       fetchDslGaps()
       fetchIdeaCandidates()
       fetchIdeaStatuses()
+      fetchBlockedIdeas()
     } catch (err) {
       setOpsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -614,6 +634,7 @@ function App() {
       fetchDslGaps()
       fetchIdeaCandidates()
       fetchIdeaStatuses()
+      fetchBlockedIdeas()
     } catch (err) {
       setOpsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -649,6 +670,10 @@ function App() {
 
   useEffect(() => {
     fetchIdeaStatuses()
+  }, [])
+
+  useEffect(() => {
+    fetchBlockedIdeas()
   }, [])
 
   useEffect(() => {
@@ -830,6 +855,21 @@ function App() {
             </Button>
           </div>
         </div>
+
+        {blockedIdeas.length > 0 ? (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
+            <div className="font-semibold">
+              {blockedIdeas.length} idea(s) blocked by DSL gaps and excluded from sampling.
+            </div>
+            <div className="mt-2 space-y-1">
+              {blockedIdeas.map((idea) => (
+                <div key={idea.id}>
+                  {idea.title}: {(idea.gaps ?? []).map((gap) => gap.feature).filter(Boolean).join(', ') || 'gap'}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           {['unverified', 'ready_for_gate', 'blocked_by_gaps', 'feasible', 'picked', 'compiled'].map((status) => (

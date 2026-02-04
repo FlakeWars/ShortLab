@@ -22,6 +22,7 @@ from db.models import (
     Idea,
     IdeaCandidate,
     IdeaEmbedding,
+    IdeaGapLink,
     MetricsDaily,
     QCDecision,
     Render,
@@ -304,6 +305,43 @@ def list_ideas(
         stmt = stmt.order_by(desc(Idea.created_at)).limit(limit).offset(offset)
         rows = session.execute(stmt).scalars().all()
         return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
+@app.get("/ideas/blocked")
+def list_blocked_ideas(
+    limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> List[dict]:
+    limit, offset = _paginate(limit, offset)
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(Idea)
+            .where(Idea.status == "blocked_by_gaps")
+            .order_by(desc(Idea.created_at))
+            .limit(limit)
+            .offset(offset)
+        ).scalars().all()
+
+        payload: list[dict] = []
+        for idea in rows:
+            links = session.execute(
+                select(DslGap.feature, DslGap.status)
+                .join(IdeaGapLink, IdeaGapLink.dsl_gap_id == DslGap.id)
+                .where(IdeaGapLink.idea_id == idea.id)
+                .order_by(desc(DslGap.updated_at))
+            ).all()
+            payload.append(
+                {
+                    "id": str(idea.id),
+                    "title": idea.title,
+                    "status": idea.status,
+                    "gaps": [{"feature": feature, "status": status} for feature, status in links],
+                }
+            )
+        return jsonable_encoder(payload)
     finally:
         session.close()
 

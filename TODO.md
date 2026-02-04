@@ -13,9 +13,6 @@
   - [ ] Twarde walidacje syntax + semantics + raport błędów
   - [ ] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
   - [ ] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
-- [ ] Idea Gate: filtrowanie tylko idei wykonalnych (branch: feat/idea-gate-feasible-only)
-  - [x] Gate pobiera wyłącznie idee o statusie `ready_for_gate`
-  - [ ] Komunikaty UI dla idei zablokowanych przez `dsl_gaps`
 - [ ] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability)
   - [x] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
   - [ ] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)
@@ -116,6 +113,9 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Idea Gate: filtrowanie tylko idei wykonalnych (branch: feat/idea-gate-feasible-only) (2026-02-04)
+  - [x] Gate pobiera wyłącznie idee o statusie `ready_for_gate`
+  - [x] Komunikaty UI dla idei zablokowanych przez `dsl_gaps`
 - [x] DSL Capability Verifier (branch: feat/dsl-capability-verifier) (2026-02-04)
   - [x] Model danych: `dsl_gap` + `idea_gap_link` + statusy idei (`unverified/feasible/blocked_by_gaps/ready_for_gate`)
   - [x] Dedup gapów: wykrywanie istniejących `dsl_gap` i linkowanie bez duplikatów
