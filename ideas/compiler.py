@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import hashlib
+import os
+from pathlib import Path
+from typing import Any
+
+from db.models import Idea
+from dsl.validate import validate_file
+from llm import get_mediator
+
+
+ALLOWED_IDEA_STATUSES = {"feasible", "ready_for_gate"}
+
+
+@dataclass(frozen=True)
+class CompileResult:
+    dsl_hash: str
+    compiler_meta: dict[str, Any]
+
+
+def compile_idea_to_dsl(
+    *,
+    idea: Idea,
+    template_path: Path,
+    target_path: Path,
+    animation_code: str,
+    max_attempts: int = 3,
+    max_repairs: int = 2,
+) -> CompileResult:
+    if idea.status not in ALLOWED_IDEA_STATUSES:
+        raise RuntimeError(f"idea_not_feasible:{idea.id}:{idea.status}")
+    if not template_path.exists():
+        raise FileNotFoundError(f"DSL template not found: {template_path}")
+
+    template_yaml = template_path.read_text()
+    dsl_spec = _read_text(Path(".ai/dsl-v1.md"))
+    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v1")
+    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v1")
+    errors: list[str] = []
+    repairs = 0
+
+    for attempt in range(1, max_attempts + 1):
+        user_prompt = _build_compile_prompt(
+            idea=idea,
+            template_yaml=template_yaml,
+            dsl_spec=dsl_spec,
+            previous_errors=errors,
+            is_repair=bool(errors),
+        )
+        try:
+            payload, route_meta = get_mediator().generate_json(
+                task_type="idea_compile_dsl",
+                system_prompt=(
+                    "You compile one feasible short animation idea into YAML DSL. "
+                    "Return JSON only."
+                ),
+                user_prompt=user_prompt,
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "dsl_yaml": {"type": "string"},
+                    },
+                    "required": ["dsl_yaml"],
+                    "additionalProperties": False,
+                },
+                max_tokens=int(os.getenv("IDEA_DSL_COMPILER_MAX_TOKENS", "2400")),
+                temperature=float(os.getenv("IDEA_DSL_COMPILER_TEMPERATURE", "0.2")),
+            )
+            dsl_yaml = str(payload["dsl_yaml"]).strip()
+            if not dsl_yaml:
+                raise RuntimeError("empty_dsl_yaml")
+            target_path.write_text(dsl_yaml)
+            validate_file(target_path)
+            dsl_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()
+            return CompileResult(
+                dsl_hash=dsl_hash,
+                compiler_meta={
+                    "provider": route_meta.get("provider"),
+                    "model": route_meta.get("model"),
+                    "compiler_prompt_version": prompt_version,
+                    "repair_prompt_version": repair_version,
+                    "attempt_count": attempt,
+                    "repair_count": repairs,
+                    "fallback_used": False,
+                },
+            )
+        except Exception as exc:
+            errors = [str(exc)]
+            if attempt <= max_repairs:
+                repairs += 1
+            continue
+
+    if os.getenv("IDEA_DSL_COMPILER_FALLBACK_TEMPLATE", "1") == "1":
+        target_path.write_text(template_yaml)
+        validate_file(target_path)
+        dsl_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()
+        return CompileResult(
+            dsl_hash=dsl_hash,
+            compiler_meta={
+                "provider": "fallback",
+                "model": "template",
+                "compiler_prompt_version": prompt_version,
+                "repair_prompt_version": repair_version,
+                "attempt_count": max_attempts,
+                "repair_count": repairs,
+                "fallback_used": True,
+                "errors": errors,
+            },
+        )
+    raise RuntimeError(f"idea_compile_failed:{'; '.join(errors)}")
+
+
+def can_use_llm_compiler() -> bool:
+    return os.getenv("IDEA_DSL_COMPILER_ENABLED", "0") == "1"
+
+
+def _build_compile_prompt(
+    *,
+    idea: Idea,
+    template_yaml: str,
+    dsl_spec: str,
+    previous_errors: list[str],
+    is_repair: bool,
+) -> str:
+    mode = "repair" if is_repair else "compile"
+    return (
+        f"Mode: {mode}\n"
+        f"Idea title: {idea.title}\n"
+        f"Idea summary: {idea.summary or ''}\n"
+        f"Idea what_to_expect: {idea.what_to_expect or ''}\n"
+        f"Idea preview: {idea.preview or ''}\n"
+        f"Previous validation errors: {previous_errors}\n\n"
+        "DSL spec (short reference):\n"
+        f"{dsl_spec[:8000]}\n\n"
+        "Base template YAML:\n"
+        f"{template_yaml}\n\n"
+        "Return DSL YAML that is valid and concrete for this idea."
+    )
+
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text()
+    except Exception:
+        return ""
