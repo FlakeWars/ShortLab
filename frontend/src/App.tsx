@@ -131,6 +131,16 @@ const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
 const APP_VIEWS = ['home', 'plan', 'flow', 'repositories', 'settings'] as const
 type AppView = (typeof APP_VIEWS)[number]
 
+function getViewFromUrl(): AppView {
+  if (typeof window === 'undefined') return 'home'
+  const params = new URLSearchParams(window.location.search)
+  const value = params.get('view')
+  if (value && APP_VIEWS.includes(value as AppView)) {
+    return value as AppView
+  }
+  return 'home'
+}
+
 const explicitApiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_TARGET
 const fallbackApiBase = (() => {
   if (typeof window === 'undefined') return '/api'
@@ -251,7 +261,7 @@ function SettingRow({ label, value }: { label: string; value?: string | null }) 
 }
 
 function App() {
-  const [activeView, setActiveView] = useState<AppView>('home')
+  const [activeView, setActiveView] = useState<AppView>(getViewFromUrl)
   const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null)
   const [systemStatusLoading, setSystemStatusLoading] = useState(false)
   const [systemStatusError, setSystemStatusError] = useState<string | null>(null)
@@ -728,6 +738,21 @@ function App() {
     fetchSystemStatus()
     const interval = window.setInterval(fetchSystemStatus, 15000)
     return () => window.clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    params.set('view', activeView)
+    const nextUrl = `${window.location.pathname}?${params.toString()}`
+    window.history.replaceState(null, '', nextUrl)
+  }, [activeView])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onPopState = () => setActiveView(getViewFromUrl())
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   useEffect(() => {

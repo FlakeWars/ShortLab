@@ -12,7 +12,8 @@
   - [x] Wdrożenie kolejności: `Home/Control Tower` -> `Plan/Calendar` -> `Flow` -> `Repositories` -> `Settings`
   - [x] Dodać klarowne CTA-linki między widokami (bez ręcznego przełączania zakładki) — MVP
   - [ ] UX review paneli (czytelność, hierarchia, skrócenie tekstów)
-  - [ ] Utrwalać aktywną zakładkę w URL/query-param, żeby odświeżenie nie resetowało kontekstu
+  - [x] Utrwalać aktywną zakładkę w URL/query-param, żeby odświeżenie nie resetowało kontekstu
+  - [ ] Dodać mapę przyjaznych slugów + tytułów (np. `view=flow` -> "Flow operatora")
 
 ## Next (Kolejne)
 - [ ] UI: LLM usage panel v1.1 (branch: feat/ui-llm-usage)
