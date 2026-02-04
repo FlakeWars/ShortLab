@@ -70,6 +70,12 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - persystencja metryk/budżetu: `LLM_MEDIATOR_PERSIST_BACKEND=db` (fallback: `LLM_MEDIATOR_STATE_FILE`)
   - retention: `LLM_MEDIATOR_METRICS_RETENTION_DAYS`, `LLM_MEDIATOR_BUDGET_RETENTION_DAYS`
   - metryki runtime: `GET /llm/metrics` (operator-only)
+- LLM Idea->DSL Compiler (MVP, feature flag):
+  - włącz: `IDEA_DSL_COMPILER_ENABLED=1`
+  - działa tylko dla idei o statusie `feasible`/`ready_for_gate`
+  - routing mediatora: `LLM_ROUTE_IDEA_COMPILE_DSL_*`
+  - limity/retry: `IDEA_DSL_COMPILER_MAX_ATTEMPTS`, `IDEA_DSL_COMPILER_MAX_REPAIRS`
+  - fallback awaryjny do template: `IDEA_DSL_COMPILER_FALLBACK_TEMPLATE=1`
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
   - Uwaga: API zawiera także endpointy operacyjne (`/ops/*`) oraz endpointy Idea Repository.
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).

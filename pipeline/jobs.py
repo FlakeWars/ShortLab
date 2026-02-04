@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
@@ -23,6 +24,7 @@ from sqlalchemy import select
 from db.session import SessionLocal
 from dsl.validate import validate_file
 from dsl.schema import DSL
+from ideas.compiler import can_use_llm_compiler, compile_idea_to_dsl
 from renderer.render import render_dsl
 
 
@@ -254,16 +256,30 @@ def generate_dsl_job(
             raise RuntimeError("idea_selection_required")
 
         target_path = _dsl_path(out_dir)
-        _write_dsl_from_template(
-            template_path,
-            target_path,
-            animation.animation_code,
-            title=title,
-            idea=idea,
-        )
-
-        validate_file(target_path)
-        dsl_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()
+        compiler_meta: dict | None = None
+        if idea is not None and can_use_llm_compiler():
+            compiled = compile_idea_to_dsl(
+                idea=idea,
+                template_path=template_path,
+                target_path=target_path,
+                animation_code=animation.animation_code,
+                max_attempts=int(os.getenv("IDEA_DSL_COMPILER_MAX_ATTEMPTS", "3")),
+                max_repairs=int(os.getenv("IDEA_DSL_COMPILER_MAX_REPAIRS", "2")),
+            )
+            dsl_hash = compiled.dsl_hash
+            compiler_meta = compiled.compiler_meta
+            idea.status = "compiled"
+            session.add(idea)
+        else:
+            _write_dsl_from_template(
+                template_path,
+                target_path,
+                animation.animation_code,
+                title=title,
+                idea=idea,
+            )
+            validate_file(target_path)
+            dsl_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()
 
         animation.status = "queued"
         animation.pipeline_stage = "render"
@@ -271,6 +287,8 @@ def generate_dsl_job(
         session.add(animation)
 
         result = {"dsl_path": str(target_path), "dsl_hash": dsl_hash}
+        if compiler_meta:
+            result["compiler_meta"] = compiler_meta
         _update_job(session, job_id, "succeeded", result=result)
         session.commit()
         return result
