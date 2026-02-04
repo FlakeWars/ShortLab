@@ -7,21 +7,21 @@
   - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
   - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
   - [ ] Wymusić rytuał po merge: krótka analiza wpływu + aktualizacja TODO (Now/Next/Done)
-- [ ] LLM DSL Compiler (module planning) (branch: feat/llm-dsl-compiler)
-  - [ ] Discovery: cele, zakres, ryzyka, granice odpowiedzialności
-  - [ ] Kontrakt wej/wyj + wersjonowanie (Idea → DSL + metadata)
-  - [ ] Spec DSL v1 (minimalny, jednoznaczny, z przykładami)
-  - [ ] Plan walidacji: syntaktyczna + semantyczna + jakościowa
-  - [ ] Strategie awaryjne: repair → retry → fallback
-  - [ ] Telemetria: log błędów, dsl_gaps, koszt/latencja
-  - [ ] Kryteria akceptacji E2E
-  - [ ] Prototyp: LLM prompt + 3–5 testowych idei
-- [ ] LLM DSL Compiler (implementation) (branch: feat/llm-dsl-compiler-impl)
-  - [ ] Generator DSL z LLM (prompt + schema)
-  - [ ] Walidator + repair prompt
-  - [ ] Fallback do deterministycznego mappingu
-  - [ ] Zapis dsl_gaps + audit_event
-  - [ ] Testy: poprawny DSL, naprawa błędów, fallback
+- [ ] DSL Capability Verifier (branch: feat/dsl-capability-verifier)
+  - [ ] Model danych: `dsl_gap` + `idea_gap_link` + statusy idei (`unverified/feasible/blocked_by_gaps/ready_for_gate`)
+  - [ ] Dedup gapów: wykrywanie istniejących `dsl_gap` i linkowanie bez duplikatów
+  - [ ] Wynik weryfikacji: `TAK/NIE` + raport + lista nowych/istniejących gapów
+  - [ ] Re-verification po wdrożeniu gapa (`implemented`) i odblokowanie idei
+  - [ ] API/UI: podgląd statusu wykonalności idei i listy gapów
+- [ ] LLM Idea->DSL Compiler (branch: feat/llm-dsl-compiler-impl)
+  - [ ] Kompilacja tylko dla idei `feasible`/`ready_for_gate`
+  - [ ] Pętla lokalna: `generate -> validate -> repair -> retry`
+  - [ ] Twarde walidacje syntax + semantics + raport błędów
+  - [ ] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
+  - [ ] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
+- [ ] Idea Gate: filtrowanie tylko idei wykonalnych (branch: feat/idea-gate-feasible-only)
+  - [ ] Gate pobiera wyłącznie idee o statusie `ready_for_gate`
+  - [ ] Komunikaty UI dla idei zablokowanych przez `dsl_gaps`
 - [ ] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability)
   - [x] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
   - [ ] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)
@@ -108,6 +108,17 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] LLM DSL Compiler (module planning) (branch: feat/llm-dsl-compiler) (2026-02-04)
+  - [x] Discovery: cele, zakres, ryzyka, granice odpowiedzialności
+  - [x] Kontrakt wej/wyj + wersjonowanie (Idea → DSL + metadata)
+  - [x] Spec DSL v1 (minimalny, jednoznaczny, z przykładami)
+  - [x] Plan walidacji: syntaktyczna + semantyczna + jakościowa
+  - [x] Strategie awaryjne: repair → retry → fallback
+  - [x] Telemetria: log błędów, dsl_gaps, koszt/latencja
+  - [x] Kryteria akceptacji E2E
+  - [x] Prototyp: LLM prompt + 3–5 testowych idei
+  - [x] Rewizja architektury: rozdział na `DSL Capability Verifier` i `Idea->DSL Compiler`
+  - [x] Uszczegółowienie kontraktów I/O, źródeł zasobów i polityk deduplikacji gapów
 - [x] Idea Repository (branch: feat/idea-repo) (2026-02-03)
   - [x] Doprecyzować kontrakt (stany: new/later/rejected/picked) i losowanie N
   - [x] Zmiany DB: status/decyzje + audit (rejected -> delete)

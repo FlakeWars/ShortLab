@@ -15,7 +15,7 @@
 
 ## 3. Wymagania funkcjonalne
 1. Generacja koncepcji i specyfikacji
-   1.1. System generuje pomysły animacji i zapisuje je jako deterministyczną specyfikację DSL.
+   1.1. System kompiluje pomysly animacji (Idea, tekst) do specyfikacji DSL (YAML) przez modul LLM DSL Compiler.
    1.2. DSL jest wersjonowany i kompatybilny wstecz; każda animacja referencjonuje wersję DSL.
    1.3. Logika animacji oparta o FSM jako kontrakt API; AI parametryzuje predefiniowane stany i przejścia.
    1.4. System posiada Idea Repository: generator zapisuje pomysły do repo, Idea Gate losuje N propozycji i wymusza klasyfikację (picked/later/rejected).
@@ -23,6 +23,9 @@
    1.6. System korzysta z osobnego modulu generatora pomyslow (AI) i zapisuje propozycje w bazie; w razie braku AI uzywa fallbacku z pliku.
    1.7. System posiada osobny modul embeddings (provider + fallback), wspoldzielony przez Idea Gate i generator pomyslow.
    1.8. MVP korzysta z lokalnych embeddingow (scikit-learn HashingVectorizer) jako papierka lakmusowego; zdalny provider jest opcjonalny.
+   1.9. System posiada osobny DSL Capability Verifier (TAK/NIE), ktory ocenia wykonalnosc idei wzgledem aktualnego DSL i przypina `dsl_gaps`.
+   1.10. LLM DSL Compiler uruchamia sie tylko dla idei wykonalnych (lub odblokowanych po wdrozeniu gapow) i przechodzi tor: generate -> validate -> repair/retry -> fallback.
+   1.11. Jesli idea wymaga funkcji poza obecnym DSL, system zapisuje `dsl_gaps` do globalnej listy (z deduplikacja) oraz linkuje je do idei.
 
 2. Rendering i reprodukowalność
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.
