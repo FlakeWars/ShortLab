@@ -49,7 +49,11 @@ def test_compile_idea_dsl_success(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         api_main,
         "compile_idea_to_dsl",
-        lambda **kwargs: SimpleNamespace(dsl_hash="abc123", compiler_meta={"fallback_used": False}),
+        lambda **kwargs: SimpleNamespace(
+            dsl_hash="abc123",
+            compiler_meta={"fallback_used": False},
+            validation_report={"syntax_ok": True, "semantic_ok": True, "errors": []},
+        ),
     )
     monkeypatch.setenv("OPERATOR_TOKEN", "sekret")
 
@@ -66,6 +70,7 @@ def test_compile_idea_dsl_success(monkeypatch, tmp_path: Path) -> None:
     assert str(payload["idea_id"]) == str(idea.id)
     assert payload["dsl_hash"] == "abc123"
     assert payload["compiler_meta"]["fallback_used"] is False
+    assert payload["validation_report"]["semantic_ok"] is True
     assert idea.status == "compiled"
     assert fake_session.commits == 1
 

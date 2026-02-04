@@ -622,6 +622,7 @@ def compile_idea_dsl(
             "dsl_path": str(target_path),
             "dsl_hash": result.dsl_hash,
             "compiler_meta": result.compiler_meta,
+            "validation_report": result.validation_report,
         }
     except HTTPException:
         raise

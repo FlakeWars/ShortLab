@@ -4,11 +4,12 @@
 - [ ] LLM Idea->DSL Compiler (branch: feat/llm-dsl-compiler-impl)
   - [x] Kompilacja tylko dla idei `feasible`/`ready_for_gate`
   - [x] Pętla lokalna: `generate -> validate -> repair -> retry`
-  - [ ] Twarde walidacje syntax + semantics + raport błędów
+  - [x] Twarde walidacje syntax + semantics + raport błędów
   - [x] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
-  - [ ] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
+  - [x] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
   - [x] Dodać endpoint/CLI do wymuszenia kompilacji Idea->DSL (obecnie ścieżka aktywowana w pipeline przez feature-flag)
   - [x] Dodać test API dla `/ideas/{idea_id}/compile-dsl` (success + idea_not_feasible)
+  - [ ] Dodać pełny test pipeline (generate_dsl_job -> render) dla 5 idei z aktywnym kompilatorem
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
