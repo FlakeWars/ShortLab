@@ -587,6 +587,55 @@ class MetricsDaily(Base):
     )
 
 
+class LLMMediatorRouteMetric(Base):
+    __tablename__ = "llm_mediator_route_metric"
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    day: Mapped[date] = mapped_column(Date)
+    task_type: Mapped[str] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(Text)
+    calls: Mapped[int] = mapped_column(Integer, default=0)
+    success: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    retries: Mapped[int] = mapped_column(Integer, default=0)
+    latency_ms_total: Mapped[float] = mapped_column(Numeric(18, 3), default=0)
+    prompt_tokens_total: Mapped[int] = mapped_column(BigInteger, default=0)
+    completion_tokens_total: Mapped[int] = mapped_column(BigInteger, default=0)
+    estimated_cost_usd_total: Mapped[float] = mapped_column(Numeric(18, 6), default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "day",
+            "task_type",
+            "provider",
+            "model",
+            name="uq_llm_mediator_route_metric_day_route",
+        ),
+    )
+
+
+class LLMMediatorBudgetDaily(Base):
+    __tablename__ = "llm_mediator_budget_daily"
+
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    spent_usd_total: Mapped[float] = mapped_column(Numeric(18, 6), default=0)
+    daily_budget_usd: Mapped[float] = mapped_column(Numeric(18, 6), default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
 class Tag(Base):
     __tablename__ = "tag"
 

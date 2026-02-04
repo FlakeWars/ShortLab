@@ -301,6 +301,12 @@ publish: ## Publish to platforms (placeholder)
 metrics: ## Pull platform metrics (placeholder)
 	@echo "Pull metrics" 
 
+.PHONY: llm-mediator-retention
+llm-mediator-retention: ## Prune persisted LLM mediator metrics/budget rows
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/llm-mediator-retention.py \
+		--metrics-days "$${LLM_MEDIATOR_METRICS_RETENTION_DAYS:-30}" \
+		--budget-days "$${LLM_MEDIATOR_BUDGET_RETENTION_DAYS:-120}"
+
 .PHONY: qc
 qc: ## Run QC checks (placeholder)
 	@echo "Run QC checks" 

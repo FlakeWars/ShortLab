@@ -48,6 +48,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make publish-record RENDER_ID=... PUBLISH_PLATFORM=youtube` – zapis publikacji.
 - `make metrics-daily METRICS_CONTENT_ID=... METRICS_DATE=YYYY-MM-DD` – zapis metryk dziennych.
 - `make metrics-pull-run METRICS_PLATFORM=youtube` – zapis uruchomienia pulla metryk.
+- `make llm-mediator-retention` – czyści historyczne metryki/budżet mediatora LLM (retention).
 - `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
 - `make idea-verify-capability` – weryfikuje wykonalność idei względem DSL i uzupełnia `dsl_gap`.
 - `make dsl-gap-status DSL_GAP_ID=<UUID> DSL_GAP_STATUS=implemented` – aktualizuje status gapa i robi re-verification powiązanych idei.
@@ -59,7 +60,8 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - resiliency: `LLM_ROUTE_IDEA_GENERATE_TIMEOUT_S`, `..._RETRIES`, `..._BREAKER_*`
   - telemetria/cost estimate: `LLM_PRICE_DEFAULT_INPUT_PER_1K`, `LLM_PRICE_DEFAULT_OUTPUT_PER_1K`
   - safety caps: `LLM_ROUTE_IDEA_GENERATE_MAX_TOKENS`, `..._MAX_COST_USD`, `LLM_DAILY_BUDGET_USD`
-  - persystencja metryk/budżetu: `LLM_MEDIATOR_STATE_FILE`
+  - persystencja metryk/budżetu: `LLM_MEDIATOR_PERSIST_BACKEND=db` (fallback: `LLM_MEDIATOR_STATE_FILE`)
+  - retention: `LLM_MEDIATOR_METRICS_RETENTION_DAYS`, `LLM_MEDIATOR_BUDGET_RETENTION_DAYS`
   - metryki runtime: `GET /llm/metrics` (operator-only)
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).
