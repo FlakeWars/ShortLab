@@ -15,6 +15,8 @@
   - [x] Utrwalać aktywną zakładkę w URL/query-param, żeby odświeżenie nie resetowało kontekstu
   - [ ] Dodać mapę przyjaznych slugów + tytułów (np. `view=flow` -> "Flow operatora")
   - [x] Flow board: karty etapów z licznikami + CTA do odpowiednich sekcji
+  - [x] Flow tab zawiera mini‑listę Animations (bez skoku do Repositories)
+  - [ ] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
 
 ## Next (Kolejne)
 - [ ] UI: LLM usage panel v1.1 (branch: feat/ui-llm-usage)
