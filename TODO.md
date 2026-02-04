@@ -1,28 +1,17 @@
 # TODO
 
 ## Now (W toku)
-- [ ] LLM Idea->DSL Compiler (branch: feat/llm-dsl-compiler-impl)
-  - [x] Kompilacja tylko dla idei `feasible`/`ready_for_gate`
-  - [x] Pętla lokalna: `generate -> validate -> repair -> retry`
-  - [x] Twarde walidacje syntax + semantics + raport błędów
-  - [x] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
-  - [x] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
-  - [x] Dodać endpoint/CLI do wymuszenia kompilacji Idea->DSL (obecnie ścieżka aktywowana w pipeline przez feature-flag)
-  - [x] Dodać test API dla `/ideas/{idea_id}/compile-dsl` (success + idea_not_feasible)
-  - [ ] Dodać pełny test pipeline (generate_dsl_job -> render) dla 5 idei z aktywnym kompilatorem
-    - [x] Dodany test `tests/test_idea_compiler_pipeline_e2e.py` (5 idei, aktywny kompilator, różne hash'e DSL)
-    - [x] Usunąć warunek skip przez ujednolicenie schematu testowej bazy (target `make test-idea-compiler-pipeline-e2e` resetuje i migruje DB)
+- [ ] LLM task profiles (branch: feat/llm-task-profiles)
+  - [ ] `idea_generate` -> profil kreatywny
+  - [ ] `idea_verify_capability` -> profil analityczny/skrupulatny
+  - [ ] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
+  - [ ] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
   - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
   - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
   - [ ] Wymusić rytuał po merge: krótka analiza wpływu + aktualizacja TODO (Now/Next/Done)
-- [ ] LLM task profiles (branch: feat/llm-task-profiles)
-  - [ ] `idea_generate` -> profil kreatywny
-  - [ ] `idea_verify_capability` -> profil analityczny/skrupulatny
-  - [ ] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
-  - [ ] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
 - [ ] VLM: analiza wygenerowanej animacji (branch: feat/vlm-animation-analysis)
   - [ ] Sprawdzić modele multimodalne (wideo/klatki) i wybrać dostępne przez mediator
   - [ ] MVP: analiza klatek kluczowych (zgodność z ideą, dynamika, czytelność)
@@ -128,6 +117,17 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] LLM Idea->DSL Compiler (branch: feat/llm-dsl-compiler-impl) (2026-02-04)
+  - [x] Kompilacja tylko dla idei `feasible`/`ready_for_gate`
+  - [x] Pętla lokalna: `generate -> validate -> repair -> retry`
+  - [x] Twarde walidacje syntax + semantics + raport błędów
+  - [x] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
+  - [x] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
+  - [x] Dodać endpoint/CLI do wymuszenia kompilacji Idea->DSL (obecnie ścieżka aktywowana w pipeline przez feature-flag)
+  - [x] Dodać test API dla `/ideas/{idea_id}/compile-dsl` (success + idea_not_feasible)
+  - [x] Dodać pełny test pipeline (generate_dsl_job -> render) dla 5 idei z aktywnym kompilatorem
+    - [x] Dodany test `tests/test_idea_compiler_pipeline_e2e.py` (5 idei, aktywny kompilator, różne hash'e DSL)
+    - [x] Usunąć warunek skip przez ujednolicenie schematu testowej bazy (target `make test-idea-compiler-pipeline-e2e` resetuje i migruje DB)
 - [x] Warning debt: `datetime.utcnow()` deprecations (branch: fix/datetime-utcnow) (2026-02-04)
   - [x] Zamienić domyślne timestampy modeli i logiki na timezone-aware `datetime.now(datetime.UTC)`
   - [x] Uruchomić testy bez deprecation warningów SQLAlchemy/Python
