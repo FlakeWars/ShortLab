@@ -1,16 +1,10 @@
 # TODO
 
 ## Now (W toku)
-- [ ] LLM Mediator (branch: feat/llm-mediator)
-  - [x] Zdefiniować jeden kontrakt klienta: `task_type + payload` (klient nie zna dostawcy ani modelu)
-  - [x] Dodać routing po `task_type` -> `provider + model` z konfiguracji mediatora
-  - [x] Obsłużyć adaptery: OpenRouter, Groq, LiteLLM (min. 1 aktywny + fallback)
-  - [x] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
-  - [x] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
-  - [x] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
-  - [x] Persist/eksport metryk mediatora (plik stanu + endpoint `/llm/metrics`)
-  - [x] Twarde limity budżetu dziennego z persystencją
-  - [ ] Trwała persystencja metryk/budżetu w DB (obecnie JSON state file)
+- [ ] LLM Mediator - trwała persystencja DB (branch: feat/llm-mediator-db-persistence)
+  - [ ] Przenieść metryki i budżet z JSON state file do DB
+  - [ ] Dodać migracje + retention polityki dla metryk mediatora
+  - [ ] Zachować kompatybilność z obecnym endpointem `/llm/metrics`
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
@@ -133,6 +127,15 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] LLM Mediator (branch: feat/llm-mediator) (2026-02-04)
+  - [x] Zdefiniować jeden kontrakt klienta: `task_type + payload` (klient nie zna dostawcy ani modelu)
+  - [x] Dodać routing po `task_type` -> `provider + model` z konfiguracji mediatora
+  - [x] Obsłużyć adaptery: OpenRouter, Groq, LiteLLM (min. 1 aktywny + fallback)
+  - [x] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
+  - [x] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
+  - [x] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
+  - [x] Persist/eksport metryk mediatora (plik stanu + endpoint `/llm/metrics`)
+  - [x] Twarde limity budżetu dziennego z persystencją
 - [x] Idea Gate: filtrowanie tylko idei wykonalnych (branch: feat/idea-gate-feasible-only) (2026-02-04)
   - [x] Gate pobiera wyłącznie idee o statusie `ready_for_gate`
   - [x] Komunikaty UI dla idei zablokowanych przez `dsl_gaps`
