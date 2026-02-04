@@ -3,6 +3,10 @@
 ## Now (W toku)
 
 ## Next (Kolejne)
+- [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
+  - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
+  - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
+  - [ ] Wymusić rytuał po merge: krótka analiza wpływu + aktualizacja TODO (Now/Next/Done)
 - [ ] LLM DSL Compiler (module planning) (branch: feat/llm-dsl-compiler)
   - [ ] Discovery: cele, zakres, ryzyka, granice odpowiedzialności
   - [ ] Kontrakt wej/wyj + wersjonowanie (Idea → DSL + metadata)
