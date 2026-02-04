@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import and_, desc, func, select, text
 
 from db.models import (
     Animation,
@@ -97,6 +97,23 @@ def _worker_state() -> dict:
             "worker_count": 0,
             "queue_depth": None,
         }
+
+
+def _service_status(name: str, ok: bool, details: str | None = None) -> dict:
+    return {
+        "service": name,
+        "status": "ok" if ok else "down",
+        "details": details,
+    }
+
+
+def _repo_counts(session, model, status_col=None) -> dict:
+    total = session.execute(select(func.count()).select_from(model)).scalar_one()
+    payload = {"total": int(total), "by_status": {}}
+    if status_col is not None:
+        rows = session.execute(select(status_col, func.count()).group_by(status_col)).all()
+        payload["by_status"] = {str(status or "unknown"): int(count) for status, count in rows}
+    return payload
 
 
 def _animation_row(animation: Animation, render: Render | None, qc: QCDecision | None) -> dict:
@@ -184,6 +201,74 @@ class IdeaCompileRequest(BaseModel):
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/system/status")
+def system_status() -> dict:
+    updated_at = datetime.now(timezone.utc)
+    partial_failures: list[str] = []
+    worker = _worker_state()
+    services = [
+        _service_status("api", True),
+        _service_status("redis", bool(worker.get("redis_ok")), None if worker.get("redis_ok") else "ping_failed"),
+        _service_status("worker", bool(worker.get("online")), f"count={worker.get('worker_count', 0)}"),
+    ]
+
+    artifacts_dir = _artifact_base_dir()
+    storage_ok = artifacts_dir.exists()
+    services.append(
+        _service_status(
+            "storage",
+            storage_ok,
+            str(artifacts_dir) if storage_ok else f"missing:{artifacts_dir}",
+        )
+    )
+    if not storage_ok:
+        partial_failures.append("storage_unavailable")
+
+    repo_counts: dict[str, dict] = {
+        "ideas": {"total": None, "by_status": {}},
+        "idea_candidates": {"total": None, "by_status": {}},
+        "dsl_gaps": {"total": None, "by_status": {}},
+        "animations": {"total": None, "by_status": {}},
+        "renders": {"total": None, "by_status": {}},
+        "artifacts": {"total": None, "by_status": {}},
+        "jobs": {"total": None, "by_status": {}},
+        "sfx": {"total": None, "by_status": {}, "placeholder": True},
+        "music": {"total": None, "by_status": {}, "placeholder": True},
+    }
+
+    session = SessionLocal()
+    try:
+        session.execute(text("select 1"))
+        services.append(_service_status("postgres", True))
+        repo_counts["ideas"] = _repo_counts(session, Idea, Idea.status)
+        repo_counts["idea_candidates"] = _repo_counts(session, IdeaCandidate, IdeaCandidate.status)
+        repo_counts["dsl_gaps"] = _repo_counts(session, DslGap, DslGap.status)
+        repo_counts["animations"] = _repo_counts(session, Animation, Animation.status)
+        repo_counts["renders"] = _repo_counts(session, Render, Render.status)
+        repo_counts["jobs"] = _repo_counts(session, Job, Job.status)
+        artifacts_total = session.execute(select(func.count()).select_from(Artifact)).scalar_one()
+        artifacts_by_type = session.execute(
+            select(Artifact.artifact_type, func.count()).group_by(Artifact.artifact_type)
+        ).all()
+        repo_counts["artifacts"] = {
+            "total": int(artifacts_total),
+            "by_status": {str(kind or "unknown"): int(count) for kind, count in artifacts_by_type},
+        }
+    except Exception as exc:
+        services.append(_service_status("postgres", False, "query_failed"))
+        partial_failures.append(f"postgres_unavailable:{type(exc).__name__}")
+    finally:
+        session.close()
+
+    return {
+        "service_status": services,
+        "repo_counts": repo_counts,
+        "worker": worker,
+        "updated_at": updated_at,
+        "partial_failures": partial_failures,
+    }
 
 
 @app.get("/settings")
