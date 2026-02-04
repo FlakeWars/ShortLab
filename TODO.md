@@ -9,6 +9,10 @@
   - [ ] Dodać test integracyjny mapowania profili na realnych providerach (OpenRouter/Groq/LiteLLM) poza mockami
 
 ## Next (Kolejne)
+- [ ] UI: LLM usage panel v1.1 (branch: feat/ui-llm-usage)
+  - [ ] Dodać drill-down per request/run (powiązanie z konkretnym `idea_id` / jobem)
+  - [ ] Dodać komunikat, że koszt estymowany = 0 gdy brak `LLM_PRICE_DEFAULT_*`
+  - [ ] Dodać prosty alert budżetowy (np. >80% `LLM_DAILY_BUDGET_USD`)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
   - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
   - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
@@ -114,6 +118,10 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] UI: panel LLM usage (branch: feat/ui-llm-usage) (2026-02-04)
+  - [x] Widok tokenów/kosztu per task/provider/model na podstawie `/llm/metrics`
+  - [x] Kafelki sumaryczne (calls, tokens, est. cost, daily budget)
+  - [x] Odświeżanie ręczne + polling co 30s
 - [x] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability) (2026-02-04)
   - [x] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
   - [x] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)

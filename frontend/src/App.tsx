@@ -159,6 +159,27 @@ type SettingsResponse = {
   openai_max_output_tokens?: string
 }
 
+type LLMRouteMetrics = {
+  calls?: number
+  success?: number
+  errors?: number
+  retries?: number
+  latency_ms_total?: number
+  prompt_tokens_total?: number
+  completion_tokens_total?: number
+  estimated_cost_usd_total?: number
+}
+
+type LLMMetricsResponse = {
+  routes?: Record<string, LLMRouteMetrics>
+  budget?: {
+    spent_usd_total?: number
+    daily_budget_usd?: number
+    budget_day?: string
+  }
+  state_backend?: string
+}
+
 function formatDate(value?: string | null) {
   if (!value) return '—'
   const parsed = new Date(value)
@@ -269,6 +290,10 @@ function App() {
   const [settings, setSettings] = useState<SettingsResponse | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [llmMetrics, setLlmMetrics] = useState<LLMMetricsResponse | null>(null)
+  const [llmMetricsLoading, setLlmMetricsLoading] = useState(false)
+  const [llmMetricsError, setLlmMetricsError] = useState<string | null>(null)
+  const [llmMetricsUpdatedAt, setLlmMetricsUpdatedAt] = useState<Date | null>(null)
   const [dslGaps, setDslGaps] = useState<DslGap[]>([])
   const [dslGapsLoading, setDslGapsLoading] = useState(false)
   const [dslGapsError, setDslGapsError] = useState<string | null>(null)
@@ -279,12 +304,13 @@ function App() {
   const [ideaStatusRows, setIdeaStatusRows] = useState<IdeaStatusRow[]>([])
   const [blockedIdeas, setBlockedIdeas] = useState<BlockedIdea[]>([])
 
-  const opsHeaders = () => {
+  const opsHeaders = (): Record<string, string> => {
     const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (token) {
-      return { 'Content-Type': 'application/json', 'X-Operator-Token': token }
+      headers['X-Operator-Token'] = token
     }
-    return { 'Content-Type': 'application/json' }
+    return headers
   }
 
   const fetchSummary = async () => {
@@ -548,6 +574,26 @@ function App() {
     }
   }
 
+  const fetchLLMMetrics = async () => {
+    setLlmMetricsLoading(true)
+    setLlmMetricsError(null)
+    try {
+      const response = await fetch(`${API_BASE}/llm/metrics`, {
+        headers: opsHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as LLMMetricsResponse
+      setLlmMetrics(payload)
+      setLlmMetricsUpdatedAt(new Date())
+    } catch (err) {
+      setLlmMetricsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setLlmMetricsLoading(false)
+    }
+  }
+
   const fetchDslGaps = async () => {
     setDslGapsLoading(true)
     setDslGapsError(null)
@@ -665,6 +711,12 @@ function App() {
   }, [])
 
   useEffect(() => {
+    fetchLLMMetrics()
+    const interval = window.setInterval(fetchLLMMetrics, 30000)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
     fetchDslGaps()
   }, [])
 
@@ -683,6 +735,62 @@ function App() {
   const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
   const jobs = useMemo(() => summaryData?.jobs ?? [], [summaryData])
   const worker = useMemo(() => summaryData?.worker, [summaryData])
+  const llmRouteRows = useMemo(() => {
+    const routes = llmMetrics?.routes ?? {}
+    return Object.entries(routes)
+      .map(([routeKey, metric]) => {
+        const [taskType = 'unknown', provider = 'unknown', model = 'unknown'] = routeKey.split('|')
+        const calls = Number(metric.calls ?? 0)
+        const success = Number(metric.success ?? 0)
+        const errors = Number(metric.errors ?? 0)
+        const retries = Number(metric.retries ?? 0)
+        const promptTokens = Number(metric.prompt_tokens_total ?? 0)
+        const completionTokens = Number(metric.completion_tokens_total ?? 0)
+        const latencyTotal = Number(metric.latency_ms_total ?? 0)
+        const costTotal = Number(metric.estimated_cost_usd_total ?? 0)
+        return {
+          routeKey,
+          taskType,
+          provider,
+          model,
+          calls,
+          success,
+          errors,
+          retries,
+          promptTokens,
+          completionTokens,
+          tokensTotal: promptTokens + completionTokens,
+          avgLatencyMs: success > 0 ? latencyTotal / success : 0,
+          costTotal,
+        }
+      })
+      .sort((a, b) => b.calls - a.calls)
+  }, [llmMetrics])
+  const llmTotals = useMemo(() => {
+    return llmRouteRows.reduce(
+      (acc, row) => {
+        acc.calls += row.calls
+        acc.success += row.success
+        acc.errors += row.errors
+        acc.retries += row.retries
+        acc.promptTokens += row.promptTokens
+        acc.completionTokens += row.completionTokens
+        acc.tokensTotal += row.tokensTotal
+        acc.costTotal += row.costTotal
+        return acc
+      },
+      {
+        calls: 0,
+        success: 0,
+        errors: 0,
+        retries: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        tokensTotal: 0,
+        costTotal: 0,
+      },
+    )
+  }, [llmRouteRows])
   const ideaStatusSummary = useMemo(() => {
     return ideaStatusRows.reduce<Record<string, number>>((acc, row) => {
       const key = row.status || 'unknown'
@@ -1615,6 +1723,106 @@ function App() {
               </Button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">LLM usage</h2>
+            <p className="text-sm text-stone-600">
+              Tokeny i koszt per task/provider/model z mediatora LLM.
+            </p>
+          </div>
+          <div className="text-xs text-stone-500">
+            <div>Updated: {llmMetricsUpdatedAt ? llmMetricsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            <div>State backend: {llmMetrics?.state_backend ?? '—'}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Button variant="outline" className="rounded-full" onClick={fetchLLMMetrics} disabled={llmMetricsLoading}>
+            {llmMetricsLoading ? 'Refreshing…' : 'Refresh usage'}
+          </Button>
+          {llmMetricsError ? <span className="text-xs text-rose-600">{llmMetricsError}</span> : null}
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Calls</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{llmTotals.calls}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Total tokens</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{llmTotals.tokensTotal.toLocaleString()}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Estimated cost</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">${llmTotals.costTotal.toFixed(4)}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Daily budget</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">
+                ${(llmMetrics?.budget?.daily_budget_usd ?? 0).toFixed(2)}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          {llmMetricsLoading && llmRouteRows.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading usage metrics…
+            </div>
+          ) : (
+            <table className="min-w-[960px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr>
+                  <th className="px-2 py-3">Task</th>
+                  <th className="px-2 py-3">Provider</th>
+                  <th className="px-2 py-3">Model</th>
+                  <th className="px-2 py-3">Calls</th>
+                  <th className="px-2 py-3">Success</th>
+                  <th className="px-2 py-3">Errors</th>
+                  <th className="px-2 py-3">Retries</th>
+                  <th className="px-2 py-3">Tokens</th>
+                  <th className="px-2 py-3">Avg latency</th>
+                  <th className="px-2 py-3">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {llmRouteRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-2 py-6 text-center text-stone-500">
+                      No LLM calls yet.
+                    </td>
+                  </tr>
+                ) : (
+                  llmRouteRows.map((row) => (
+                    <tr key={row.routeKey} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4 text-stone-800">{row.taskType}</td>
+                      <td className="px-2 py-4 text-stone-600">{row.provider}</td>
+                      <td className="px-2 py-4 font-mono text-xs text-stone-600">{row.model}</td>
+                      <td className="px-2 py-4 text-stone-700">{row.calls}</td>
+                      <td className="px-2 py-4 text-stone-700">{row.success}</td>
+                      <td className="px-2 py-4 text-stone-700">{row.errors}</td>
+                      <td className="px-2 py-4 text-stone-700">{row.retries}</td>
+                      <td className="px-2 py-4 text-stone-700">{row.tokensTotal.toLocaleString()}</td>
+                      <td className="px-2 py-4 text-stone-700">{Math.round(row.avgLatencyMs)} ms</td>
+                      <td className="px-2 py-4 text-stone-700">${row.costTotal.toFixed(4)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </section>
 
