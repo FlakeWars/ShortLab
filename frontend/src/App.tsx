@@ -180,6 +180,19 @@ type LLMMetricsResponse = {
   state_backend?: string
 }
 
+type SystemStatusResponse = {
+  service_status?: Array<{ service?: string; status?: string; details?: string | null }>
+  repo_counts?: Record<string, { total?: number | null; by_status?: Record<string, number>; placeholder?: boolean }>
+  worker?: {
+    redis_ok?: boolean
+    online?: boolean
+    worker_count?: number
+    queue_depth?: number | null
+  }
+  updated_at?: string
+  partial_failures?: string[]
+}
+
 function formatDate(value?: string | null) {
   if (!value) return '—'
   const parsed = new Date(value)
@@ -236,6 +249,9 @@ function SettingRow({ label, value }: { label: string; value?: string | null }) 
 }
 
 function App() {
+  const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null)
+  const [systemStatusLoading, setSystemStatusLoading] = useState(false)
+  const [systemStatusError, setSystemStatusError] = useState<string | null>(null)
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
@@ -328,6 +344,23 @@ function App() {
       setSummaryError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setSummaryLoading(false)
+    }
+  }
+
+  const fetchSystemStatus = async () => {
+    setSystemStatusLoading(true)
+    setSystemStatusError(null)
+    try {
+      const response = await fetch(`${API_BASE}/system/status`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as SystemStatusResponse
+      setSystemStatus(payload)
+    } catch (err) {
+      setSystemStatusError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setSystemStatusLoading(false)
     }
   }
 
@@ -689,6 +722,12 @@ function App() {
   }
 
   useEffect(() => {
+    fetchSystemStatus()
+    const interval = window.setInterval(fetchSystemStatus, 15000)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
     fetchSummary()
     const interval = window.setInterval(fetchSummary, 15000)
     return () => window.clearInterval(interval)
@@ -733,6 +772,8 @@ function App() {
   }, [selectedAnimation?.render?.id])
 
   const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
+  const services = useMemo(() => systemStatus?.service_status ?? [], [systemStatus])
+  const repoCards = useMemo(() => systemStatus?.repo_counts ?? {}, [systemStatus])
   const jobs = useMemo(() => summaryData?.jobs ?? [], [summaryData])
   const worker = useMemo(() => summaryData?.worker, [summaryData])
   const llmRouteRows = useMemo(() => {
@@ -833,6 +874,88 @@ function App() {
           </div>
         </div>
       </header>
+
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">System status</h2>
+            <p className="text-sm text-stone-600">
+              Stan usług i liczników repozytoriów. Pierwszy punkt kontrolny przed pracą z pipeline.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="rounded-full" onClick={fetchSystemStatus} disabled={systemStatusLoading}>
+              {systemStatusLoading ? 'Refreshing…' : 'Refresh status'}
+            </Button>
+          </div>
+        </div>
+        {systemStatusError ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
+            {systemStatusError}
+          </div>
+        ) : null}
+        {systemStatus?.partial_failures && systemStatus.partial_failures.length > 0 ? (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
+            Partial failures: {systemStatus.partial_failures.join(', ')}
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {services.length === 0 ? (
+            <div className="col-span-full rounded-xl border border-dashed border-stone-200 bg-stone-50/60 p-4 text-sm text-stone-500">
+              Brak danych usług.
+            </div>
+          ) : (
+            services.map((item) => (
+              <Card key={item.service} className="border border-stone-200 bg-stone-50/60 shadow-none">
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs uppercase tracking-[0.18em] text-stone-500">{item.service}</span>
+                    <span
+                      className={cn(
+                        'h-2.5 w-2.5 rounded-full',
+                        item.status === 'ok' ? 'bg-emerald-500' : 'bg-rose-500',
+                      )}
+                    />
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-stone-900">
+                    {item.status === 'ok' ? 'OK' : 'DOWN'}
+                  </div>
+                  <div className="mt-1 text-xs text-stone-500">{item.details ?? '—'}</div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Object.entries(repoCards).map(([name, value]) => (
+            <Card key={name} className="border border-stone-200 bg-stone-50/60 shadow-none">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{name}</div>
+                  {value.placeholder ? (
+                    <Badge variant="outline" className="border border-stone-300 text-stone-600">
+                      planned
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="mt-2 text-2xl font-semibold text-stone-900">{value.total ?? '—'}</div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {Object.entries(value.by_status ?? {}).slice(0, 4).map(([status, count]) => (
+                    <Badge key={`${name}-${status}`} variant="outline" className="border border-stone-300 text-stone-700">
+                      {status}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-stone-500">
+          Updated: {formatDate(systemStatus?.updated_at)}
+        </p>
+      </section>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STATUS_ORDER.map((status) => (

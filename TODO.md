@@ -30,16 +30,19 @@
   - [ ] Automatyczne odświeżanie listy animacji/jobów (polling)
   - [ ] Wyraźny przycisk „Odśwież” obok filtrów
 - [ ] UI: panel stanu systemu jako pierwszy ekran (branch: feat/ui-system-status)
-  - [ ] Sekcja health serwisów (API, worker, Redis, Postgres, storage) z lampkami green/red
-  - [ ] Sekcja liczników repozytoriów (idee, dsl_gap, animacje, rendery, artefakty; docelowo SFX/music)
-  - [ ] Rozbicie liczników per status (np. idee: unverified/ready_for_gate/blocked)
+  - [x] Sekcja health serwisów (API, worker, Redis, Postgres, storage) z lampkami green/red
+  - [x] Sekcja liczników repozytoriów (idee, dsl_gap, animacje, rendery, artefakty; docelowo SFX/music)
+  - [x] Rozbicie liczników per status (np. idee: unverified/ready_for_gate/blocked)
   - [ ] Linki CTA z panelu statusu do widoków szczegółowych repozytoriów
   - [ ] Definicja SLO panelu (czas odświeżania, timeouty, fallback przy częściowej niedostępności)
-  - [ ] UX: panel statusu jako domyślny pierwszy panel po wejściu do UI
+  - [x] UX: panel statusu jako domyślny pierwszy panel po wejściu do UI
 - [ ] API: agregaty dla panelu stanu systemu (branch: feat/api-system-status)
-  - [ ] Endpoint zbiorczy health + repo counters (jedno źródło dla UI status)
-  - [ ] Standaryzacja kontraktu: `service_status[]`, `repo_counts`, `updated_at`, `partial_failures[]`
-  - [ ] Liczniki dla repozytoriów istniejących + placeholdery dla przyszłych (SFX/music)
+  - [x] Endpoint zbiorczy health + repo counters (jedno źródło dla UI status)
+  - [x] Standaryzacja kontraktu: `service_status[]`, `repo_counts`, `updated_at`, `partial_failures[]`
+  - [x] Liczniki dla repozytoriów istniejących + placeholdery dla przyszłych (SFX/music)
+- [ ] UI: ograniczyć warningi hooków (`react-hooks/exhaustive-deps`) w `frontend/src/App.tsx` (branch: fix/ui-hook-warnings)
+  - [ ] Ustabilizować funkcje fetch przez `useCallback` albo celowy disable z uzasadnieniem
+  - [ ] Lint bez narastających warningów
 - [ ] Ryzyko: zbyt ciężkie zapytania liczników (branch: fix/status-counters-performance)
   - [ ] Dodać limity/cache (krótki TTL) dla endpointu agregatów
   - [ ] Monitoring czasu odpowiedzi endpointu statusowego
