@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -37,7 +37,7 @@ def _update_job(
     if job is None:
         raise RuntimeError(f"Job not found: {job_id}")
     job.status = status
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     if status == "running" and job.started_at is None:
         job.started_at = now
     if status in {"succeeded", "failed"}:
@@ -267,7 +267,7 @@ def generate_dsl_job(
 
         animation.status = "queued"
         animation.pipeline_stage = "render"
-        animation.updated_at = datetime.utcnow()
+        animation.updated_at = datetime.now(UTC)
         session.add(animation)
 
         result = {"dsl_path": str(target_path), "dsl_hash": dsl_hash}
@@ -327,9 +327,9 @@ def render_job(job_id: UUID | str, animation_id: UUID | str, out_root: str) -> d
             fps=float(canvas.get("fps", 0)),
             params_json=model.model_dump(),
             metadata_json=metadata or None,
-            created_at=datetime.utcnow(),
-            started_at=datetime.utcnow(),
-            finished_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            finished_at=datetime.now(UTC),
         )
         session.add(render)
         session.flush()
@@ -340,28 +340,28 @@ def render_job(job_id: UUID | str, animation_id: UUID | str, out_root: str) -> d
                 artifact_type="video",
                 storage_path=str(out_video),
                 size_bytes=out_video.stat().st_size if out_video.exists() else None,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
             ),
             Artifact(
                 render_id=render.id,
                 artifact_type="metadata",
                 storage_path=str(metadata_path),
                 size_bytes=metadata_path.stat().st_size if metadata_path.exists() else None,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
             ),
             Artifact(
                 render_id=render.id,
                 artifact_type="dsl",
                 storage_path=str(dsl_path),
                 size_bytes=dsl_path.stat().st_size if dsl_path.exists() else None,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
             ),
         ]
         session.add_all(artifacts)
 
         animation.status = "review"
         animation.pipeline_stage = "qc"
-        animation.updated_at = datetime.utcnow()
+        animation.updated_at = datetime.now(UTC)
         session.add(animation)
 
         result = {
@@ -400,7 +400,7 @@ def _get_or_create_dsl_version(session, model: DSL) -> DslVersion:
     record = DslVersion(
         version=model.dsl_version,
         schema_json=schema_json,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(UTC),
     )
     session.add(record)
     session.flush()
@@ -415,7 +415,7 @@ def _get_or_create_design_system_version(session, version: str) -> DesignSystemV
     record = DesignSystemVersion(
         version=version,
         meta=None,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(UTC),
     )
     session.add(record)
     session.flush()

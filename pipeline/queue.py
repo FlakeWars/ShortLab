@@ -4,7 +4,7 @@ from uuid import uuid4
 from redis import Redis
 from rq import Queue
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from db.models import Animation, Job
 from db.session import SessionLocal
@@ -68,7 +68,7 @@ def enqueue_pipeline(
                 "out_root": out_root,
                 "use_idea_gate": use_idea_gate,
             },
-            queued_at=datetime.utcnow(),
+            queued_at=datetime.now(UTC),
         )
         session.add(gen_job)
         session.commit()
@@ -96,7 +96,7 @@ def enqueue_pipeline(
             job_type="render",
             status="queued",
             payload={"out_root": out_root, "animation_id": str(animation.id)},
-            queued_at=datetime.utcnow(),
+            queued_at=datetime.now(UTC),
         )
         session.add(render_db_job)
         session.commit()
@@ -137,7 +137,7 @@ def enqueue_render(animation_id: str, out_root: str) -> dict:
             job_type="render",
             status="queued",
             payload={"out_root": out_root, "rerun": True, "animation_id": str(animation.id)},
-            queued_at=datetime.utcnow(),
+            queued_at=datetime.now(UTC),
         )
         session.add(render_db_job)
         session.commit()
