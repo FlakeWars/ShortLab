@@ -6,6 +6,7 @@ from os import getenv
 from pathlib import Path
 from typing import List, Optional, Literal
 from uuid import UUID
+from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +31,7 @@ from db.models import (
 )
 from db.session import SessionLocal
 from ideas.capability import reverify_ideas_for_gap, verify_idea_capability
+from ideas.compiler import compile_idea_to_dsl
 from llm import get_mediator
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
@@ -170,6 +172,13 @@ class RerunRequest(BaseModel):
 
 class CleanupRequest(BaseModel):
     older_min: int = Field(default=30, ge=1, le=1440)
+
+
+class IdeaCompileRequest(BaseModel):
+    dsl_template: str = Field(default=".ai/examples/dsl-v1-happy.yaml")
+    out_root: str = Field(default="out/manual-compile")
+    max_attempts: int = Field(default=3, ge=1, le=10)
+    max_repairs: int = Field(default=2, ge=0, le=10)
 
 
 @app.get("/health")
@@ -579,6 +588,46 @@ def update_dsl_gap_status(
                 "reverify": reverify_report,
             }
         )
+    finally:
+        session.close()
+
+
+@app.post("/ideas/{idea_id}/compile-dsl")
+def compile_idea_dsl(
+    idea_id: UUID,
+    req: IdeaCompileRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        idea = session.get(Idea, idea_id)
+        if idea is None:
+            raise HTTPException(status_code=404, detail="idea_not_found")
+        out_dir = Path(req.out_root) / f"idea-{idea.id}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        target_path = out_dir / "dsl.yaml"
+        result = compile_idea_to_dsl(
+            idea=idea,
+            template_path=Path(req.dsl_template),
+            target_path=target_path,
+            animation_code=uuid4().hex,
+            max_attempts=req.max_attempts,
+            max_repairs=req.max_repairs,
+        )
+        idea.status = "compiled"
+        session.add(idea)
+        session.commit()
+        return {
+            "idea_id": idea.id,
+            "dsl_path": str(target_path),
+            "dsl_hash": result.dsl_hash,
+            "compiler_meta": result.compiler_meta,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
     finally:
         session.close()
 

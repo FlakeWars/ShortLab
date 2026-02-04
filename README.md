@@ -59,6 +59,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
 - `make idea-verify-capability` – weryfikuje wykonalność idei względem DSL i uzupełnia `dsl_gap`.
 - `make dsl-gap-status DSL_GAP_ID=<UUID> DSL_GAP_STATUS=implemented` – aktualizuje status gapa i robi re-verification powiązanych idei.
+- `make idea-compile-dsl IDEA_COMPILE_ID=<UUID>` – wymusza kompilację jednej idei do DSL (MVP compiler path).
 - `IDEA_GEN_SOURCE=openai make idea-generate` – generuje pomysły przez OpenAI (wymaga `OPENAI_API_KEY`).
 - Mediator LLM (routing per task) dla `idea_generate`:
   - `LLM_ROUTE_IDEA_GENERATE_PROVIDER=openai|openrouter|groq|litellm`
@@ -76,6 +77,9 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - routing mediatora: `LLM_ROUTE_IDEA_COMPILE_DSL_*`
   - limity/retry: `IDEA_DSL_COMPILER_MAX_ATTEMPTS`, `IDEA_DSL_COMPILER_MAX_REPAIRS`
   - fallback awaryjny do template: `IDEA_DSL_COMPILER_FALLBACK_TEMPLATE=1`
+  - ręczne wymuszenie kompilacji:
+    - API (operator-only): `POST /ideas/{idea_id}/compile-dsl`
+    - CLI: `make idea-compile-dsl IDEA_COMPILE_ID=<UUID>`
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
   - Uwaga: API zawiera także endpointy operacyjne (`/ops/*`) oraz endpointy Idea Repository.
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).
