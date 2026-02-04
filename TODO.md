@@ -10,8 +10,9 @@
 - [ ] UI: układ i nawigacja (branch: feat/ui-layout)
   - [x] Przeprojektowanie z "długiej strony" na app-shell z nawigacją zakładkową (MVP)
   - [x] Wdrożenie kolejności: `Home/Control Tower` -> `Plan/Calendar` -> `Flow` -> `Repositories` -> `Settings`
-  - [ ] Dodać klarowne CTA-linki między widokami (bez ręcznego przełączania zakładki)
+  - [x] Dodać klarowne CTA-linki między widokami (bez ręcznego przełączania zakładki) — MVP
   - [ ] UX review paneli (czytelność, hierarchia, skrócenie tekstów)
+  - [ ] Utrwalać aktywną zakładkę w URL/query-param, żeby odświeżenie nie resetowało kontekstu
 
 ## Next (Kolejne)
 - [ ] UI: LLM usage panel v1.1 (branch: feat/ui-llm-usage)

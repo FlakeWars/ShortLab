@@ -847,6 +847,9 @@ function App() {
     () => artifacts.find((item) => item.artifact_type === 'video'),
     [artifacts],
   )
+  const readyIdeas = ideaStatusSummary.ready_for_gate ?? 0
+  const blockedIdeasCount = ideaStatusSummary.blocked_by_gaps ?? 0
+  const queuedJobs = (summary.queued ?? 0) + (summary.running ?? 0)
 
   const previewUrl = videoArtifact ? `${API_BASE}/artifacts/${videoArtifact.id}/file` : null
 
@@ -1000,6 +1003,49 @@ function App() {
           </Card>
         ))}
       </section>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
+          <CardHeader>
+            <CardTitle className="text-lg text-stone-900">Co teraz: Idea Gate</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-stone-600">
+            <p>Gotowe idee do wyboru: <span className="font-semibold text-stone-900">{readyIdeas}</span></p>
+            <p>Zablokowane przez gapy: <span className="font-semibold text-stone-900">{blockedIdeasCount}</span></p>
+            <Button className="rounded-full" onClick={() => setActiveView('flow')}>
+              Przejdź do Flow
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
+          <CardHeader>
+            <CardTitle className="text-lg text-stone-900">Co teraz: Produkcja</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-stone-600">
+            <p>Joby w toku: <span className="font-semibold text-stone-900">{queuedJobs}</span></p>
+            <p>Worker: <span className="font-semibold text-stone-900">{worker?.online ? 'online' : 'offline'}</span></p>
+            <Button className="rounded-full" onClick={() => setActiveView('plan')}>
+              Otwórz Plan
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
+          <CardHeader>
+            <CardTitle className="text-lg text-stone-900">Co teraz: Diagnostyka</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-stone-600">
+            <p>Przeglądaj artefakty, audit i metryki LLM.</p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="rounded-full" onClick={() => setActiveView('repositories')}>
+                Repositories
+              </Button>
+              <Button variant="outline" className="rounded-full" onClick={() => setActiveView('settings')}>
+                Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
       </>
       ) : null}
 
@@ -1051,6 +1097,21 @@ function App() {
 
       {activeView === 'flow' ? (
       <>
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Flow</h2>
+            <p className="text-sm text-stone-600">Sekwencja operatora: Idea Gate &rarr; Compile &rarr; Render &rarr; QC &rarr; Publish.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {['Idea Gate', 'Compile', 'Render', 'QC', 'Publish'].map((step) => (
+              <Badge key={step} variant="outline" className="border border-stone-300 text-stone-700">
+                {step}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      </section>
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-3 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
