@@ -10,6 +10,8 @@
   - [x] Dodać endpoint/CLI do wymuszenia kompilacji Idea->DSL (obecnie ścieżka aktywowana w pipeline przez feature-flag)
   - [x] Dodać test API dla `/ideas/{idea_id}/compile-dsl` (success + idea_not_feasible)
   - [ ] Dodać pełny test pipeline (generate_dsl_job -> render) dla 5 idei z aktywnym kompilatorem
+    - [x] Dodany test `tests/test_idea_compiler_pipeline_e2e.py` (5 idei, aktywny kompilator, różne hash'e DSL)
+    - [ ] Usunąć warunek skip przez ujednolicenie schematu testowej bazy (obecnie skip przy schema drift)
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
