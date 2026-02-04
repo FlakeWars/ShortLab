@@ -12,8 +12,8 @@ from pathlib import Path
 from db.models import Idea, IdeaCandidate, IdeaEmbedding, IdeaSimilarity
 from embeddings import EmbeddingService, cosine_similarity
 from embeddings.service import EmbeddingResult
+from llm import get_mediator
 from .parser import ParsedIdea, parse_ideas_file
-from .openai_provider import build_request_payload, call_openai, extract_json_output, load_openai_config
 
 
 @dataclass(frozen=True)
@@ -212,10 +212,50 @@ def _template_ideas(rng: random.Random, count: int, prompt: str | None) -> list[
 
 
 def _openai_ideas(*, limit: int, seed: int | None, prompt: str) -> list[IdeaDraft]:
-    config = load_openai_config()
-    payload = build_request_payload(prompt=prompt, limit=limit, seed=seed)
-    response = call_openai(config, payload)
-    data = extract_json_output(response)
+    schema = {
+        "type": "object",
+        "properties": {
+            "ideas": {
+                "type": "array",
+                "minItems": limit,
+                "maxItems": limit,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "summary": {"type": "string"},
+                        "what_to_expect": {"type": "string"},
+                        "preview": {"type": "string"},
+                    },
+                    "required": ["title", "summary", "what_to_expect", "preview"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["ideas"],
+        "additionalProperties": False,
+    }
+    system_prompt = (
+        "You generate concise idea proposals for short, deterministic 2D animations. "
+        "Return JSON matching the provided schema exactly. "
+        "Ideas must be distinct and useful for 30-60s animation loops."
+    )
+    user_prompt = "\n".join(
+        [
+            f"Generate {limit} ideas.",
+            f"Seed: {seed}" if seed is not None else "Seed: none",
+            f"User prompt: {prompt.strip()}" if prompt.strip() else "",
+        ]
+    ).strip()
+    data, meta = get_mediator().generate_json(
+        task_type="idea_generate",
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        json_schema=schema,
+        max_tokens=int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "800")),
+        temperature=float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
+        seed=seed,
+    )
     ideas = data.get("ideas", [])
     out: list[IdeaDraft] = []
     for item in ideas[:limit]:
@@ -232,9 +272,9 @@ def _openai_ideas(*, limit: int, seed: int | None, prompt: str) -> list[IdeaDraf
                 preview=preview,
                 source="openai",
                 generation_meta={
-                    "provider": "openai",
-                    "model": config.model,
-                    "response_id": response.get("id"),
+                    "provider": meta.get("provider"),
+                    "model": meta.get("model"),
+                    "response_id": meta.get("id"),
                 },
                 idea_hash=idea_hash,
             )

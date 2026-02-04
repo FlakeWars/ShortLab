@@ -1,6 +1,13 @@
 # TODO
 
 ## Now (W toku)
+- [ ] LLM Mediator (branch: feat/llm-mediator)
+  - [x] Zdefiniować jeden kontrakt klienta: `task_type + payload` (klient nie zna dostawcy ani modelu)
+  - [x] Dodać routing po `task_type` -> `provider + model` z konfiguracji mediatora
+  - [x] Obsłużyć adaptery: OpenRouter, Groq, LiteLLM (min. 1 aktywny + fallback)
+  - [ ] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
+  - [ ] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
+  - [ ] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
@@ -13,13 +20,6 @@
   - [ ] Twarde walidacje syntax + semantics + raport błędów
   - [ ] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
   - [ ] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
-- [ ] LLM Mediator (branch: feat/llm-mediator)
-  - [ ] Zdefiniować jeden kontrakt klienta: `task_type + payload` (klient nie zna dostawcy ani modelu)
-  - [ ] Dodać routing po `task_type` -> `provider + model` z konfiguracji mediatora
-  - [ ] Obsłużyć adaptery: OpenRouter, Groq, LiteLLM (min. 1 aktywny + fallback)
-  - [ ] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
-  - [ ] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
-  - [ ] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [ ] `idea_generate` -> profil kreatywny
   - [ ] `idea_verify_capability` -> profil analityczny/skrupulatny
