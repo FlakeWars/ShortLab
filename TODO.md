@@ -7,6 +7,11 @@
   - [x] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
   - [x] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
   - [ ] Dodać test integracyjny mapowania profili na realnych providerach (OpenRouter/Groq/LiteLLM) poza mockami
+- [ ] UI: układ i nawigacja (branch: feat/ui-layout)
+  - [x] Przeprojektowanie z "długiej strony" na app-shell z nawigacją zakładkową (MVP)
+  - [x] Wdrożenie kolejności: `Home/Control Tower` -> `Plan/Calendar` -> `Flow` -> `Repositories` -> `Settings`
+  - [ ] Dodać klarowne CTA-linki między widokami (bez ręcznego przełączania zakładki)
+  - [ ] UX review paneli (czytelność, hierarchia, skrócenie tekstów)
 
 ## Next (Kolejne)
 - [ ] UI: LLM usage panel v1.1 (branch: feat/ui-llm-usage)
@@ -47,12 +52,6 @@
 - [ ] Ryzyko: zbyt ciężkie zapytania liczników (branch: fix/status-counters-performance)
   - [ ] Dodać limity/cache (krótki TTL) dla endpointu agregatów
   - [ ] Monitoring czasu odpowiedzi endpointu statusowego
-- [ ] UI: układ i nawigacja (branch: feat/ui-layout)
-  - [ ] Przeprojektowanie z "długiej strony" na app-shell z nawigacją zakładkową
-  - [ ] Docelowa kolejność widoków: `Home/Control Tower` -> `Plan/Calendar` -> `Flow` -> `Repositories` -> `Settings`
-  - [ ] Zasada UX: jeden widok = jeden główny cel + jedno główne CTA
-  - [ ] Widoczność blockerów na górze (`dsl_gap`, worker offline, limity LLM)
-  - [ ] UX review paneli (czytelność, hierarchia)
 - [ ] UX IA v2: Control Tower / Plan / Flow (branch: feat/ui-ia-v2)
   - [ ] `Home / Control Tower`: health + KPI + "co teraz" + alerty z CTA
   - [ ] `Plan / Calendar`: tydzień publikacji, backlog gotowych animacji, statusy `planned/ready/blocked/published`

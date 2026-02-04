@@ -128,6 +128,8 @@ const ANIMATION_STATUSES = [
   'archived',
 ]
 const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
+const APP_VIEWS = ['home', 'plan', 'flow', 'repositories', 'settings'] as const
+type AppView = (typeof APP_VIEWS)[number]
 
 const explicitApiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_TARGET
 const fallbackApiBase = (() => {
@@ -249,6 +251,7 @@ function SettingRow({ label, value }: { label: string; value?: string | null }) 
 }
 
 function App() {
+  const [activeView, setActiveView] = useState<AppView>('home')
   const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null)
   const [systemStatusLoading, setSystemStatusLoading] = useState(false)
   const [systemStatusError, setSystemStatusError] = useState<string | null>(null)
@@ -875,6 +878,21 @@ function App() {
         </div>
       </header>
 
+      <nav className="flex flex-wrap gap-2">
+        {APP_VIEWS.map((view) => (
+          <Button
+            key={view}
+            variant={activeView === view ? 'default' : 'outline'}
+            className="rounded-full capitalize"
+            onClick={() => setActiveView(view)}
+          >
+            {view}
+          </Button>
+        ))}
+      </nav>
+
+      {activeView === 'home' ? (
+        <>
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -982,7 +1000,57 @@ function App() {
           </Card>
         ))}
       </section>
+      </>
+      ) : null}
 
+      {activeView === 'plan' ? (
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Plan / Calendar</h2>
+            <p className="text-sm text-stone-600">
+              Widok operacyjny: co gotowe, co zablokowane i co czeka na decyzję.
+            </p>
+          </div>
+          <Button variant="outline" className="rounded-full" onClick={fetchAnimations}>
+            Odśwież plan
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Ready to publish</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.status === 'accepted').length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">In production</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.status === 'queued' || a.status === 'running').length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Needs QC</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.pipeline_stage === 'qc').length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Blocked ideas</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{ideaStatusSummary.blocked_by_gaps ?? 0}</div>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button className="rounded-full" onClick={() => setActiveView('flow')}>Przejdź do Flow</Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setActiveView('repositories')}>Otwórz Repositories</Button>
+        </div>
+      </section>
+      ) : null}
+
+      {activeView === 'flow' ? (
+      <>
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-3 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1428,7 +1496,11 @@ function App() {
           </div>
         </div>
       </section>
+      </>
+      ) : null}
 
+      {activeView === 'repositories' ? (
+      <>
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1848,7 +1920,11 @@ function App() {
           </div>
         </div>
       </section>
+      </>
+      ) : null}
 
+      {activeView === 'settings' ? (
+      <>
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -2027,6 +2103,8 @@ function App() {
           Values are fetched from the backend runtime via <code>/settings</code>.
         </p>
       </section>
+      </>
+      ) : null}
     </div>
   )
 }
