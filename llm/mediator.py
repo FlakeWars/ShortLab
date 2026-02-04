@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
+import time
 from typing import Any
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
@@ -15,6 +16,22 @@ class TaskRoute:
     base_url: str
     api_key: str
     api_key_header: str
+    timeout_s: int
+    retries: int
+    breaker_threshold: int
+    breaker_cooldown_s: int
+
+
+@dataclass(frozen=True)
+class LLMError(Exception):
+    code: str
+    message: str
+    provider: str
+    task_type: str
+    retryable: bool = False
+
+    def __str__(self) -> str:
+        return f"{self.code}({self.provider}/{self.task_type}): {self.message}"
 
 
 def _provider_defaults(provider: str) -> tuple[str, str]:
@@ -39,16 +56,28 @@ def _load_route(task_type: str) -> TaskRoute:
     if not api_key:
         raise RuntimeError(f"Missing API key for task '{task_type}' (env: {key_env})")
     api_key_header = os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADER", "Authorization").strip()
+    timeout_s = int(os.getenv(f"LLM_ROUTE_{key}_TIMEOUT_S", "45"))
+    retries = int(os.getenv(f"LLM_ROUTE_{key}_RETRIES", "2"))
+    breaker_threshold = int(os.getenv(f"LLM_ROUTE_{key}_BREAKER_THRESHOLD", "5"))
+    breaker_cooldown_s = int(os.getenv(f"LLM_ROUTE_{key}_BREAKER_COOLDOWN_S", "60"))
     return TaskRoute(
         provider=provider,
         model=model,
         base_url=base_url,
         api_key=api_key,
         api_key_header=api_key_header,
+        timeout_s=timeout_s,
+        retries=retries,
+        breaker_threshold=breaker_threshold,
+        breaker_cooldown_s=breaker_cooldown_s,
     )
 
 
 class LLMMediator:
+    def __init__(self) -> None:
+        self._failures: dict[str, int] = {}
+        self._breaker_until: dict[str, float] = {}
+
     def generate_json(
         self,
         *,
@@ -61,6 +90,16 @@ class LLMMediator:
         seed: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         route = _load_route(task_type)
+        breaker_key = f"{task_type}:{route.provider}"
+        now_ts = time.time()
+        if self._breaker_until.get(breaker_key, 0) > now_ts:
+            raise LLMError(
+                code="circuit_open",
+                message="Circuit breaker active for task/provider route",
+                provider=route.provider,
+                task_type=task_type,
+                retryable=True,
+            )
         payload = self._build_chat_payload(
             route=route,
             system_prompt=system_prompt,
@@ -70,18 +109,53 @@ class LLMMediator:
             temperature=temperature,
             seed=seed,
         )
-        response = self._call_chat_completion(route, payload)
+        response = self._call_with_retries(task_type, route, payload)
         try:
             content = response["choices"][0]["message"]["content"]
             if not isinstance(content, str):
-                raise RuntimeError("LLM response content is not text")
+                raise LLMError(
+                    code="invalid_response",
+                    message="LLM response content is not text",
+                    provider=route.provider,
+                    task_type=task_type,
+                )
+            self._failures[breaker_key] = 0
             return json.loads(content), {
                 "provider": route.provider,
                 "model": route.model,
                 "id": response.get("id"),
             }
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-            raise RuntimeError(f"Failed to parse LLM JSON response: {exc}") from exc
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError) as exc:
+            fail_count = self._failures.get(breaker_key, 0) + 1
+            self._failures[breaker_key] = fail_count
+            if fail_count >= route.breaker_threshold:
+                self._breaker_until[breaker_key] = now_ts + route.breaker_cooldown_s
+            if isinstance(exc, LLMError):
+                raise exc
+            raise LLMError(
+                code="invalid_json",
+                message=f"Failed to parse LLM JSON response: {exc}",
+                provider=route.provider,
+                task_type=task_type,
+            ) from exc
+
+    def _call_with_retries(
+        self,
+        task_type: str,
+        route: TaskRoute,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        last_error: LLMError | None = None
+        for attempt in range(route.retries + 1):
+            try:
+                return self._call_chat_completion(task_type, route, payload)
+            except LLMError as exc:
+                last_error = exc
+                if not exc.retryable or attempt >= route.retries:
+                    break
+                time.sleep(min(2**attempt, 3))
+        assert last_error is not None
+        raise last_error
 
     def _build_chat_payload(
         self,
@@ -116,7 +190,12 @@ class LLMMediator:
         }
         return payload
 
-    def _call_chat_completion(self, route: TaskRoute, payload: dict[str, Any]) -> dict[str, Any]:
+    def _call_chat_completion(
+        self,
+        task_type: str,
+        route: TaskRoute,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
         headers = {"Content-Type": "application/json"}
         if route.api_key_header.lower() == "authorization":
             headers["Authorization"] = f"Bearer {route.api_key}"
@@ -131,7 +210,7 @@ class LLMMediator:
             headers=headers,
         )
         try:
-            with urlrequest.urlopen(req, timeout=45) as resp:
+            with urlrequest.urlopen(req, timeout=max(5, route.timeout_s)) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except HTTPError as exc:
             detail = exc.read().decode("utf-8")
@@ -144,10 +223,22 @@ class LLMMediator:
                         "content": "Return ONLY valid JSON matching the requested schema.",
                     }
                 ]
-                return self._call_chat_completion(route, fallback)
-            raise RuntimeError(f"LLM API error: {exc.code} {detail}") from exc
+                return self._call_chat_completion(task_type, route, fallback)
+            raise LLMError(
+                code=f"http_{exc.code}",
+                message=detail[:300],
+                provider=route.provider,
+                task_type=task_type,
+                retryable=exc.code >= 500 or exc.code == 429,
+            ) from exc
         except URLError as exc:
-            raise RuntimeError(f"LLM API unreachable: {exc}") from exc
+            raise LLMError(
+                code="network_error",
+                message=str(exc),
+                provider=route.provider,
+                task_type=task_type,
+                retryable=True,
+            ) from exc
 
 
 _MEDIATOR = LLMMediator()

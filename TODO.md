@@ -5,7 +5,7 @@
   - [x] Zdefiniować jeden kontrakt klienta: `task_type + payload` (klient nie zna dostawcy ani modelu)
   - [x] Dodać routing po `task_type` -> `provider + model` z konfiguracji mediatora
   - [x] Obsłużyć adaptery: OpenRouter, Groq, LiteLLM (min. 1 aktywny + fallback)
-  - [ ] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
+  - [x] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
   - [ ] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
   - [ ] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
 

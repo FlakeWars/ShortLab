@@ -56,6 +56,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - `LLM_ROUTE_IDEA_GENERATE_PROVIDER=openai|openrouter|groq|litellm`
   - `LLM_ROUTE_IDEA_GENERATE_MODEL=<model>`
   - opcjonalnie `LLM_ROUTE_IDEA_GENERATE_BASE_URL`, `LLM_ROUTE_IDEA_GENERATE_API_KEY_ENV`
+  - resiliency: `LLM_ROUTE_IDEA_GENERATE_TIMEOUT_S`, `..._RETRIES`, `..._BREAKER_*`
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).
   - `OPERATOR_TOKEN=sekret make api` – włącza guard operatora dla `/ops/*`.
