@@ -6,8 +6,9 @@
   - [x] Dodać routing po `task_type` -> `provider + model` z konfiguracji mediatora
   - [x] Obsłużyć adaptery: OpenRouter, Groq, LiteLLM (min. 1 aktywny + fallback)
   - [x] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
-  - [ ] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
+  - [x] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
   - [ ] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
+  - [ ] Persist/eksport metryk mediatora (obecnie runtime in-memory)
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)

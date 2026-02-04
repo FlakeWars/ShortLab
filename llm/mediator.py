@@ -77,6 +77,10 @@ class LLMMediator:
     def __init__(self) -> None:
         self._failures: dict[str, int] = {}
         self._breaker_until: dict[str, float] = {}
+        self._metrics: dict[str, dict[str, float]] = {}
+
+    def get_metrics_snapshot(self) -> dict[str, Any]:
+        return {"routes": self._metrics}
 
     def generate_json(
         self,
@@ -109,6 +113,7 @@ class LLMMediator:
             temperature=temperature,
             seed=seed,
         )
+        start = time.perf_counter()
         response = self._call_with_retries(task_type, route, payload)
         try:
             content = response["choices"][0]["message"]["content"]
@@ -120,6 +125,21 @@ class LLMMediator:
                     task_type=task_type,
                 )
             self._failures[breaker_key] = 0
+            latency_ms = (time.perf_counter() - start) * 1000.0
+            usage = response.get("usage", {}) if isinstance(response, dict) else {}
+            prompt_tokens = float(usage.get("prompt_tokens", 0) or 0)
+            completion_tokens = float(usage.get("completion_tokens", 0) or 0)
+            estimated_cost = self._estimate_cost_usd(prompt_tokens, completion_tokens)
+            self._track_metrics(
+                task_type=task_type,
+                provider=route.provider,
+                model=route.model,
+                success=True,
+                latency_ms=latency_ms,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                estimated_cost_usd=estimated_cost,
+            )
             return json.loads(content), {
                 "provider": route.provider,
                 "model": route.model,
@@ -128,6 +148,16 @@ class LLMMediator:
         except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError) as exc:
             fail_count = self._failures.get(breaker_key, 0) + 1
             self._failures[breaker_key] = fail_count
+            self._track_metrics(
+                task_type=task_type,
+                provider=route.provider,
+                model=route.model,
+                success=False,
+                latency_ms=0.0,
+                prompt_tokens=0.0,
+                completion_tokens=0.0,
+                estimated_cost_usd=0.0,
+            )
             if fail_count >= route.breaker_threshold:
                 self._breaker_until[breaker_key] = now_ts + route.breaker_cooldown_s
             if isinstance(exc, LLMError):
@@ -151,6 +181,8 @@ class LLMMediator:
                 return self._call_chat_completion(task_type, route, payload)
             except LLMError as exc:
                 last_error = exc
+                if attempt > 0:
+                    self._track_retry(task_type=task_type, provider=route.provider, model=route.model)
                 if not exc.retryable or attempt >= route.retries:
                     break
                 time.sleep(min(2**attempt, 3))
@@ -239,6 +271,66 @@ class LLMMediator:
                 task_type=task_type,
                 retryable=True,
             ) from exc
+
+    def _estimate_cost_usd(self, prompt_tokens: float, completion_tokens: float) -> float:
+        in_rate = float(os.getenv("LLM_PRICE_DEFAULT_INPUT_PER_1K", "0") or 0)
+        out_rate = float(os.getenv("LLM_PRICE_DEFAULT_OUTPUT_PER_1K", "0") or 0)
+        if in_rate <= 0 and out_rate <= 0:
+            return 0.0
+        return (prompt_tokens / 1000.0) * in_rate + (completion_tokens / 1000.0) * out_rate
+
+    def _track_metrics(
+        self,
+        *,
+        task_type: str,
+        provider: str,
+        model: str,
+        success: bool,
+        latency_ms: float,
+        prompt_tokens: float,
+        completion_tokens: float,
+        estimated_cost_usd: float,
+    ) -> None:
+        key = f"{task_type}|{provider}|{model}"
+        bucket = self._metrics.setdefault(
+            key,
+            {
+                "calls": 0.0,
+                "success": 0.0,
+                "errors": 0.0,
+                "retries": 0.0,
+                "latency_ms_total": 0.0,
+                "prompt_tokens_total": 0.0,
+                "completion_tokens_total": 0.0,
+                "estimated_cost_usd_total": 0.0,
+            },
+        )
+        bucket["calls"] += 1
+        if success:
+            bucket["success"] += 1
+            bucket["latency_ms_total"] += max(0.0, latency_ms)
+            bucket["prompt_tokens_total"] += max(0.0, prompt_tokens)
+            bucket["completion_tokens_total"] += max(0.0, completion_tokens)
+            bucket["estimated_cost_usd_total"] += max(0.0, estimated_cost_usd)
+        else:
+            bucket["errors"] += 1
+
+    def _track_retry(self, *, task_type: str, provider: str, model: str) -> None:
+        key = f"{task_type}|{provider}|{model}"
+        bucket = self._metrics.setdefault(
+            key,
+            {
+                "calls": 0.0,
+                "success": 0.0,
+                "errors": 0.0,
+                "retries": 0.0,
+                "latency_ms_total": 0.0,
+                "prompt_tokens_total": 0.0,
+                "completion_tokens_total": 0.0,
+                "estimated_cost_usd_total": 0.0,
+            },
+        )
+        bucket["retries"] += 1
 
 
 _MEDIATOR = LLMMediator()

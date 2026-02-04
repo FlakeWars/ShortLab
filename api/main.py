@@ -30,6 +30,7 @@ from db.models import (
 )
 from db.session import SessionLocal
 from ideas.capability import reverify_ideas_for_gap, verify_idea_capability
+from llm import get_mediator
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
 
@@ -634,6 +635,11 @@ def pipeline_summary(
         }
     finally:
         session.close()
+
+
+@app.get("/llm/metrics")
+def llm_metrics(_guard: None = Depends(_require_operator)) -> dict:
+    return jsonable_encoder(get_mediator().get_metrics_snapshot())
 
 
 @app.get("/pipeline/jobs")
