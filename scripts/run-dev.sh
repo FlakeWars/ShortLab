@@ -14,6 +14,12 @@ API_LOG="${TMPDIR:-/tmp}/shortlab-api.log"
 UI_LOG="${TMPDIR:-/tmp}/shortlab-ui.log"
 WORKER_LOG="${TMPDIR:-/tmp}/shortlab-worker.log"
 
+start_bg() {
+  local cmd="$1"
+  local log="$2"
+  nohup bash -lc "${cmd}" >"${log}" 2>&1 &
+}
+
 kill_port() {
   local port="$1"
   local pids
@@ -42,7 +48,14 @@ fi
 
 if [ -f "${PID_FILE}" ]; then
   alive=0
-  while read -r pid; do
+  while read -r line; do
+    if [[ "${line}" == pid:* ]]; then
+      pid="${line#pid:}"
+    elif [[ "${line}" =~ ^[0-9]+$ ]]; then
+      pid="${line}"
+    else
+      continue
+    fi
     if [ -n "${pid}" ] && kill -0 "${pid}" >/dev/null 2>&1; then
       alive=1
       break
@@ -70,22 +83,16 @@ REDIS_URL="${REDIS_URL}" PYTHONPATH="${ROOT_DIR}" "${ROOT_DIR}/${VENV_DIR}/bin/p
 REDIS_URL="${REDIS_URL}" PYTHONPATH="${ROOT_DIR}" "${ROOT_DIR}/${VENV_DIR}/bin/python" \
   "${ROOT_DIR}/scripts/cleanup-jobs.py" --older-min 1 >/dev/null 2>&1 || true
 
-nohup bash -c \
-  "OPERATOR_TOKEN='${OPERATOR_TOKEN}' REDIS_URL='${REDIS_URL}' VENV_DIR='${VENV_DIR}' API_PORT='${API_PORT}' make api" \
-  >"${API_LOG}" 2>&1 &
+start_bg "OPERATOR_TOKEN='${OPERATOR_TOKEN}' REDIS_URL='${REDIS_URL}' VENV_DIR='${VENV_DIR}' API_PORT='${API_PORT}' make api" "${API_LOG}"
 API_PID=$!
 
-nohup bash -c \
-  "VITE_API_URL='http://localhost:${API_PORT}' VITE_API_TARGET='http://localhost:${API_PORT}' UI_PORT='${UI_PORT}' make ui" \
-  >"${UI_LOG}" 2>&1 &
+start_bg "VITE_API_URL='http://localhost:${API_PORT}' VITE_API_TARGET='http://localhost:${API_PORT}' UI_PORT='${UI_PORT}' make ui" "${UI_LOG}"
 UI_PID=$!
 
-nohup bash -c \
-  "REDIS_URL='${REDIS_URL}' VENV_DIR='${VENV_DIR}' make worker" \
-  >"${WORKER_LOG}" 2>&1 &
+start_bg "REDIS_URL='${REDIS_URL}' VENV_DIR='${VENV_DIR}' make worker" "${WORKER_LOG}"
 WORKER_PID=$!
 
-printf "%s\n%s\n%s\n" "${API_PID}" "${UI_PID}" "${WORKER_PID}" >"${PID_FILE}"
+printf "pid:%s\npid:%s\npid:%s\n" "${API_PID}" "${UI_PID}" "${WORKER_PID}" >"${PID_FILE}"
 
 echo "Started API:${API_PORT} UI:${UI_PORT} worker (REDIS=${REDIS_URL})"
 echo "Logs: ${API_LOG}, ${UI_LOG}, ${WORKER_LOG}"

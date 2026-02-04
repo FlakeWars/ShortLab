@@ -18,10 +18,6 @@
   - [ ] MVP: analiza klatek kluczowych (zgodność z ideą, dynamika, czytelność)
   - [ ] Raport `animation_analyze` do QC (score + uzasadnienie + rekomendacje)
   - [ ] Integracja z pipeline: opcjonalny krok po renderze przed decyzją QC
-- [ ] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability)
-  - [x] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
-  - [ ] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)
-  - [x] `make run-dev` automatycznie sprząta zaległy PID file
 - [ ] UI: Idea Gate (branch: feat/ui-idea-gate)
   - [ ] Wyświetla kilka propozycji + wybór (radio/CTA)
   - [ ] Rozszerzony opis propozycji (what_to_expect/preview)
@@ -118,6 +114,10 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability) (2026-02-04)
+  - [x] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
+  - [x] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)
+  - [x] `make run-dev` automatycznie sprząta zaległy PID file
 - [x] LLM Idea->DSL Compiler (branch: feat/llm-dsl-compiler-impl) (2026-02-04)
   - [x] Kompilacja tylko dla idei `feasible`/`ready_for_gate`
   - [x] Pętla lokalna: `generate -> validate -> repair -> retry`
