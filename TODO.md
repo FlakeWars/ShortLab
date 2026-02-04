@@ -7,6 +7,10 @@
   - [ ] Smoke dla `make llm-mediator-retention` z kontrolą cutoffów
 
 ## Next (Kolejne)
+- [ ] Process: sync dokumentacji po każdym merge (branch: chore/docs-sync-discipline)
+  - [ ] Dodać checklistę "PRD/Tech-Stack/README sync" do rytuału post-merge
+  - [ ] Przy każdym merge wpisywać w TODO, które sekcje dokumentacji zmieniono i dlaczego
+  - [ ] Rozdzielać w dokumentach: "stan aktualny" vs "plan/docelowo", by nie mieszać implementacji z roadmapą
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
   - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
   - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem

@@ -6,6 +6,13 @@
 4. Architektura: Lokalne uruchomienie, job-based pipeline: generacja DSL -> render -> QC/review -> publikacja -> metryki -> analiza.
 5. Autonomia: Etapy manual -> assisted -> semi-auto, z ewaluacją co 14 dni i jawnie zdefiniowanymi kryteriami wyjścia.
 
+## 1a. Stan implementacji (na dzień 4 lutego 2026)
+1. Działa: pipeline enqueue -> generate_dsl -> render (RQ/Redis), podgląd animacji i artefaktów, audit log, podstawowe operacje z UI.
+2. Działa: Idea Repository + Idea Gate (picked/later/rejected), DSL Capability Verifier (`feasible/blocked_by_gaps`) i re-verification po zmianie statusu gapa.
+3. Działa: mediator LLM z routingiem per task i persystencją metryk/budżetu do DB (`/llm/metrics` + retention).
+4. Częściowo: UI jest operacyjne, ale nadal nie pokrywa pełnego docelowego przepływu QC/publish/metrics jako głównego UX.
+5. Jeszcze niegotowe: pełny moduł LLM Idea->DSL Compiler (generate/validate/repair), panel QC i panel publikacji, pełne E2E "idea -> publikacja".
+
 ## 2. Problem użytkownika
 1. Brak skalowalnego sposobu na codzienną publikację Shorts i systematyczną obserwację wpływu regularności na zasięgi.
 2. Trudność w utrzymaniu spójnego procesu generacji, kontroli jakości i publikacji przy minimalnym udziale człowieka.

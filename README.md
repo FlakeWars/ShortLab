@@ -8,6 +8,12 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - Lokalna infrastruktura: Postgres, Redis, MinIO (Docker Compose).
 - Panel review: React + Vite.
 
+## Stan implementacji (2026-02-04)
+- Działa end-to-end dla ścieżki operacyjnej: enqueue -> generate_dsl -> render -> artefakty.
+- Działa Idea Repository/Idea Gate + DSL Capability Verifier + `dsl_gaps`.
+- Działa mediator LLM z routingiem i persystencją metryk/budżetu w DB.
+- W toku: pełna ścieżka UI dla QC/publikacji/metryk oraz docelowy moduł LLM Idea->DSL Compiler.
+
 ## Szybki start (macOS M2 Pro)
 1. Zainstaluj narzędzia bazowe:
    - `make setup-macos` (lub `make bootstrap` dla pełnego setupu)
@@ -64,6 +70,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - retention: `LLM_MEDIATOR_METRICS_RETENTION_DAYS`, `LLM_MEDIATOR_BUDGET_RETENTION_DAYS`
   - metryki runtime: `GET /llm/metrics` (operator-only)
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
+  - Uwaga: API zawiera także endpointy operacyjne (`/ops/*`) oraz endpointy Idea Repository.
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).
   - `OPERATOR_TOKEN=sekret make api` – włącza guard operatora dla `/ops/*`.
   - Jeśli pojawia się warning `nice(5) failed`, uruchom `make api` poza sandboxem (to ograniczenie środowiska, nie projektu).

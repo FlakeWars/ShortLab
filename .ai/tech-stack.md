@@ -1,6 +1,6 @@
-# Proponowany stos technologiczny (MVP)
+# Stos technologiczny (MVP) - stan aktualny
 
-Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline’u z panelem review i półautomatyczną publikacją. Dobór skupia się na: deterministyczności, prostocie uruchomienia lokalnego, łatwym debugowaniu oraz możliwości rozszerzania.
+Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowane. Dobór skupia się na: deterministyczności, prostocie uruchomienia lokalnego, łatwym debugowaniu oraz możliwości rozszerzania.
 
 ## 1. Języki i runtime
 - **Python 3.12**: główny język backendu i workerów (szybki development, dobre biblioteki do AI, pipeline i integracji API).
@@ -10,12 +10,11 @@ Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline�
 ## 2. Backend API i panel review
 - **FastAPI**: szybki backend HTTP/JSON, łatwe walidacje modeli, dokumentacja OpenAPI.
 - **React + Vite + TypeScript**: panel operacyjny systemu (pipeline, Idea Gate, QC, metryki).
-- **TanStack Query**: cache danych, odświeżanie statusów jobów (polling).
-- **TanStack Table**: listy animacji/jobów z filtrowaniem.
-- **Wykresy**: **ECharts** lub **Recharts** do metryk i trendów.
 - **Tailwind CSS**: szybkie i spójne budowanie UI w MVP.
 - **shadcn/ui**: gotowe, dostępne komponenty (design primitives) budowane na Tailwind.
-- **Auth**: session-based auth z hashem (Argon2), tylko dla operatora; opcjonalnie podstawowy 2FA (TOTP).
+- **Auth (aktualnie)**: brak pełnego loginu sesyjnego; endpointy operacyjne chronione tokenem operatora.
+- **Auth (plan)**: session-based auth z hashem (Argon2), tylko dla operatora; opcjonalnie podstawowy 2FA (TOTP).
+- **Planowane po MVP**: TanStack Query/Table oraz biblioteka wykresów po rozbudowie UI.
 
 ## 3. Kolejki zadań i workerzy
 - **Redis**: kolejka zadań i krótkotrwały cache.
@@ -78,8 +77,9 @@ Poniżej propozycja spójnego stosu dla lokalnego, deterministycznego pipeline�
 - **Animacje**: lista animacji + metadane + statusy.
 - **Render**: podgląd wideo + metryki renderu + DSL/Design System.
 - **Idea Gate**: propozycje + wybór + similarity.
-- **QC**: decyzje i checklisty.
+- **QC**: backend flow jest dostępny, osobny panel UI jest w backlogu.
 - **Audit log**: historia zdarzeń i filtr po typie.
+- **Ops**: enqueue/rerun/cleanup z guardem operatora.
 
 ## 11. Testy i jakość
 - **Pytest**: testy pipeline, DSL i deterministyczności renderu (golden tests).
