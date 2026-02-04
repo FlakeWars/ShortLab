@@ -13,9 +13,6 @@
   - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
   - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
   - [ ] Wymusić rytuał po merge: krótka analiza wpływu + aktualizacja TODO (Now/Next/Done)
-- [ ] Warning debt: `datetime.utcnow()` deprecations (branch: fix/datetime-utcnow)
-  - [ ] Zamienić domyślne timestampy modeli i logiki na timezone-aware `datetime.now(datetime.UTC)`
-  - [ ] Uruchomić testy bez deprecation warningów SQLAlchemy/Python
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [ ] `idea_generate` -> profil kreatywny
   - [ ] `idea_verify_capability` -> profil analityczny/skrupulatny
@@ -126,6 +123,9 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Warning debt: `datetime.utcnow()` deprecations (branch: fix/datetime-utcnow) (2026-02-04)
+  - [x] Zamienić domyślne timestampy modeli i logiki na timezone-aware `datetime.now(datetime.UTC)`
+  - [x] Uruchomić testy bez deprecation warningów SQLAlchemy/Python
 - [x] Testy dla persystencji DB mediatora LLM (branch: test/llm-mediator-db-workflow) (2026-02-04)
   - [x] Testy jednostkowe: serializacja/liczniki i odczyt snapshotu `/llm/metrics`
   - [x] Test round-trip backendu `db` na fake session (bez prawdziwego Postgresa)

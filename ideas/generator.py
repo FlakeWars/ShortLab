@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 import hashlib
 import random
 import os
@@ -112,7 +112,7 @@ def save_ideas(
             generator_source=_map_generator_source(idea.source),
             similarity_status=similarity_status,
             status="new",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
         )
         session.add(record)
         created.append(record)
@@ -126,7 +126,7 @@ def save_ideas(
             model=result.model,
             version=result.version,
             vector=result.vector,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
         )
         session.add(embedding)
 
@@ -138,7 +138,7 @@ def save_ideas(
                     compared_idea_id=compared.id,
                     score=score,
                     embedding_version=result.version,
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(UTC),
                 )
                 session.add(sim)
     session.commit()

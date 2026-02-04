@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -23,6 +23,10 @@ from sqlalchemy.sql import text
 from .base import Base
 
 
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
 class UserAccount(Base):
     __tablename__ = "user_account"
 
@@ -36,9 +40,9 @@ class UserAccount(Base):
     password_hash: Mapped[str] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
 
@@ -53,7 +57,7 @@ class DslVersion(Base):
     )
     version: Mapped[str] = mapped_column(Text, unique=True)
     schema_json: Mapped[dict] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
 class DesignSystemVersion(Base):
@@ -67,7 +71,7 @@ class DesignSystemVersion(Base):
     )
     version: Mapped[str] = mapped_column(Text, unique=True)
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
 class IdeaBatch(Base):
@@ -82,7 +86,7 @@ class IdeaBatch(Base):
     run_date: Mapped[date] = mapped_column(Date)
     window_id: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     candidates: Mapped[list["IdeaCandidate"]] = relationship(back_populates="idea_batch")
 
@@ -125,7 +129,7 @@ class IdeaCandidate(Base):
         nullable=True,
     )
     decision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     idea_batch: Mapped["IdeaBatch"] = relationship(back_populates="candidates")
     idea: Mapped["Idea | None"] = relationship(back_populates="idea_candidate", uselist=False)
@@ -166,7 +170,7 @@ class Idea(Base):
     preview: Mapped[str | None] = mapped_column(Text)
     idea_hash: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="unverified")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     idea_candidate: Mapped["IdeaCandidate | None"] = relationship(back_populates="idea")
     animations: Mapped[list["Animation"]] = relationship(back_populates="idea")
@@ -195,8 +199,8 @@ class DslGap(Base):
     reason: Mapped[str] = mapped_column(Text)
     impact: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="new")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     idea_links: Mapped[list["IdeaGapLink"]] = relationship(back_populates="dsl_gap", cascade="all, delete-orphan")
 
@@ -226,7 +230,7 @@ class IdeaGapLink(Base):
         PGUUID(as_uuid=True),
         ForeignKey("dsl_gap.id", ondelete="CASCADE"),
     )
-    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     idea: Mapped["Idea"] = relationship(back_populates="gap_links")
     dsl_gap: Mapped["DslGap"] = relationship(back_populates="idea_links")
@@ -255,7 +259,7 @@ class IdeaSimilarity(Base):
     )
     score: Mapped[float] = mapped_column(Numeric(5, 4))
     embedding_version: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
         UniqueConstraint("idea_candidate_id", "compared_idea_id", name="uq_idea_similarity_pair"),
@@ -284,7 +288,7 @@ class IdeaEmbedding(Base):
     model: Mapped[str] = mapped_column(Text)
     version: Mapped[str] = mapped_column(Text)
     vector: Mapped[dict] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
         UniqueConstraint("idea_candidate_id", "version", name="uq_idea_embedding_candidate_version"),
@@ -315,9 +319,9 @@ class Animation(Base):
     pipeline_stage: Mapped[str] = mapped_column(Text)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     soft_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     idea: Mapped["Idea | None"] = relationship(back_populates="animations")
@@ -371,7 +375,7 @@ class Render(Base):
     fps: Mapped[float] = mapped_column(Numeric(6, 3))
     params_json: Mapped[dict] = mapped_column(JSONB)
     metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -401,7 +405,7 @@ class Artifact(Base):
     storage_path: Mapped[str] = mapped_column(Text)
     checksum: Mapped[str | None] = mapped_column(Text)
     size_bytes: Mapped[int | None] = mapped_column(BigInteger)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     render: Mapped["Render"] = relationship(back_populates="artifacts")
 
@@ -425,7 +429,7 @@ class QCChecklistVersion(Base):
     name: Mapped[str] = mapped_column(Text)
     version: Mapped[str] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
         UniqueConstraint("name", "version", name="uq_qc_checklist_version_name_version"),
@@ -483,7 +487,7 @@ class QCDecision(Base):
         nullable=True,
     )
     decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
         CheckConstraint("result in ('accepted', 'rejected', 'regenerate')", name="ck_qc_decision_result"),
@@ -510,9 +514,9 @@ class PublishRecord(Base):
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     __table_args__ = (
@@ -540,7 +544,7 @@ class MetricsPullRun(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
         CheckConstraint("platform_type in ('youtube', 'tiktok')", name="ck_metrics_pull_run_platform_type"),
@@ -579,7 +583,7 @@ class MetricsDaily(Base):
     avg_view_percentage: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     avg_view_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     extra_metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
         CheckConstraint("platform_type in ('youtube', 'tiktok')", name="ck_metrics_daily_platform_type"),
@@ -608,9 +612,9 @@ class LLMMediatorRouteMetric(Base):
     prompt_tokens_total: Mapped[int] = mapped_column(BigInteger, default=0)
     completion_tokens_total: Mapped[int] = mapped_column(BigInteger, default=0)
     estimated_cost_usd_total: Mapped[float] = mapped_column(Numeric(18, 6), default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     __table_args__ = (
@@ -630,9 +634,9 @@ class LLMMediatorBudgetDaily(Base):
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     spent_usd_total: Mapped[float] = mapped_column(Numeric(18, 6), default=0)
     daily_budget_usd: Mapped[float] = mapped_column(Numeric(18, 6), default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
 
@@ -647,7 +651,7 @@ class Tag(Base):
     )
     name: Mapped[str] = mapped_column(Text, unique=True)
     tag_type: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
         CheckConstraint("tag_type in ('canonical', 'experimental')", name="ck_tag_type"),
@@ -672,7 +676,7 @@ class AnimationTag(Base):
         ForeignKey("user_account.id", ondelete="SET NULL"),
         nullable=True,
     )
-    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
 class TagEvent(Base):
@@ -727,9 +731,9 @@ class PipelineRun(Base):
     status: Mapped[str] = mapped_column(Text)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     __table_args__ = (
@@ -764,9 +768,9 @@ class Job(Base):
     queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     __table_args__ = (
@@ -798,7 +802,7 @@ class JobStageRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
     __table_args__ = (
@@ -826,8 +830,8 @@ class PlatformConfig(Base):
         ForeignKey("user_account.id", ondelete="SET NULL"),
         nullable=True,
     )
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
         CheckConstraint("platform_type in ('youtube', 'tiktok')", name="ck_platform_config_platform_type"),
