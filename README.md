@@ -63,9 +63,16 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make idea-compile-dsl IDEA_COMPILE_ID=<UUID>` – wymusza kompilację jednej idei do DSL (MVP compiler path).
 - `IDEA_GEN_SOURCE=openai make idea-generate` – generuje pomysły przez OpenAI (wymaga `OPENAI_API_KEY`).
 - Mediator LLM (routing per task) dla `idea_generate`:
+  - profile tasków (bez zmian po stronie klientów):
+    - `idea_generate` -> `creative`
+    - `idea_verify_capability` -> `analytical`
+    - `idea_compile_dsl` + `dsl_repair` -> `structured`
+  - profile map: `LLM_TASK_PROFILE_<TASK>=creative|analytical|structured`
+  - profile defaults: `LLM_PROFILE_<PROFILE>_*` (provider/model/timeout/retries/limits)
   - `LLM_ROUTE_IDEA_GENERATE_PROVIDER=openai|openrouter|groq|litellm`
   - `LLM_ROUTE_IDEA_GENERATE_MODEL=<model>`
   - opcjonalnie `LLM_ROUTE_IDEA_GENERATE_BASE_URL`, `LLM_ROUTE_IDEA_GENERATE_API_KEY_ENV`
+  - `LLM_ROUTE_<TASK>_*` nadal ma najwyższy priorytet (nadpisuje profil)
   - resiliency: `LLM_ROUTE_IDEA_GENERATE_TIMEOUT_S`, `..._RETRIES`, `..._BREAKER_*`
   - telemetria/cost estimate: `LLM_PRICE_DEFAULT_INPUT_PER_1K`, `LLM_PRICE_DEFAULT_OUTPUT_PER_1K`
   - safety caps: `LLM_ROUTE_IDEA_GENERATE_MAX_TOKENS`, `..._MAX_COST_USD`, `LLM_DAILY_BUDGET_USD`

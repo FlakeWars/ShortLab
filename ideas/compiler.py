@@ -43,6 +43,7 @@ def compile_idea_to_dsl(
     repairs = 0
 
     for attempt in range(1, max_attempts + 1):
+        current_task = "dsl_repair" if errors else "idea_compile_dsl"
         user_prompt = _build_compile_prompt(
             idea=idea,
             template_yaml=template_yaml,
@@ -52,7 +53,7 @@ def compile_idea_to_dsl(
         )
         try:
             payload, route_meta = get_mediator().generate_json(
-                task_type="idea_compile_dsl",
+                task_type=current_task,
                 system_prompt=(
                     "You compile one feasible short animation idea into YAML DSL. "
                     "Return JSON only."
