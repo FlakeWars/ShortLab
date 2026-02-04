@@ -4,8 +4,9 @@
 - [ ] Testy dla persystencji DB mediatora LLM (branch: test/llm-mediator-persistence)
   - [x] Testy jednostkowe: serializacja/liczniki i odczyt snapshotu `/llm/metrics`
   - [x] Test round-trip backendu `db` na fake session (bez prawdziwego Postgresa)
-  - [ ] Test integracyjny: zapis/odczyt tabel `llm_mediator_*` + fallback plikowy przy awarii DB
-  - [ ] Smoke dla `make llm-mediator-retention` z kontrolą cutoffów
+  - [x] Test integracyjny: zapis/odczyt tabel `llm_mediator_*` + fallback plikowy przy awarii DB
+  - [x] Smoke dla `make llm-mediator-retention` z kontrolą cutoffów
+  - [ ] Dodać ten pakiet testów do automatycznego joba z uruchomionym Postgres (obecnie lokalnie może być skip)
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
