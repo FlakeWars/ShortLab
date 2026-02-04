@@ -14,15 +14,46 @@ API_LOG="${TMPDIR:-/tmp}/shortlab-api.log"
 UI_LOG="${TMPDIR:-/tmp}/shortlab-ui.log"
 WORKER_LOG="${TMPDIR:-/tmp}/shortlab-worker.log"
 
+kill_port() {
+  local port="$1"
+  local pids
+  if ! command -v lsof >/dev/null 2>&1; then
+    return 0
+  fi
+  pids="$(lsof -ti tcp:"${port}" 2>/dev/null || true)"
+  if [ -z "${pids}" ]; then
+    return 0
+  fi
+  echo "Port ${port} is busy, stopping existing process(es): ${pids}"
+  # shellcheck disable=SC2086
+  kill ${pids} >/dev/null 2>&1 || true
+  sleep 1
+  pids="$(lsof -ti tcp:"${port}" 2>/dev/null || true)"
+  if [ -n "${pids}" ]; then
+    # shellcheck disable=SC2086
+    kill -9 ${pids} >/dev/null 2>&1 || true
+  fi
+}
+
 if [ ! -d "${ROOT_DIR}/${VENV_DIR}" ]; then
   echo "Missing venv: ${VENV_DIR}. Create it first."
   exit 1
 fi
 
 if [ -f "${PID_FILE}" ]; then
-  echo "PID file already exists: ${PID_FILE}"
-  echo "Run scripts/stop-dev.sh first."
-  exit 1
+  alive=0
+  while read -r pid; do
+    if [ -n "${pid}" ] && kill -0 "${pid}" >/dev/null 2>&1; then
+      alive=1
+      break
+    fi
+  done <"${PID_FILE}"
+  if [ "${alive}" -eq 1 ]; then
+    echo "run-dev already active (PID file: ${PID_FILE})."
+    exit 0
+  fi
+  echo "Removing stale PID file: ${PID_FILE}"
+  rm -f "${PID_FILE}"
 fi
 
 cd "${ROOT_DIR}"
@@ -31,16 +62,13 @@ cd "${ROOT_DIR}"
 : >"${UI_LOG}"
 : >"${WORKER_LOG}"
 
-if command -v lsof >/dev/null 2>&1; then
-  if lsof -iTCP:"${API_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "API port ${API_PORT} already in use. Stop the process or set API_PORT."
-    exit 1
-  fi
-  if lsof -iTCP:"${UI_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "UI port ${UI_PORT} already in use. Stop the process or set UI_PORT."
-    exit 1
-  fi
-fi
+kill_port "${API_PORT}"
+kill_port "${UI_PORT}"
+
+REDIS_URL="${REDIS_URL}" PYTHONPATH="${ROOT_DIR}" "${ROOT_DIR}/${VENV_DIR}/bin/python" \
+  "${ROOT_DIR}/scripts/cleanup-rq-failed.py" --all >/dev/null 2>&1 || true
+REDIS_URL="${REDIS_URL}" PYTHONPATH="${ROOT_DIR}" "${ROOT_DIR}/${VENV_DIR}/bin/python" \
+  "${ROOT_DIR}/scripts/cleanup-jobs.py" --older-min 1 >/dev/null 2>&1 || true
 
 nohup bash -c \
   "OPERATOR_TOKEN='${OPERATOR_TOKEN}' REDIS_URL='${REDIS_URL}' VENV_DIR='${VENV_DIR}' API_PORT='${API_PORT}' make api" \

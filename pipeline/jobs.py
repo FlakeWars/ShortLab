@@ -61,8 +61,8 @@ def rq_on_failure(job: RQJob, connection, exc_type, exc_value, traceback) -> Non
         try:
             _update_job(session, job_id, "failed", error=str(exc_value))
             session.commit()
-        except ValueError:
-            # Guard: bad/legacy job_id should not crash worker maintenance.
+        except Exception:
+            # Guard: callback errors must never crash worker maintenance loops.
             session.rollback()
     finally:
         session.close()
@@ -77,8 +77,8 @@ def rq_on_success(job: RQJob, connection, result, *args, **kwargs) -> None:  # t
         try:
             _update_job(session, job_id, "succeeded")
             session.commit()
-        except ValueError:
-            # Guard: bad/legacy job_id should not crash worker maintenance.
+        except Exception:
+            # Guard: callback errors must never crash worker maintenance loops.
             session.rollback()
     finally:
         session.close()

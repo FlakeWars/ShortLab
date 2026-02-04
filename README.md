@@ -42,6 +42,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make job-failed` – lista jobów `failed` z payloadem błędu.
 - `make cleanup-jobs OLDER_MIN=30` – oznacza stare joby `running` jako `failed`.
 - `make purge-failed-jobs OLDER_MIN=60` – usuwa stare joby `failed`.
+- `make cleanup-rq-failed` – czyści `failed` registry RQ (Redis), przydatne po starych/crashowanych jobach.
 - `make idea-gate` – losuje propozycje z repo i wymusza klasyfikację (picked/later/rejected).
 - `make qc-decide ANIMATION_ID=... QC_RESULT=accepted` – zapis decyzji QC.
 - `make publish-record RENDER_ID=... PUBLISH_PLATFORM=youtube` – zapis publikacji.
@@ -54,7 +55,8 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - `OPERATOR_TOKEN=sekret make api` – włącza guard operatora dla `/ops/*`.
   - Jeśli pojawia się warning `nice(5) failed`, uruchom `make api` poza sandboxem (to ograniczenie środowiska, nie projektu).
 - `make run-dev` – spójne uruchomienie API+UI+worker (PORT API=8016, UI=5173, REDIS db=1).
-- `make stop-dev` – zatrzymuje procesy uruchomione przez `make run-dev`.
+- `make run-dev` jest idempotentne: jeśli już działa, zwraca komunikat i exit 0.
+- `make stop-dev` – zatrzymuje procesy uruchomione przez `make run-dev` i zwalnia porty API/UI.
 
 ### Operacje (API) – przykłady curl
 Zakładając `OPERATOR_TOKEN=sekret`:

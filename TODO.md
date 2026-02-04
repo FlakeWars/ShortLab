@@ -19,9 +19,9 @@
   - [ ] Zapis dsl_gaps + audit_event
   - [ ] Testy: poprawny DSL, naprawa błędów, fallback
 - [ ] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability)
-  - [ ] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
+  - [x] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
   - [ ] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)
-  - [ ] `make run-dev` automatycznie sprząta zaległy PID file
+  - [x] `make run-dev` automatycznie sprząta zaległy PID file
 - [ ] UI: Idea Gate (branch: feat/ui-idea-gate)
   - [ ] Wyświetla kilka propozycji + wybór (radio/CTA)
   - [ ] Rozszerzony opis propozycji (what_to_expect/preview)
@@ -39,9 +39,10 @@
   - [ ] Widok statusu publikacji i metryk
 - [ ] Pipeline: jobs wiszą w queued (branch: fix/queue-stuck)
   - [ ] Diagnostyka: worker/redis/queue
-  - [ ] UI: sygnalizacja „worker offline”
+  - [x] UI: sygnalizacja „worker offline”
+  - [ ] Dodać watchdog stale queued (timeout + auto-requeue lub fail-safe)
 - [ ] Pipeline: worker crash przy niepoprawnym UUID (branch: fix/worker-failure-callback)
-  - [ ] Zabezpieczyć rq_on_failure/_coerce_uuid przed ValueError (nie crashować workera)
+  - [x] Zabezpieczyć rq_on_failure/_coerce_uuid przed ValueError (nie crashować workera)
   - [ ] Dodać test lub smoke case dla błędnego job_id
 - [ ] Pipeline: UUID w JSON payload (branch: fix/uuid-json)
   - [ ] Zamieniać UUID -> str przed zapisem JSON (psycopg JSON dump)
@@ -100,7 +101,7 @@
   - [ ] Blokady użycia niezgodnych assetów
 - [ ] Dev: spójny REDIS_URL dla run-dev/job-status (branch: chore/dev-redis)
   - [ ] Ujednolicić DB index (0/1) i opisać w README/Makefile
-  - [ ] Job-status/cleanup używa tej samej bazy co run-dev
+  - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
 - [x] Idea Repository (branch: feat/idea-repo) (2026-02-03)

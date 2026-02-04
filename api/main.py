@@ -69,6 +69,30 @@ def _artifact_base_dir() -> Path:
     return Path(base_dir).expanduser().resolve()
 
 
+def _worker_state() -> dict:
+    try:
+        from rq import Worker
+        from pipeline.queue import get_queue, get_redis
+
+        redis = get_redis()
+        redis.ping()
+        queue = get_queue()
+        workers = Worker.all(connection=redis)
+        return {
+            "redis_ok": True,
+            "online": len(workers) > 0,
+            "worker_count": len(workers),
+            "queue_depth": queue.count,
+        }
+    except Exception:
+        return {
+            "redis_ok": False,
+            "online": False,
+            "worker_count": 0,
+            "queue_depth": None,
+        }
+
+
 def _animation_row(animation: Animation, render: Render | None, qc: QCDecision | None) -> dict:
     payload = {
         "id": animation.id,
@@ -402,6 +426,7 @@ def pipeline_summary(
         return {
             "summary": summary,
             "jobs": jsonable_encoder(jobs),
+            "worker": _worker_state(),
         }
     finally:
         session.close()

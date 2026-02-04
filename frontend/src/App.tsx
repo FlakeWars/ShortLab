@@ -84,6 +84,12 @@ type AuditEvent = {
 type SummaryResponse = {
   summary?: Record<string, number>
   jobs?: Job[]
+  worker?: {
+    redis_ok?: boolean
+    online?: boolean
+    worker_count?: number
+    queue_depth?: number | null
+  }
 }
 
 const STATUS_ORDER = ['queued', 'running', 'failed', 'succeeded']
@@ -537,6 +543,7 @@ function App() {
 
   const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
   const jobs = useMemo(() => summaryData?.jobs ?? [], [summaryData])
+  const worker = useMemo(() => summaryData?.worker, [summaryData])
 
   const videoArtifact = useMemo(
     () => artifacts.find((item) => item.artifact_type === 'video'),
@@ -609,6 +616,11 @@ function App() {
           </div>
           <div className="text-xs text-stone-500">
             <div>API: {API_BASE}</div>
+            <div>
+              Worker:{' '}
+              {worker?.online ? `online (${worker.worker_count ?? 0})` : 'offline'}
+              {typeof worker?.queue_depth === 'number' ? `, queue ${worker.queue_depth}` : ''}
+            </div>
             <div>Updated: {summaryUpdatedAt ? summaryUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
           </div>
         </div>

@@ -173,7 +173,7 @@ enqueue-dev: ## Enqueue pipeline job with isolated Redis DB
 
 .PHONY: job-status
 job-status: ## Show recent pipeline job statuses
-	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py
+	@REDIS_URL="$${REDIS_URL:-$(REDIS_URL_DEV)}" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/job-status.py
 
 .PHONY: job-status-dev
 job-status-dev: ## Show job statuses with isolated Redis DB
@@ -189,11 +189,15 @@ job-failed: ## Show failed jobs with error payload
 
 .PHONY: cleanup-jobs
 cleanup-jobs: ## Mark stale running jobs as failed
-	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/cleanup-jobs.py --older-min "$(OLDER_MIN)"
+	@REDIS_URL="$${REDIS_URL:-$(REDIS_URL_DEV)}" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/cleanup-jobs.py --older-min "$(OLDER_MIN)"
 
 .PHONY: purge-failed-jobs
 purge-failed-jobs: ## Delete failed jobs older than OLDER_MIN
-	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/purge-failed-jobs.py --older-min "$(OLDER_MIN)"
+	@REDIS_URL="$${REDIS_URL:-$(REDIS_URL_DEV)}" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/purge-failed-jobs.py --older-min "$(OLDER_MIN)"
+
+.PHONY: cleanup-rq-failed
+cleanup-rq-failed: ## Delete failed jobs from RQ failed registry
+	@REDIS_URL="$${REDIS_URL:-$(REDIS_URL_DEV)}" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/cleanup-rq-failed.py --all
 
 .PHONY: idea-generate
 idea-generate: ## Generate ideas into DB (file/template)
