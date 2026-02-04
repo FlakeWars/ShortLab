@@ -1,12 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] DSL Capability Verifier (branch: feat/dsl-capability-verifier)
-  - [x] Model danych: `dsl_gap` + `idea_gap_link` + statusy idei (`unverified/feasible/blocked_by_gaps/ready_for_gate`)
-  - [x] Dedup gapów: wykrywanie istniejących `dsl_gap` i linkowanie bez duplikatów
-  - [x] Wynik weryfikacji: `TAK/NIE` + raport + lista nowych/istniejących gapów
-  - [x] Re-verification po wdrożeniu gapa (`implemented`) i odblokowanie idei
-  - [ ] API/UI: podgląd statusu wykonalności idei i listy gapów (API done, UI pending)
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
@@ -108,6 +102,12 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] DSL Capability Verifier (branch: feat/dsl-capability-verifier) (2026-02-04)
+  - [x] Model danych: `dsl_gap` + `idea_gap_link` + statusy idei (`unverified/feasible/blocked_by_gaps/ready_for_gate`)
+  - [x] Dedup gapów: wykrywanie istniejących `dsl_gap` i linkowanie bez duplikatów
+  - [x] Wynik weryfikacji: `TAK/NIE` + raport + lista nowych/istniejących gapów
+  - [x] Re-verification po wdrożeniu gapa (`implemented`) i odblokowanie idei
+  - [x] API/UI: podgląd statusu wykonalności idei i listy gapów
 - [x] LLM DSL Compiler (module planning) (branch: feat/llm-dsl-compiler) (2026-02-04)
   - [x] Discovery: cele, zakres, ryzyka, granice odpowiedzialności
   - [x] Kontrakt wej/wyj + wersjonowanie (Idea → DSL + metadata)

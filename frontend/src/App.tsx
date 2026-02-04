@@ -92,6 +92,23 @@ type SummaryResponse = {
   }
 }
 
+type DslGap = {
+  id: string
+  gap_key?: string | null
+  dsl_version?: string | null
+  feature?: string | null
+  reason?: string | null
+  impact?: string | null
+  status?: 'new' | 'accepted' | 'in_progress' | 'implemented' | 'rejected' | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+type IdeaStatusRow = {
+  id: string
+  status?: string | null
+}
+
 const STATUS_ORDER = ['queued', 'running', 'failed', 'succeeded']
 const ANIMATION_STATUSES = [
   'draft',
@@ -245,6 +262,14 @@ function App() {
   const [settings, setSettings] = useState<SettingsResponse | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [dslGaps, setDslGaps] = useState<DslGap[]>([])
+  const [dslGapsLoading, setDslGapsLoading] = useState(false)
+  const [dslGapsError, setDslGapsError] = useState<string | null>(null)
+  const [dslGapsUpdatedAt, setDslGapsUpdatedAt] = useState<Date | null>(null)
+  const [verifyLimit, setVerifyLimit] = useState('20')
+  const [verifyLoading, setVerifyLoading] = useState(false)
+  const [gapActionLoading, setGapActionLoading] = useState<Record<string, boolean>>({})
+  const [ideaStatusRows, setIdeaStatusRows] = useState<IdeaStatusRow[]>([])
 
   const opsHeaders = () => {
     const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
@@ -515,6 +540,87 @@ function App() {
     }
   }
 
+  const fetchDslGaps = async () => {
+    setDslGapsLoading(true)
+    setDslGapsError(null)
+    try {
+      const response = await fetch(`${API_BASE}/dsl-gaps?limit=20`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as DslGap[]
+      setDslGaps(payload)
+      setDslGapsUpdatedAt(new Date())
+    } catch (err) {
+      setDslGapsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setDslGapsLoading(false)
+    }
+  }
+
+  const fetchIdeaStatuses = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/ideas?limit=100`)
+      if (!response.ok) return
+      const payload = (await response.json()) as IdeaStatusRow[]
+      setIdeaStatusRows(payload)
+    } catch {
+      // Keep UI resilient; errors are surfaced in other panels.
+    }
+  }
+
+  const handleVerifyIdeas = async () => {
+    setVerifyLoading(true)
+    setOpsError(null)
+    setOpsMessage(null)
+    try {
+      const limit = Number(verifyLimit || '20')
+      const response = await fetch(`${API_BASE}/ideas/verify-capability/batch`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({ limit: Number.isNaN(limit) ? 20 : Math.max(1, Math.min(limit, 200)) }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setOpsMessage(`Verification done: ${JSON.stringify(payload)}`)
+      fetchDslGaps()
+      fetchIdeaCandidates()
+      fetchIdeaStatuses()
+    } catch (err) {
+      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setVerifyLoading(false)
+    }
+  }
+
+  const handleGapStatus = async (gapId: string, status: DslGap['status']) => {
+    if (!status) return
+    setGapActionLoading((prev) => ({ ...prev, [gapId]: true }))
+    setOpsError(null)
+    setOpsMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/dsl-gaps/${gapId}/status`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({ status }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setOpsMessage(`Gap updated: ${JSON.stringify(payload)}`)
+      fetchDslGaps()
+      fetchIdeaCandidates()
+      fetchIdeaStatuses()
+    } catch (err) {
+      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setGapActionLoading((prev) => ({ ...prev, [gapId]: false }))
+    }
+  }
+
   useEffect(() => {
     fetchSummary()
     const interval = window.setInterval(fetchSummary, 15000)
@@ -538,12 +644,27 @@ function App() {
   }, [])
 
   useEffect(() => {
+    fetchDslGaps()
+  }, [])
+
+  useEffect(() => {
+    fetchIdeaStatuses()
+  }, [])
+
+  useEffect(() => {
     fetchArtifacts(selectedAnimation?.render?.id ?? null)
   }, [selectedAnimation?.render?.id])
 
   const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
   const jobs = useMemo(() => summaryData?.jobs ?? [], [summaryData])
   const worker = useMemo(() => summaryData?.worker, [summaryData])
+  const ideaStatusSummary = useMemo(() => {
+    return ideaStatusRows.reduce<Record<string, number>>((acc, row) => {
+      const key = row.status || 'unknown'
+      acc[key] = (acc[key] || 0) + 1
+      return acc
+    }, {})
+  }, [ideaStatusRows])
 
   const videoArtifact = useMemo(
     () => artifacts.find((item) => item.artifact_type === 'video'),
@@ -669,6 +790,121 @@ function App() {
                       <td className="px-2 py-4 text-stone-600">{formatDate(job.created_at)}</td>
                       <td className="px-2 py-4 text-stone-600">{formatDate(job.started_at)}</td>
                       <td className="px-2 py-4 text-stone-600">{formatDate(job.finished_at)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">DSL Capability</h2>
+            <p className="text-sm text-stone-600">
+              Weryfikacja idei i zarządzanie listą `dsl_gap`.
+            </p>
+          </div>
+          <div className="text-xs text-stone-500">
+            <div>Updated: {dslGapsUpdatedAt ? dslGapsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Verify limit
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={verifyLimit}
+              onChange={(event) => setVerifyLimit(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={handleVerifyIdeas} disabled={verifyLoading}>
+              {verifyLoading ? 'Verifying…' : 'Verify ideas'}
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={fetchDslGaps} disabled={dslGapsLoading}>
+              Refresh gaps
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
+          {['unverified', 'ready_for_gate', 'blocked_by_gaps', 'feasible', 'picked', 'compiled'].map((status) => (
+            <Badge key={status} variant="outline" className={cn('border', chipTone(status))}>
+              {status}: {ideaStatusSummary[status] ?? 0}
+            </Badge>
+          ))}
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          {dslGapsLoading ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading DSL gaps…
+            </div>
+          ) : dslGapsError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+              <div className="font-semibold">Failed to load</div>
+              <div>{dslGapsError}</div>
+            </div>
+          ) : (
+            <table className="min-w-[900px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr>
+                  <th className="px-2 py-3">Feature</th>
+                  <th className="px-2 py-3">Status</th>
+                  <th className="px-2 py-3">Version</th>
+                  <th className="px-2 py-3">Reason</th>
+                  <th className="px-2 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dslGaps.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
+                      No DSL gaps yet.
+                    </td>
+                  </tr>
+                ) : (
+                  dslGaps.map((gap) => (
+                    <tr key={gap.id} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4 text-stone-800">{gap.feature ?? '—'}</td>
+                      <td className="px-2 py-4">
+                        <Badge variant="outline" className={cn('border', chipTone(gap.status ?? undefined))}>
+                          {gap.status ?? '—'}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-4 text-stone-600">{gap.dsl_version ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-600">{gap.reason ?? '—'}</td>
+                      <td className="px-2 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => handleGapStatus(gap.id, 'accepted')}
+                            disabled={gapActionLoading[gap.id]}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => handleGapStatus(gap.id, 'in_progress')}
+                            disabled={gapActionLoading[gap.id]}
+                          >
+                            In progress
+                          </Button>
+                          <Button
+                            className="rounded-full"
+                            onClick={() => handleGapStatus(gap.id, 'implemented')}
+                            disabled={gapActionLoading[gap.id]}
+                          >
+                            Implemented
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}

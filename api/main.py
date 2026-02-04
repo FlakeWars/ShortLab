@@ -289,6 +289,25 @@ def list_idea_candidates(
         session.close()
 
 
+@app.get("/ideas")
+def list_ideas(
+    status: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> List[dict]:
+    limit, offset = _paginate(limit, offset)
+    session = SessionLocal()
+    try:
+        stmt = select(Idea)
+        if status:
+            stmt = stmt.where(Idea.status == status)
+        stmt = stmt.order_by(desc(Idea.created_at)).limit(limit).offset(offset)
+        rows = session.execute(stmt).scalars().all()
+        return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
 @app.get("/idea-repo/sample")
 def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
     session = SessionLocal()
