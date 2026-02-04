@@ -7,10 +7,6 @@
   - [ ] Smoke dla `make llm-mediator-retention` z kontrolą cutoffów
 
 ## Next (Kolejne)
-- [ ] Process: sync dokumentacji po każdym merge (branch: chore/docs-sync-discipline)
-  - [ ] Dodać checklistę "PRD/Tech-Stack/README sync" do rytuału post-merge
-  - [ ] Przy każdym merge wpisywać w TODO, które sekcje dokumentacji zmieniono i dlaczego
-  - [ ] Rozdzielać w dokumentach: "stan aktualny" vs "plan/docelowo", by nie mieszać implementacji z roadmapą
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
   - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
   - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
@@ -131,6 +127,10 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Process: sync dokumentacji po każdym merge (branch: chore/docs-sync-post-merge) (2026-02-04)
+  - [x] Dodać checklistę "PRD/Tech-Stack/README sync" do rytuału post-merge
+  - [x] Przy każdym merge wpisywać w TODO, które sekcje dokumentacji zmieniono i dlaczego
+  - [x] Rozdzielać w dokumentach: "stan aktualny" vs "plan/docelowo", by nie mieszać implementacji z roadmapą
 - [x] LLM Mediator (branch: feat/llm-mediator) (2026-02-04)
   - [x] Zdefiniować jeden kontrakt klienta: `task_type + payload` (klient nie zna dostawcy ani modelu)
   - [x] Dodać routing po `task_type` -> `provider + model` z konfiguracji mediatora
