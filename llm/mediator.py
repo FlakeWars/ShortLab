@@ -20,6 +20,8 @@ class TaskRoute:
     retries: int
     breaker_threshold: int
     breaker_cooldown_s: int
+    max_tokens: int
+    max_cost_usd: float
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,8 @@ def _load_route(task_type: str) -> TaskRoute:
     retries = int(os.getenv(f"LLM_ROUTE_{key}_RETRIES", "2"))
     breaker_threshold = int(os.getenv(f"LLM_ROUTE_{key}_BREAKER_THRESHOLD", "5"))
     breaker_cooldown_s = int(os.getenv(f"LLM_ROUTE_{key}_BREAKER_COOLDOWN_S", "60"))
+    max_tokens = int(os.getenv(f"LLM_ROUTE_{key}_MAX_TOKENS", "1200"))
+    max_cost_usd = float(os.getenv(f"LLM_ROUTE_{key}_MAX_COST_USD", "0"))
     return TaskRoute(
         provider=provider,
         model=model,
@@ -70,6 +74,8 @@ def _load_route(task_type: str) -> TaskRoute:
         retries=retries,
         breaker_threshold=breaker_threshold,
         breaker_cooldown_s=breaker_cooldown_s,
+        max_tokens=max_tokens,
+        max_cost_usd=max_cost_usd,
     )
 
 
@@ -78,9 +84,17 @@ class LLMMediator:
         self._failures: dict[str, int] = {}
         self._breaker_until: dict[str, float] = {}
         self._metrics: dict[str, dict[str, float]] = {}
+        self._spent_usd_total = 0.0
+        self._daily_budget_usd = float(os.getenv("LLM_DAILY_BUDGET_USD", "0") or 0)
 
     def get_metrics_snapshot(self) -> dict[str, Any]:
-        return {"routes": self._metrics}
+        return {
+            "routes": self._metrics,
+            "budget": {
+                "spent_usd_total": self._spent_usd_total,
+                "daily_budget_usd": self._daily_budget_usd,
+            },
+        }
 
     def generate_json(
         self,
@@ -94,6 +108,13 @@ class LLMMediator:
         seed: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         route = _load_route(task_type)
+        if self._daily_budget_usd > 0 and self._spent_usd_total >= self._daily_budget_usd:
+            raise LLMError(
+                code="budget_exceeded",
+                message="Daily LLM budget exhausted",
+                provider=route.provider,
+                task_type=task_type,
+            )
         breaker_key = f"{task_type}:{route.provider}"
         now_ts = time.time()
         if self._breaker_until.get(breaker_key, 0) > now_ts:
@@ -130,6 +151,14 @@ class LLMMediator:
             prompt_tokens = float(usage.get("prompt_tokens", 0) or 0)
             completion_tokens = float(usage.get("completion_tokens", 0) or 0)
             estimated_cost = self._estimate_cost_usd(prompt_tokens, completion_tokens)
+            if route.max_cost_usd > 0 and estimated_cost > route.max_cost_usd:
+                raise LLMError(
+                    code="request_cost_exceeded",
+                    message="Estimated request cost exceeds route cap",
+                    provider=route.provider,
+                    task_type=task_type,
+                )
+            self._spent_usd_total += estimated_cost
             self._track_metrics(
                 task_type=task_type,
                 provider=route.provider,
@@ -200,6 +229,7 @@ class LLMMediator:
         temperature: float,
         seed: int | None,
     ) -> dict[str, Any]:
+        safe_max_tokens = max(1, min(max_tokens, route.max_tokens))
         payload: dict[str, Any] = {
             "model": route.model,
             "messages": [
@@ -207,7 +237,7 @@ class LLMMediator:
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            "max_tokens": safe_max_tokens,
         }
         if seed is not None:
             payload["seed"] = seed
@@ -258,7 +288,7 @@ class LLMMediator:
                 return self._call_chat_completion(task_type, route, fallback)
             raise LLMError(
                 code=f"http_{exc.code}",
-                message=detail[:300],
+                message=self._sanitize_error_message(detail),
                 provider=route.provider,
                 task_type=task_type,
                 retryable=exc.code >= 500 or exc.code == 429,
@@ -266,11 +296,16 @@ class LLMMediator:
         except URLError as exc:
             raise LLMError(
                 code="network_error",
-                message=str(exc),
+                message=self._sanitize_error_message(str(exc)),
                 provider=route.provider,
                 task_type=task_type,
                 retryable=True,
             ) from exc
+
+    def _sanitize_error_message(self, message: str) -> str:
+        text = (message or "").replace("\n", " ")
+        text = text.replace("Bearer ", "Bearer [redacted]")
+        return text[:300]
 
     def _estimate_cost_usd(self, prompt_tokens: float, completion_tokens: float) -> float:
         in_rate = float(os.getenv("LLM_PRICE_DEFAULT_INPUT_PER_1K", "0") or 0)

@@ -7,8 +7,9 @@
   - [x] Obsłużyć adaptery: OpenRouter, Groq, LiteLLM (min. 1 aktywny + fallback)
   - [x] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
   - [x] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
-  - [ ] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
+  - [x] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
   - [ ] Persist/eksport metryk mediatora (obecnie runtime in-memory)
+  - [ ] Twarde limity budżetu dziennego z persystencją (obecnie in-memory)
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
