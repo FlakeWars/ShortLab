@@ -13,6 +13,23 @@
   - [ ] Twarde walidacje syntax + semantics + raport błędów
   - [ ] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
   - [ ] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
+- [ ] LLM Mediator (branch: feat/llm-mediator)
+  - [ ] Zdefiniować jeden kontrakt klienta: `task_type + payload` (klient nie zna dostawcy ani modelu)
+  - [ ] Dodać routing po `task_type` -> `provider + model` z konfiguracji mediatora
+  - [ ] Obsłużyć adaptery: OpenRouter, Groq, LiteLLM (min. 1 aktywny + fallback)
+  - [ ] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
+  - [ ] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
+  - [ ] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
+- [ ] LLM task profiles (branch: feat/llm-task-profiles)
+  - [ ] `idea_generate` -> profil kreatywny
+  - [ ] `idea_verify_capability` -> profil analityczny/skrupulatny
+  - [ ] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
+  - [ ] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
+- [ ] VLM: analiza wygenerowanej animacji (branch: feat/vlm-animation-analysis)
+  - [ ] Sprawdzić modele multimodalne (wideo/klatki) i wybrać dostępne przez mediator
+  - [ ] MVP: analiza klatek kluczowych (zgodność z ideą, dynamika, czytelność)
+  - [ ] Raport `animation_analyze` do QC (score + uzasadnienie + rekomendacje)
+  - [ ] Integracja z pipeline: opcjonalny krok po renderze przed decyzją QC
 - [ ] UX: stabilizacja run-dev/stop-dev (branch: fix/run-dev-stability)
   - [x] `make run-dev` bez błędu, gdy już działa (czytelny komunikat + exit 0)
   - [ ] `make stop-dev` ubija procesy i zwalnia porty (bez ręcznego `lsof|kill`)
