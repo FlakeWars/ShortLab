@@ -25,10 +25,34 @@ kill_port() {
   fi
 }
 
+kill_children() {
+  local parent_pid="$1"
+  local child_pids=""
+  if command -v pgrep >/dev/null 2>&1; then
+    child_pids="$(pgrep -P "${parent_pid}" 2>/dev/null || true)"
+  fi
+  for child in ${child_pids}; do
+    kill_children "${child}"
+    kill "${child}" >/dev/null 2>&1 || true
+    sleep 0.1
+    kill -0 "${child}" >/dev/null 2>&1 && kill -9 "${child}" >/dev/null 2>&1 || true
+  done
+}
+
 if [ -f "${PID_FILE}" ]; then
-  while read -r pid; do
+  while read -r line; do
+    if [[ "${line}" == pid:* ]]; then
+      pid="${line#pid:}"
+    elif [[ "${line}" =~ ^[0-9]+$ ]]; then
+      pid="${line}"
+    else
+      continue
+    fi
     if [ -n "${pid}" ]; then
+      kill_children "${pid}"
       kill "${pid}" >/dev/null 2>&1 || true
+      sleep 0.2
+      kill -0 "${pid}" >/dev/null 2>&1 && kill -9 "${pid}" >/dev/null 2>&1 || true
     fi
   done <"${PID_FILE}"
   rm -f "${PID_FILE}"
