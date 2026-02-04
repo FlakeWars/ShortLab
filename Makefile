@@ -389,6 +389,11 @@ test: ## Run all tests (placeholder)
 		echo "pyproject.toml not found"; \
 	fi
 
+.PHONY: test-llm-mediator-db
+test-llm-mediator-db: ## Run mediator persistence tests with required Postgres infra
+	@chmod +x ./scripts/test-llm-mediator-db.sh
+	@./scripts/test-llm-mediator-db.sh
+
 .PHONY: test-render
 
 test-render: ## Run render determinism tests (placeholder)
