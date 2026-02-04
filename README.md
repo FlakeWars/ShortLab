@@ -59,6 +59,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - resiliency: `LLM_ROUTE_IDEA_GENERATE_TIMEOUT_S`, `..._RETRIES`, `..._BREAKER_*`
   - telemetria/cost estimate: `LLM_PRICE_DEFAULT_INPUT_PER_1K`, `LLM_PRICE_DEFAULT_OUTPUT_PER_1K`
   - safety caps: `LLM_ROUTE_IDEA_GENERATE_MAX_TOKENS`, `..._MAX_COST_USD`, `LLM_DAILY_BUDGET_USD`
+  - persystencja metryk/budżetu: `LLM_MEDIATOR_STATE_FILE`
   - metryki runtime: `GET /llm/metrics` (operator-only)
 - `make api` – uruchamia read‑only API (audit/metrics/idea embeddings).
   - `API_PORT=8010 make api` – zmiana portu (domyślnie 8000).

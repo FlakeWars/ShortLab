@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
+from pathlib import Path
 import time
 from typing import Any
 from urllib import request as urlrequest
@@ -86,6 +87,9 @@ class LLMMediator:
         self._metrics: dict[str, dict[str, float]] = {}
         self._spent_usd_total = 0.0
         self._daily_budget_usd = float(os.getenv("LLM_DAILY_BUDGET_USD", "0") or 0)
+        self._budget_day = self._today_utc()
+        self._state_file = Path(os.getenv("LLM_MEDIATOR_STATE_FILE", ".state/llm-mediator-state.json"))
+        self._load_state()
 
     def get_metrics_snapshot(self) -> dict[str, Any]:
         return {
@@ -93,7 +97,9 @@ class LLMMediator:
             "budget": {
                 "spent_usd_total": self._spent_usd_total,
                 "daily_budget_usd": self._daily_budget_usd,
+                "budget_day": self._budget_day,
             },
+            "state_file": str(self._state_file),
         }
 
     def generate_json(
@@ -108,6 +114,7 @@ class LLMMediator:
         seed: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         route = _load_route(task_type)
+        self._roll_budget_day_if_needed()
         if self._daily_budget_usd > 0 and self._spent_usd_total >= self._daily_budget_usd:
             raise LLMError(
                 code="budget_exceeded",
@@ -197,6 +204,8 @@ class LLMMediator:
                 provider=route.provider,
                 task_type=task_type,
             ) from exc
+        finally:
+            self._persist_state()
 
     def _call_with_retries(
         self,
@@ -366,6 +375,52 @@ class LLMMediator:
             },
         )
         bucket["retries"] += 1
+
+    def _today_utc(self) -> str:
+        return time.strftime("%Y-%m-%d", time.gmtime())
+
+    def _roll_budget_day_if_needed(self) -> None:
+        today = self._today_utc()
+        if today != self._budget_day:
+            self._budget_day = today
+            self._spent_usd_total = 0.0
+
+    def _load_state(self) -> None:
+        try:
+            if not self._state_file.exists():
+                return
+            data = json.loads(self._state_file.read_text())
+            if not isinstance(data, dict):
+                return
+            self._metrics = data.get("routes", {}) if isinstance(data.get("routes"), dict) else {}
+            budget = data.get("budget", {})
+            if isinstance(budget, dict):
+                self._budget_day = str(budget.get("budget_day", self._budget_day))
+                self._spent_usd_total = float(budget.get("spent_usd_total", 0.0) or 0.0)
+            self._roll_budget_day_if_needed()
+        except Exception:
+            # Non-fatal: mediator should still work without persisted state.
+            self._metrics = {}
+            self._spent_usd_total = 0.0
+            self._budget_day = self._today_utc()
+
+    def _persist_state(self) -> None:
+        try:
+            self._state_file.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "routes": self._metrics,
+                "budget": {
+                    "budget_day": self._budget_day,
+                    "spent_usd_total": self._spent_usd_total,
+                    "daily_budget_usd": self._daily_budget_usd,
+                },
+            }
+            tmp = self._state_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(payload, ensure_ascii=True))
+            tmp.replace(self._state_file)
+        except Exception:
+            # Non-fatal: failure to persist should not block runtime calls.
+            return
 
 
 _MEDIATOR = LLMMediator()

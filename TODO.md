@@ -8,8 +8,9 @@
   - [x] Retry/timeout/circuit-breaker + standaryzacja błędów niezależnie od dostawcy
   - [x] Telemetria: koszt, latencja, success rate per `task_type` i per provider/model
   - [x] Polityka bezpieczeństwa: redakcja danych w logach + limity tokenów i kosztów
-  - [ ] Persist/eksport metryk mediatora (obecnie runtime in-memory)
-  - [ ] Twarde limity budżetu dziennego z persystencją (obecnie in-memory)
+  - [x] Persist/eksport metryk mediatora (plik stanu + endpoint `/llm/metrics`)
+  - [x] Twarde limity budżetu dziennego z persystencją
+  - [ ] Trwała persystencja metryk/budżetu w DB (obecnie JSON state file)
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
