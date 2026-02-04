@@ -1,18 +1,18 @@
 # TODO
 
 ## Now (W toku)
+- [ ] DSL Capability Verifier (branch: feat/dsl-capability-verifier)
+  - [x] Model danych: `dsl_gap` + `idea_gap_link` + statusy idei (`unverified/feasible/blocked_by_gaps/ready_for_gate`)
+  - [ ] Dedup gapów: wykrywanie istniejących `dsl_gap` i linkowanie bez duplikatów
+  - [ ] Wynik weryfikacji: `TAK/NIE` + raport + lista nowych/istniejących gapów
+  - [ ] Re-verification po wdrożeniu gapa (`implemented`) i odblokowanie idei
+  - [ ] API/UI: podgląd statusu wykonalności idei i listy gapów
 
 ## Next (Kolejne)
 - [ ] Process debt po zmianach dev-runner (branch: chore/process-discipline)
   - [ ] Udokumentować odstępstwo: commit wykonany bezpośrednio na `main` (bez branch workflow)
   - [ ] Dodać checklistę „pre-commit AGENTS.md” i stosować przed każdym commitem
   - [ ] Wymusić rytuał po merge: krótka analiza wpływu + aktualizacja TODO (Now/Next/Done)
-- [ ] DSL Capability Verifier (branch: feat/dsl-capability-verifier)
-  - [ ] Model danych: `dsl_gap` + `idea_gap_link` + statusy idei (`unverified/feasible/blocked_by_gaps/ready_for_gate`)
-  - [ ] Dedup gapów: wykrywanie istniejących `dsl_gap` i linkowanie bez duplikatów
-  - [ ] Wynik weryfikacji: `TAK/NIE` + raport + lista nowych/istniejących gapów
-  - [ ] Re-verification po wdrożeniu gapa (`implemented`) i odblokowanie idei
-  - [ ] API/UI: podgląd statusu wykonalności idei i listy gapów
 - [ ] LLM Idea->DSL Compiler (branch: feat/llm-dsl-compiler-impl)
   - [ ] Kompilacja tylko dla idei `feasible`/`ready_for_gate`
   - [ ] Pętla lokalna: `generate -> validate -> repair -> retry`

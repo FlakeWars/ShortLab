@@ -291,9 +291,45 @@ end$$;
         sa.Column("what_to_expect", sa.Text(), nullable=True),
         sa.Column("preview", sa.Text(), nullable=True),
         sa.Column("idea_hash", sa.Text(), nullable=True),
+        sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'unverified'")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(["idea_candidate_id"], ["idea_candidate.id"], ondelete="SET NULL"),
+        sa.CheckConstraint(
+            "status in ('unverified', 'feasible', 'blocked_by_gaps', 'ready_for_gate', 'picked', 'compiled')",
+            name="ck_idea_status",
+        ),
+    )
+
+    op.create_table(
+        "dsl_gap",
+        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("gap_key", sa.Text(), nullable=False),
+        sa.Column("dsl_version", sa.Text(), nullable=False),
+        sa.Column("feature", sa.Text(), nullable=False),
+        sa.Column("reason", sa.Text(), nullable=False),
+        sa.Column("impact", sa.Text(), nullable=True),
+        sa.Column("status", sa.Text(), nullable=False, server_default=sa.text("'new'")),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("gap_key", name="uq_dsl_gap_gap_key"),
+        sa.CheckConstraint(
+            "status in ('new', 'accepted', 'in_progress', 'implemented', 'rejected')",
+            name="ck_dsl_gap_status",
+        ),
+    )
+
+    op.create_table(
+        "idea_gap_link",
+        sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("idea_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("dsl_gap_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("detected_at", sa.DateTime(timezone=True), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["idea_id"], ["idea.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["dsl_gap_id"], ["dsl_gap.id"], ondelete="CASCADE"),
+        sa.UniqueConstraint("idea_id", "dsl_gap_id", name="uq_idea_gap_link_idea_gap"),
     )
 
     op.create_table(
@@ -641,6 +677,8 @@ end$$;
     op.create_index("ix_metrics_daily_render_date", "metrics_daily", ["render_id", "date"], unique=False)
     op.create_index("ix_job_status_updated_at", "job", ["status", "updated_at"], unique=False)
     op.create_index("ix_job_stage_run_pipeline_stage", "job_stage_run", ["pipeline_run_id", "stage"], unique=False)
+    op.create_index("ix_idea_status_created_at", "idea", ["status", "created_at"], unique=False)
+    op.create_index("ix_dsl_gap_status_updated_at", "dsl_gap", ["status", "updated_at"], unique=False)
 
     op.create_index(
         "ix_render_params_json_gin",
@@ -699,6 +737,8 @@ end$$;
         "idea_batch",
         "idea_candidate",
         "idea",
+        "dsl_gap",
+        "idea_gap_link",
         "idea_similarity",
         "idea_embedding",
         "animation",
@@ -736,6 +776,8 @@ end$$;
         "idea_batch",
         "idea_candidate",
         "idea",
+        "dsl_gap",
+        "idea_gap_link",
         "idea_similarity",
         "idea_embedding",
         "animation",
@@ -987,6 +1029,8 @@ def downgrade() -> None:
     op.drop_index("ix_render_animation_id_created_at", table_name="render")
     op.drop_index("ix_animation_pipeline_stage_updated_at", table_name="animation")
     op.drop_index("ix_animation_status_created_at", table_name="animation")
+    op.drop_index("ix_dsl_gap_status_updated_at", table_name="dsl_gap")
+    op.drop_index("ix_idea_status_created_at", table_name="idea")
 
     # drop tables in reverse dependency order
     op.drop_table("audit_event")
@@ -1008,6 +1052,8 @@ def downgrade() -> None:
     op.drop_table("animation")
     op.drop_table("idea_embedding")
     op.drop_table("idea_similarity")
+    op.drop_table("idea_gap_link")
+    op.drop_table("dsl_gap")
     op.drop_table("idea")
     op.drop_table("idea_candidate")
     op.drop_table("idea_batch")

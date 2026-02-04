@@ -58,7 +58,26 @@
 - what_to_expect TEXT
 - preview TEXT
 - idea_hash TEXT
+- status TEXT NOT NULL DEFAULT 'unverified' CHECK (status IN ('unverified','feasible','blocked_by_gaps','ready_for_gate','picked','compiled'))
 - created_at TIMESTAMPTZ NOT NULL
+
+**dsl_gap**
+- id UUID PK DEFAULT gen_random_uuid()
+- gap_key TEXT UNIQUE NOT NULL
+- dsl_version TEXT NOT NULL
+- feature TEXT NOT NULL
+- reason TEXT NOT NULL
+- impact TEXT
+- status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','accepted','in_progress','implemented','rejected'))
+- created_at TIMESTAMPTZ NOT NULL
+- updated_at TIMESTAMPTZ NOT NULL
+
+**idea_gap_link**
+- id UUID PK DEFAULT gen_random_uuid()
+- idea_id UUID NOT NULL REFERENCES idea(id) ON DELETE CASCADE
+- dsl_gap_id UUID NOT NULL REFERENCES dsl_gap(id) ON DELETE CASCADE
+- detected_at TIMESTAMPTZ NOT NULL
+- UNIQUE (idea_id, dsl_gap_id)
 
 **idea_similarity**
 - id UUID PK DEFAULT gen_random_uuid()
@@ -274,6 +293,7 @@
 2. Relacje między tabelami
 - idea_batch 1‑N idea_candidate
 - idea_candidate 1‑0..1 idea (wybór operatora)
+- idea 1‑N idea_gap_link, dsl_gap 1‑N idea_gap_link (globalna lista luk DSL + powiązania z ideami)
 - idea_candidate 1‑N idea_similarity, idea_similarity N‑1 idea (historyczne porównanie)
 - idea_candidate 1‑N idea_embedding (wektory embeddingów)
 - idea 1‑N animation
