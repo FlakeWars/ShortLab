@@ -149,6 +149,13 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Fix: Idea Gate sample + polish UI (branch: fix/idea-gate-sample) (2026-02-05)
+  - [x] `/idea-repo/sample` zwraca kompletne pola kandydatów (bez `{}`)
+  - [x] Flow panel przed Generator w zakładce Flow
+  - [x] Repo kandydatów: podgląd treści (summary/what_to_expect/preview)
+  - [x] Idea Gate: komunikat gdy brak propozycji
+- [x] Post-merge analysis (2026-02-05)
+  - [x] Naprawiony sampling + UX w Idea Gate
 - [x] UI: Idea Generator (branch: feat/ui-idea-generator) (2026-02-05)
   - [x] API: POST `/idea-candidates/generate` (LLM/text/file)
   - [x] UI: panel generowania z trybami LLM/text/file
