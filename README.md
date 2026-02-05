@@ -8,11 +8,12 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - Lokalna infrastruktura: Postgres, Redis, MinIO (Docker Compose).
 - Panel review: React + Vite.
 
-## Stan implementacji (2026-02-04)
+## Stan implementacji (2026-02-05)
 - Działa end-to-end dla ścieżki operacyjnej: enqueue -> generate_dsl -> render -> artefakty.
-- Działa Idea Repository/Idea Gate + DSL Capability Verifier + `dsl_gaps`.
+- Działa Idea Repository/Idea Gate + DSL Capability Verifier na kandydatach + `dsl_gaps`.
 - Działa mediator LLM z routingiem i persystencją metryk/budżetu w DB.
-- W toku: pełna ścieżka UI dla QC/publikacji/metryk oraz docelowy moduł LLM Idea->DSL Compiler.
+- Działa LLM Idea->DSL Compiler (generate/validate/repair + fallback).
+- W toku: pełna ścieżka UI dla QC/publikacji/metryk.
 
 ## Szybki start (macOS M2 Pro)
 1. Zainstaluj narzędzia bazowe:
@@ -42,7 +43,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make worker` – startuje workera RQ.
 - `make worker-burst` – worker w trybie burst (przetwarza i kończy).
 - `make enqueue` – wrzuca minimalny job (generacja DSL -> render).
-  - Idea Gate: najpierw wybierz pomysł z repozytorium (UI lub `make idea-gate`), potem uruchom enqueue z wybraną ideą.
+  - Idea Gate: najpierw wybierz propozycję z repozytorium kandydatów (UI lub `make idea-gate`), potem uruchom enqueue z wybraną ideą.
 - `make job-status` – pokazuje ostatnie joby.
 - `make job-summary` – podsumowanie statusów jobów.
 - `make job-failed` – lista jobów `failed` z payloadem błędu.
@@ -50,6 +51,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make purge-failed-jobs OLDER_MIN=60` – usuwa stare joby `failed`.
 - `make cleanup-rq-failed` – czyści `failed` registry RQ (Redis), przydatne po starych/crashowanych jobach.
 - `make idea-gate` – losuje propozycje z repo i wymusza klasyfikację (picked/later/rejected).
+- `make idea-verify-capability` – weryfikuje wykonalność kandydatów względem DSL (obsługuje `IDEA_VERIFY_CANDIDATE_ID`).
 - `make qc-decide ANIMATION_ID=... QC_RESULT=accepted` – zapis decyzji QC.
 - `make publish-record RENDER_ID=... PUBLISH_PLATFORM=youtube` – zapis publikacji.
 - `make metrics-daily METRICS_CONTENT_ID=... METRICS_DATE=YYYY-MM-DD` – zapis metryk dziennych.
@@ -58,7 +60,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make test-llm-mediator-db` – uruchamia testy persystencji mediatora LLM z wymaganym Postgres (bez skipów integracyjnych).
 - `make test-idea-compiler-pipeline-e2e` – uruchamia E2E kompilatora Idea->DSL+render; resetuje schemat DB do kanonicznego przed testem.
 - `make idea-generate` – generuje i zapisuje pomysły + embeddingi (tabela `idea_embedding`).
-- `make idea-verify-capability` – weryfikuje wykonalność idei względem DSL i uzupełnia `dsl_gap`.
+- `make idea-verify-capability` – weryfikuje wykonalność kandydatów względem DSL i uzupełnia `dsl_gap`.
 - `make dsl-gap-status DSL_GAP_ID=<UUID> DSL_GAP_STATUS=implemented` – aktualizuje status gapa i robi re-verification powiązanych idei.
 - `make idea-compile-dsl IDEA_COMPILE_ID=<UUID>` – wymusza kompilację jednej idei do DSL (MVP compiler path).
 - `IDEA_GEN_SOURCE=openai make idea-generate` – generuje pomysły przez OpenAI (wymaga `OPENAI_API_KEY`).

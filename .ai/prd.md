@@ -6,12 +6,13 @@
 4. Architektura: Lokalne uruchomienie, job-based pipeline: generacja DSL -> render -> QC/review -> publikacja -> metryki -> analiza.
 5. Autonomia: Etapy manual -> assisted -> semi-auto, z ewaluacją co 14 dni i jawnie zdefiniowanymi kryteriami wyjścia.
 
-## 1a. Stan implementacji (na dzień 4 lutego 2026)
+## 1a. Stan implementacji (na dzień 5 lutego 2026)
 1. Działa: pipeline enqueue -> generate_dsl -> render (RQ/Redis), podgląd animacji i artefaktów, audit log, podstawowe operacje z UI.
-2. Działa: Idea Repository + Idea Gate (picked/later/rejected), DSL Capability Verifier (`feasible/blocked_by_gaps`) i re-verification po zmianie statusu gapa.
+2. Działa: Idea Repository + Idea Gate (picked/later/rejected), DSL Capability Verifier na **kandydatach** (`feasible/blocked_by_gaps`) i re-verification po zmianie statusu gapa.
 3. Działa: mediator LLM z routingiem per task i persystencją metryk/budżetu do DB (`/llm/metrics` + retention).
-4. Częściowo: UI jest operacyjne, ale nadal nie pokrywa pełnego docelowego przepływu QC/publish/metrics jako głównego UX.
-5. Jeszcze niegotowe: pełny moduł LLM Idea->DSL Compiler (generate/validate/repair), panel QC i panel publikacji, pełne E2E "idea -> publikacja".
+4. Działa: LLM Idea->DSL Compiler (generate/validate/repair + fallback) uruchamiany tylko dla idei wykonalnych.
+5. Częściowo: UI jest operacyjne, ale nadal nie pokrywa pełnego docelowego przepływu QC/publish/metrics jako głównego UX.
+6. Jeszcze niegotowe: panel QC i panel publikacji, pełne E2E "idea -> publikacja".
 
 ## 2. Problem użytkownika
 1. Brak skalowalnego sposobu na codzienną publikację Shorts i systematyczną obserwację wpływu regularności na zasięgi.
@@ -30,9 +31,9 @@
    1.6. System korzysta z osobnego modulu generatora pomyslow (AI) i zapisuje propozycje w bazie; w razie braku AI uzywa fallbacku z pliku.
    1.7. System posiada osobny modul embeddings (provider + fallback), wspoldzielony przez Idea Gate i generator pomyslow.
    1.8. MVP korzysta z lokalnych embeddingow (scikit-learn HashingVectorizer) jako papierka lakmusowego; zdalny provider jest opcjonalny.
-   1.9. System posiada osobny DSL Capability Verifier (TAK/NIE), ktory ocenia wykonalnosc idei wzgledem aktualnego DSL i przypina `dsl_gaps`.
-   1.10. LLM DSL Compiler uruchamia sie tylko dla idei wykonalnych (lub odblokowanych po wdrozeniu gapow) i przechodzi tor: generate -> validate -> repair/retry -> fallback.
-   1.11. Jesli idea wymaga funkcji poza obecnym DSL, system zapisuje `dsl_gaps` do globalnej listy (z deduplikacja) oraz linkuje je do idei.
+   1.9. System posiada osobny DSL Capability Verifier (TAK/NIE), ktory ocenia wykonalnosc **kandydatow** wzgledem aktualnego DSL i przypina `dsl_gaps`.
+   1.10. LLM DSL Compiler uruchamia sie tylko dla **idei** wybranych z Idea Gate, ktore pochodza z kandydatow o statusie `feasible` (lub odblokowanych po wdrozeniu gapow), i przechodzi tor: generate -> validate -> repair/retry -> fallback.
+   1.11. Jesli idea wymaga funkcji poza obecnym DSL, system zapisuje `dsl_gaps` do globalnej listy (z deduplikacja) oraz linkuje je do kandydatow (a po wyborze do idei).
 
 2. Rendering i reprodukowalność
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.

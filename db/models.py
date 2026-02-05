@@ -116,6 +116,7 @@ class IdeaCandidate(Base):
     generator_source: Mapped[str] = mapped_column(Text)
     similarity_status: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="new")
+    capability_status: Mapped[str] = mapped_column(Text, default="unverified")
     selected: Mapped[bool] = mapped_column(Boolean, default=False)
     selected_by: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -133,6 +134,10 @@ class IdeaCandidate(Base):
 
     idea_batch: Mapped["IdeaBatch"] = relationship(back_populates="candidates")
     idea: Mapped["Idea | None"] = relationship(back_populates="idea_candidate", uselist=False)
+    gap_links: Mapped[list["IdeaCandidateGapLink"]] = relationship(
+        back_populates="idea_candidate",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -146,6 +151,10 @@ class IdeaCandidate(Base):
         CheckConstraint(
             "status in ('new', 'later', 'picked')",
             name="ck_idea_candidate_status",
+        ),
+        CheckConstraint(
+            "capability_status in ('unverified', 'feasible', 'blocked_by_gaps')",
+            name="ck_idea_candidate_capability_status",
         ),
     )
 
@@ -203,6 +212,10 @@ class DslGap(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     idea_links: Mapped[list["IdeaGapLink"]] = relationship(back_populates="dsl_gap", cascade="all, delete-orphan")
+    candidate_links: Mapped[list["IdeaCandidateGapLink"]] = relationship(
+        back_populates="dsl_gap",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         UniqueConstraint("gap_key", name="uq_dsl_gap_gap_key"),
@@ -237,6 +250,37 @@ class IdeaGapLink(Base):
 
     __table_args__ = (
         UniqueConstraint("idea_id", "dsl_gap_id", name="uq_idea_gap_link_idea_gap"),
+    )
+
+
+class IdeaCandidateGapLink(Base):
+    __tablename__ = "idea_candidate_gap_link"
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    idea_candidate_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("idea_candidate.id", ondelete="CASCADE"),
+    )
+    dsl_gap_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("dsl_gap.id", ondelete="CASCADE"),
+    )
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    idea_candidate: Mapped["IdeaCandidate"] = relationship(back_populates="gap_links")
+    dsl_gap: Mapped["DslGap"] = relationship(back_populates="candidate_links")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "idea_candidate_id",
+            "dsl_gap_id",
+            name="uq_idea_candidate_gap_link_candidate_gap",
+        ),
     )
 
 

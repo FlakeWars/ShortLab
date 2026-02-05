@@ -1,6 +1,12 @@
 # TODO
 
 ## Now (W toku)
+- [ ] DSL capability na IdeaCandidate (wariant A) (branch: feat/idea-candidate-capability)
+  - [x] Model DB: `capability_status` na `idea_candidate` + tabela `idea_candidate_gap_link`
+  - [x] API: weryfikacja kandydatów + sampling tylko feasible + decide tworzy `idea` jako `ready_for_gate`
+  - [x] UI: liczniki wg capability + lista zablokowanych kandydatów
+  - [ ] Spiąć komunikację/UX w panelach (nazewnictwo, podpowiedzi, flow)
+  - [x] Docs sync: PRD/tech-stack/README (capability na kandydatach + status kompilatora + komendy verify)
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
@@ -47,6 +53,7 @@
   - [ ] Definicja SLO panelu (czas odświeżania, timeouty, fallback przy częściowej niedostępności)
   - [x] UX: panel statusu jako domyślny pierwszy panel po wejściu do UI
   - [ ] Lepsza obsługa niezgodności wersji API/UI (gdy działa stary backend bez `/system/status`, pokazać czytelny komunikat i hint restartu)
+  - [x] Opisy IDEA_CANDIDATES vs IDEAS + kolejność zgodna z flow
 - [ ] API: agregaty dla panelu stanu systemu (branch: feat/api-system-status)
   - [x] Endpoint zbiorczy health + repo counters (jedno źródło dla UI status)
   - [x] Standaryzacja kontraktu: `service_status[]`, `repo_counts`, `updated_at`, `partial_failures[]`

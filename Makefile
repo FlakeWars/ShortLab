@@ -220,11 +220,11 @@ idea-generate: ## Generate ideas into DB (file/template)
 		--similarity-threshold "$(IDEA_GEN_SIM_THRESHOLD)"
 
 .PHONY: idea-verify-capability
-idea-verify-capability: ## Verify ideas against DSL capability (supports IDEA_VERIFY_ID)
+idea-verify-capability: ## Verify idea candidates against DSL capability (supports IDEA_VERIFY_CANDIDATE_ID)
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-verify-capability.py \
 		--limit "$(IDEA_VERIFY_LIMIT)" \
 		--dsl-version "$(IDEA_DSL_VERSION)" \
-		$(if $(IDEA_VERIFY_ID),--idea-id "$(IDEA_VERIFY_ID)",)
+		$(if $(IDEA_VERIFY_CANDIDATE_ID),--idea-candidate-id "$(IDEA_VERIFY_CANDIDATE_ID)",$(if $(IDEA_VERIFY_ID),--idea-candidate-id "$(IDEA_VERIFY_ID)",))
 
 .PHONY: dsl-gap-status
 dsl-gap-status: ## Update DSL gap status and reverify linked ideas (DSL_GAP_ID required)

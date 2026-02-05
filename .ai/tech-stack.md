@@ -27,7 +27,7 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 - **DSL w YAML/JSON** (z wersją schematu): łatwe diffy i walidacja.
 - **Walidacja schematu**: `pydantic` + `jsonschema`.
 - **Wersjonowanie DSL**: pole `dsl_version` oraz migratory "upgrader" w kodzie.
-- **DSL Capability Verifier** (MVP): oddzielny etap `Idea -> feasible?` (TAK/NIE + `dsl_gaps`) przed kompilacja.
+- **DSL Capability Verifier** (MVP): oddzielny etap `IdeaCandidate -> feasible?` (TAK/NIE + `dsl_gaps`) przed kompilacja.
 - **LLM DSL Compiler** (MVP): etap `Idea -> DSL` tylko dla idei wykonalnych, z torem `generate -> validate -> repair/retry -> fallback`.
 - **Raportowanie luk DSL**: `dsl_gaps` zapisywane do backlogu/audytu jako input do rozwoju DSL.
 

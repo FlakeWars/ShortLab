@@ -22,6 +22,7 @@ from db.models import (
     DslGap,
     Idea,
     IdeaCandidate,
+    IdeaCandidateGapLink,
     IdeaEmbedding,
     IdeaGapLink,
     MetricsDaily,
@@ -30,7 +31,12 @@ from db.models import (
     Job,
 )
 from db.session import SessionLocal
-from ideas.capability import reverify_ideas_for_gap, verify_idea_capability
+from ideas.capability import (
+    reverify_candidates_for_gap,
+    reverify_ideas_for_gap,
+    verify_candidate_capability,
+    verify_idea_capability,
+)
 from ideas.compiler import compile_idea_to_dsl
 from llm import get_mediator
 
@@ -178,6 +184,16 @@ class IdeaCapabilityVerifyBatchRequest(BaseModel):
     dsl_version: str = Field(default="v1")
 
 
+class IdeaCandidateCapabilityVerifyRequest(BaseModel):
+    idea_candidate_id: UUID
+    dsl_version: str = Field(default="v1")
+
+
+class IdeaCandidateCapabilityVerifyBatchRequest(BaseModel):
+    limit: int = Field(default=20, ge=1, le=200)
+    dsl_version: str = Field(default="v1")
+
+
 class DslGapStatusRequest(BaseModel):
     status: Literal["new", "accepted", "in_progress", "implemented", "rejected"]
 
@@ -243,7 +259,18 @@ def system_status() -> dict:
         session.execute(text("select 1"))
         services.append(_service_status("postgres", True))
         repo_counts["ideas"] = _repo_counts(session, Idea, Idea.status)
-        repo_counts["idea_candidates"] = _repo_counts(session, IdeaCandidate, IdeaCandidate.status)
+        candidate_total = session.execute(select(func.count()).select_from(IdeaCandidate)).scalar_one()
+        candidate_by_status = session.execute(
+            select(IdeaCandidate.status, func.count()).group_by(IdeaCandidate.status)
+        ).all()
+        candidate_by_capability = session.execute(
+            select(IdeaCandidate.capability_status, func.count()).group_by(IdeaCandidate.capability_status)
+        ).all()
+        repo_counts["idea_candidates"] = {
+            "total": int(candidate_total),
+            "by_status": {str(status or "unknown"): int(count) for status, count in candidate_by_status},
+            "by_capability": {str(status or "unknown"): int(count) for status, count in candidate_by_capability},
+        }
         repo_counts["dsl_gaps"] = _repo_counts(session, DslGap, DslGap.status)
         repo_counts["animations"] = _repo_counts(session, Animation, Animation.status)
         repo_counts["renders"] = _repo_counts(session, Render, Render.status)
@@ -441,6 +468,43 @@ def list_blocked_ideas(
         session.close()
 
 
+@app.get("/idea-candidates/blocked")
+def list_blocked_idea_candidates(
+    limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> List[dict]:
+    limit, offset = _paginate(limit, offset)
+    session = SessionLocal()
+    try:
+        rows = session.execute(
+            select(IdeaCandidate)
+            .where(IdeaCandidate.capability_status == "blocked_by_gaps")
+            .order_by(desc(IdeaCandidate.created_at))
+            .limit(limit)
+            .offset(offset)
+        ).scalars().all()
+
+        payload: list[dict] = []
+        for candidate in rows:
+            links = session.execute(
+                select(DslGap.feature, DslGap.status)
+                .join(IdeaCandidateGapLink, IdeaCandidateGapLink.dsl_gap_id == DslGap.id)
+                .where(IdeaCandidateGapLink.idea_candidate_id == candidate.id)
+                .order_by(desc(DslGap.updated_at))
+            ).all()
+            payload.append(
+                {
+                    "id": str(candidate.id),
+                    "title": candidate.title,
+                    "status": candidate.capability_status,
+                    "gaps": [{"feature": feature, "status": status} for feature, status in links],
+                }
+            )
+        return jsonable_encoder(payload)
+    finally:
+        session.close()
+
+
 @app.get("/idea-repo/sample")
 def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
     session = SessionLocal()
@@ -449,35 +513,16 @@ def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
             select(IdeaCandidate).where(IdeaCandidate.status.in_(["new", "later"]))
         ).scalars().all()
 
-        now = datetime.now(timezone.utc)
         for candidate in base_candidates:
-            if candidate.idea is None:
-                idea = Idea(
-                    idea_candidate_id=candidate.id,
-                    title=candidate.title,
-                    summary=candidate.summary,
-                    what_to_expect=candidate.what_to_expect,
-                    preview=candidate.preview,
-                    idea_hash=_hash_idea(candidate.title, candidate.summary or ""),
-                    status="unverified",
-                    created_at=now,
-                )
-                session.add(idea)
-        session.flush()
-
-        unverified_ids = session.execute(
-            select(Idea.id).where(Idea.status == "unverified").limit(200)
-        ).all()
-        for (idea_id,) in unverified_ids:
-            verify_idea_capability(session, idea_id=idea_id)
+            if candidate.capability_status == "unverified":
+                verify_candidate_capability(session, idea_candidate_id=candidate.id)
         session.flush()
 
         stmt = (
             select(IdeaCandidate)
-            .join(Idea, Idea.idea_candidate_id == IdeaCandidate.id)
             .where(
                 IdeaCandidate.status.in_(["new", "later"]),
-                Idea.status == "ready_for_gate",
+                IdeaCandidate.capability_status == "feasible",
             )
             .order_by(func.random())
             .limit(limit)
@@ -515,6 +560,8 @@ def decide_idea_repo(
         picked_candidate = by_id[picked[0].idea_candidate_id]
         if picked_candidate.status == "picked":
             raise HTTPException(status_code=409, detail="already_picked")
+        if picked_candidate.capability_status != "feasible":
+            raise HTTPException(status_code=409, detail="candidate_not_feasible")
 
         picked_candidate.status = "picked"
         picked_candidate.selected = True
@@ -529,14 +576,15 @@ def decide_idea_repo(
                 what_to_expect=picked_candidate.what_to_expect,
                 preview=picked_candidate.preview,
                 idea_hash=_hash_idea(picked_candidate.title, picked_candidate.summary or ""),
-                status="picked",
+                status="ready_for_gate",
                 created_at=now,
             )
             session.add(idea)
             session.flush()
         else:
             idea = picked_candidate.idea
-            idea.status = "picked"
+            if idea.status != "compiled":
+                idea.status = "ready_for_gate"
             session.add(idea)
 
         for item in request.decisions:
@@ -626,6 +674,51 @@ def verify_capability_batch(
         session.close()
 
 
+@app.post("/idea-candidates/verify-capability")
+def verify_candidate_capability_endpoint(
+    request: IdeaCandidateCapabilityVerifyRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        report = verify_candidate_capability(
+            session,
+            idea_candidate_id=request.idea_candidate_id,
+            dsl_version=request.dsl_version,
+        )
+        session.commit()
+        return jsonable_encoder(report)
+    finally:
+        session.close()
+
+
+@app.post("/idea-candidates/verify-capability/batch")
+def verify_candidate_capability_batch(
+    request: IdeaCandidateCapabilityVerifyBatchRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        candidate_ids = session.execute(
+            select(IdeaCandidate.id)
+            .where(IdeaCandidate.capability_status == "unverified")
+            .order_by(desc(IdeaCandidate.created_at))
+            .limit(request.limit)
+        ).all()
+        reports = [
+            verify_candidate_capability(
+                session,
+                idea_candidate_id=candidate_id,
+                dsl_version=request.dsl_version,
+            )
+            for (candidate_id,) in candidate_ids
+        ]
+        session.commit()
+        return jsonable_encoder({"verified": len(reports), "reports": reports})
+    finally:
+        session.close()
+
+
 @app.get("/dsl-gaps")
 def list_dsl_gaps(
     status: Optional[str] = None,
@@ -664,13 +757,15 @@ def update_dsl_gap_status(
         gap.updated_at = datetime.now(timezone.utc)
         session.add(gap)
 
-        reverify_report = reverify_ideas_for_gap(session, dsl_gap_id=gap.id)
+        reverify_candidates = reverify_candidates_for_gap(session, dsl_gap_id=gap.id)
+        reverify_ideas = reverify_ideas_for_gap(session, dsl_gap_id=gap.id)
 
         session.commit()
         return jsonable_encoder(
             {
                 "gap": gap,
-                "reverify": reverify_report,
+                "reverify_candidates": reverify_candidates,
+                "reverify_ideas": reverify_ideas,
             }
         )
     finally:
