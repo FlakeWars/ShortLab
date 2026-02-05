@@ -149,6 +149,12 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] UI: panel Idea Generator w Flow (branch: feat/ui-flow-idea-generator) (2026-02-05)
+  - [x] Pierwszy krok flow z licznikami capability i statusu kandydatów
+  - [x] System status: IDEA CANDIDATES z capability_status + status w stałej kolejności
+  - [x] Backlog: Similarity scaling (ANN + async) dopisany do TODO
+- [x] Post-merge analysis (2026-02-05)
+  - [x] UI Flow zaktualizowany o pierwszy etap i opis similarity
 - [x] DSL capability na IdeaCandidate (branch: feat/idea-candidate-capability) (2026-02-05)
   - [x] Model DB: `capability_status` na `idea_candidate` + tabela `idea_candidate_gap_link`
   - [x] API: weryfikacja kandydatów + sampling tylko feasible + decide tworzy `idea` jako `ready_for_gate`
