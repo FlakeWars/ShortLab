@@ -529,6 +529,25 @@ def list_blocked_idea_candidates(
 def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
     session = SessionLocal()
     try:
+        def _serialize_candidate(candidate: IdeaCandidate) -> dict:
+            return {
+                "id": str(candidate.id),
+                "idea_batch_id": str(candidate.idea_batch_id),
+                "title": candidate.title,
+                "summary": candidate.summary,
+                "what_to_expect": candidate.what_to_expect,
+                "preview": candidate.preview,
+                "generator_source": candidate.generator_source,
+                "similarity_status": candidate.similarity_status,
+                "capability_status": candidate.capability_status,
+                "status": candidate.status,
+                "selected": candidate.selected,
+                "selected_at": candidate.selected_at,
+                "selected_by": str(candidate.selected_by) if candidate.selected_by else None,
+                "decision_at": candidate.decision_at,
+                "created_at": candidate.created_at,
+            }
+
         base_candidates = session.execute(
             select(IdeaCandidate).where(IdeaCandidate.status.in_(["new", "later"]))
         ).scalars().all()
@@ -549,7 +568,7 @@ def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
         )
         rows = session.execute(stmt).scalars().all()
         session.commit()
-        return jsonable_encoder(rows)
+        return jsonable_encoder([_serialize_candidate(row) for row in rows])
     finally:
         session.close()
 
