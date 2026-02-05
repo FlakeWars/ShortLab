@@ -1,6 +1,11 @@
 # TODO
 
 ## Now (W toku)
+- [ ] UI: Idea Generator (branch: feat/ui-idea-generator)
+  - [x] API: POST `/idea-candidates/generate` (LLM/text/file)
+  - [x] UI: panel generowania z trybami LLM/text/file
+  - [x] Repositories: lista kandydatów + filtry status/capability/similarity
+  - [ ] UX: dopracować opisy trybów i komunikaty walidacji
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny

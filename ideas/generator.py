@@ -300,6 +300,8 @@ def _map_generator_source(source: str) -> str:
         return "fallback"
     if source == "template":
         return "manual"
+    if source in {"manual", "text"}:
+        return "manual"
     return "ai"
 
 
