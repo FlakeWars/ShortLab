@@ -1628,9 +1628,6 @@ function App() {
       </section>
 
       
-      </>
-      ) : null}
-
       <section id="operations-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1728,6 +1725,11 @@ function App() {
           </div>
         </div>
       </section>
+
+</>
+      ) : null}
+
+      
 
 {activeView === 'repositories' ? (
       <>
