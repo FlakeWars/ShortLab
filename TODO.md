@@ -1,11 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] UI: Idea Generator (branch: feat/ui-idea-generator)
-  - [x] API: POST `/idea-candidates/generate` (LLM/text/file)
-  - [x] UI: panel generowania z trybami LLM/text/file
-  - [x] Repositories: lista kandydatów + filtry status/capability/similarity
-  - [ ] UX: dopracować opisy trybów i komunikaty walidacji
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
@@ -154,6 +149,13 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] UI: Idea Generator (branch: feat/ui-idea-generator) (2026-02-05)
+  - [x] API: POST `/idea-candidates/generate` (LLM/text/file)
+  - [x] UI: panel generowania z trybami LLM/text/file
+  - [x] Repositories: lista kandydatów + filtry status/capability/similarity
+  - [x] Flow: pierwszy krok uruchamiany z UI
+- [x] Post-merge analysis (2026-02-05)
+  - [x] Dopisany endpoint i UI dla generowania kandydatów
 - [x] UI: panel Idea Generator w Flow (branch: feat/ui-flow-idea-generator) (2026-02-05)
   - [x] Pierwszy krok flow z licznikami capability i statusu kandydatów
   - [x] System status: IDEA CANDIDATES z capability_status + status w stałej kolejności
