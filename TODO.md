@@ -19,6 +19,11 @@
   - [ ] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
 
 ## Next (Kolejne)
+- [ ] Similarity scaling (branch: feat/similarity-scaling)
+  - [ ] Wdrozyć ANN index (FAISS/HNSW) dla embeddingów idei
+  - [ ] Async podobienstwo: obliczenia w tle + status `similarity_status` aktualizowany po fakcie
+  - [ ] Integracja z generatorem: fallback do "unknown" gdy ANN niegotowy
+  - [ ] Monitoring kosztu O(N) do czasu wdrozenia ANN (metryka czasu per batch)
 - [ ] UI: doprecyzować komunikację capability vs idea (branch: feat/ui-capability-copy)
   - [ ] Spójne nazewnictwo kandydatów vs idei w panelach Flow/DSL Capability
   - [ ] Podpowiedzi w UI: kiedy powstaje Idea i dlaczego Idea Gate filtruje tylko feasible

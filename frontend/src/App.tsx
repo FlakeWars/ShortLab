@@ -125,6 +125,8 @@ const ANIMATION_STATUSES = [
 const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
 const APP_VIEWS = ['home', 'plan', 'flow', 'repositories', 'settings'] as const
 type AppView = (typeof APP_VIEWS)[number]
+const CANDIDATE_CAPABILITY_ORDER = ['unverified', 'feasible', 'blocked_by_gaps'] as const
+const CANDIDATE_STATUS_ORDER = ['new', 'later', 'picked'] as const
 const REPO_CARD_ORDER = [
   'idea_candidates',
   'ideas',
@@ -886,6 +888,9 @@ function App() {
   const ideaStatusSummary = useMemo(() => {
     return systemStatus?.repo_counts?.ideas?.by_status ?? {}
   }, [systemStatus])
+  const candidateStatusSummary = useMemo(() => {
+    return systemStatus?.repo_counts?.idea_candidates?.by_status ?? {}
+  }, [systemStatus])
   const candidateCapabilitySummary = useMemo(() => {
     return systemStatus?.repo_counts?.idea_candidates?.by_capability ?? {}
   }, [systemStatus])
@@ -1029,11 +1034,23 @@ function App() {
                 </div>
                 <div className="mt-2 text-2xl font-semibold text-stone-900">{value.total ?? '—'}</div>
                 <div className="mt-2 flex flex-wrap gap-1">
-                  {Object.entries(value.by_status ?? {}).slice(0, 4).map(([status, count]) => (
-                    <Badge key={`${name}-${status}`} variant="outline" className="border border-stone-300 text-stone-700">
-                      {status}: {count}
-                    </Badge>
-                  ))}
+                  {name === 'idea_candidates'
+                    ? [
+                        ...CANDIDATE_CAPABILITY_ORDER.map((key) => [key, value.by_capability?.[key] ?? 0] as const),
+                        ...CANDIDATE_STATUS_ORDER.map((key) => [key, value.by_status?.[key] ?? 0] as const),
+                      ]
+                        .map(([status, count]) => (
+                          <Badge key={`${name}-${status}`} variant="outline" className="border border-stone-300 text-stone-700">
+                            {status}: {count}
+                          </Badge>
+                        ))
+                    : Object.entries(value.by_status ?? {})
+                        .slice(0, 4)
+                        .map(([status, count]) => (
+                          <Badge key={`${name}-${status}`} variant="outline" className="border border-stone-300 text-stone-700">
+                            {status}: {count}
+                          </Badge>
+                        ))}
                 </div>
               </CardContent>
             </Card>
@@ -1164,6 +1181,59 @@ function App() {
 
       {activeView === 'flow' ? (
       <>
+      <section id="idea-generator-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Idea Generator</h2>
+            <p className="text-sm text-stone-600">
+              Punkt startu flow: nowe kandydaty, weryfikacja DSL i odsiew gapów.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Unverified</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">
+                {candidateCapabilitySummary.unverified ?? 0}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Feasible</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">
+                {candidateCapabilitySummary.feasible ?? 0}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Blocked by gaps</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">
+                {candidateCapabilitySummary.blocked_by_gaps ?? 0}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">New/Later/Picked</div>
+              <div className="mt-2 text-sm text-stone-700">
+                new: {candidateStatusSummary.new ?? 0} · later: {candidateStatusSummary.later ?? 0} · picked:{' '}
+                {candidateStatusSummary.picked ?? 0}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-stone-500">
+          <span>Generator uruchamiany obecnie przez CLI: `make idea-generate`.</span>
+          <span>Weryfikacja DSL: `make idea-verify-capability`.</span>
+          <span>Similarity: porównanie kandydata do historii idei (embedding + cosine similarity).</span>
+        </div>
+      </section>
+
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -1171,7 +1241,7 @@ function App() {
             <p className="text-sm text-stone-600">Sekwencja operatora: Idea Gate &rarr; Compile &rarr; Render &rarr; QC &rarr; Publish.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {['Idea Gate', 'Compile', 'Render', 'QC', 'Publish'].map((step) => (
+            {['Idea Generator', 'Idea Gate', 'Compile', 'Render', 'QC', 'Publish'].map((step) => (
               <Badge key={step} variant="outline" className="border border-stone-300 text-stone-700">
                 {step}
               </Badge>
@@ -1192,7 +1262,17 @@ function App() {
             Wróć do Home
           </Button>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Idea Generator</div>
+              <div className="text-2xl font-semibold text-stone-900">{candidateCapabilitySummary.unverified ?? 0}</div>
+              <div className="text-xs text-stone-500">unverified candidates</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('idea-generator-panel')}>
+                Zobacz
+              </Button>
+            </CardContent>
+          </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4 space-y-2">
               <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Idea Gate</div>
