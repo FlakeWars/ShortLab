@@ -7,6 +7,16 @@
   - [x] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
   - [x] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
   - [ ] Dodać test integracyjny mapowania profili na realnych providerach (OpenRouter/Groq/LiteLLM) poza mockami
+- [ ] UI: układ i nawigacja (branch: feat/ui-layout)
+  - [x] Przeprojektowanie z "długiej strony" na app-shell z nawigacją zakładkową (MVP)
+  - [x] Wdrożenie kolejności: `Home/Control Tower` -> `Plan/Calendar` -> `Flow` -> `Repositories` -> `Settings`
+  - [x] Dodać klarowne CTA-linki między widokami (bez ręcznego przełączania zakładki) — MVP
+  - [ ] UX review paneli (czytelność, hierarchia, skrócenie tekstów)
+  - [x] Utrwalać aktywną zakładkę w URL/query-param, żeby odświeżenie nie resetowało kontekstu
+  - [ ] Dodać mapę przyjaznych slugów + tytułów (np. `view=flow` -> "Flow operatora")
+  - [x] Flow board: karty etapów z licznikami + CTA do odpowiednich sekcji
+  - [x] Flow tab zawiera mini‑listę Animations (bez skoku do Repositories)
+  - [ ] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
 
 ## Next (Kolejne)
 - [ ] UI: LLM usage panel v1.1 (branch: feat/ui-llm-usage)
@@ -47,9 +57,17 @@
 - [ ] Ryzyko: zbyt ciężkie zapytania liczników (branch: fix/status-counters-performance)
   - [ ] Dodać limity/cache (krótki TTL) dla endpointu agregatów
   - [ ] Monitoring czasu odpowiedzi endpointu statusowego
-- [ ] UI: układ i nawigacja (branch: feat/ui-layout)
-  - [ ] Przeprojektowanie układu (tabs/sekcje) + kolejność paneli
-  - [ ] UX review paneli (czytelność, hierarchia)
+- [ ] UX IA v2: Control Tower / Plan / Flow (branch: feat/ui-ia-v2)
+  - [ ] `Home / Control Tower`: health + KPI + "co teraz" + alerty z CTA
+  - [ ] `Plan / Calendar`: tydzień publikacji, backlog gotowych animacji, statusy `planned/ready/blocked/published`
+  - [ ] `Flow`: stepper operatora `Idea Gate -> Compile DSL -> Render -> QC -> Publish`
+  - [ ] W `Flow` pokazywać tylko aktywną ścieżkę i następny krok; automatyzacje w tle
+  - [ ] `Repositories`: osobny obszar analityczno-administracyjny (bez mieszania z flow)
+  - [ ] Definicja stanów pustych/błędów dla każdego widoku (w tym niezgodność API/UI)
+- [ ] Procedura obsługi `dsl_gap` (branch: feat/dsl-gap-procedure)
+  - [ ] Zdefiniować workflow: triage -> decyzja (accept/reject) -> implementacja -> re-verify idei
+  - [ ] Dodać w UI alert/CTA dla operatora gdy backlog gapów blokuje flow
+  - [ ] Dodać kryteria "done" dla implementacji gapa (testy + przykładowe idee odblokowane)
 - [ ] UI: QC (branch: feat/ui-qc)
   - [ ] Panel QC w UI + akcja accept/reject/regenerate
 - [ ] UI: publikacja (branch: feat/ui-publish)

@@ -128,6 +128,18 @@ const ANIMATION_STATUSES = [
   'archived',
 ]
 const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
+const APP_VIEWS = ['home', 'plan', 'flow', 'repositories', 'settings'] as const
+type AppView = (typeof APP_VIEWS)[number]
+
+function getViewFromUrl(): AppView {
+  if (typeof window === 'undefined') return 'home'
+  const params = new URLSearchParams(window.location.search)
+  const value = params.get('view')
+  if (value && APP_VIEWS.includes(value as AppView)) {
+    return value as AppView
+  }
+  return 'home'
+}
 
 const explicitApiBase = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_TARGET
 const fallbackApiBase = (() => {
@@ -249,13 +261,12 @@ function SettingRow({ label, value }: { label: string; value?: string | null }) 
 }
 
 function App() {
+  const [activeView, setActiveView] = useState<AppView>(getViewFromUrl)
   const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null)
   const [systemStatusLoading, setSystemStatusLoading] = useState(false)
   const [systemStatusError, setSystemStatusError] = useState<string | null>(null)
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null)
-  const [summaryError, setSummaryError] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
-  const [summaryUpdatedAt, setSummaryUpdatedAt] = useState<Date | null>(null)
 
   const [animationData, setAnimationData] = useState<AnimationRow[]>([])
   const [animationError, setAnimationError] = useState<string | null>(null)
@@ -331,7 +342,6 @@ function App() {
 
   const fetchSummary = async () => {
     setSummaryLoading(true)
-    setSummaryError(null)
     try {
       const response = await fetch(`${API_BASE}/pipeline/summary?limit=12`)
       if (!response.ok) {
@@ -339,9 +349,8 @@ function App() {
       }
       const payload = (await response.json()) as SummaryResponse
       setSummaryData(payload)
-      setSummaryUpdatedAt(new Date())
-    } catch (err) {
-      setSummaryError(err instanceof Error ? err.message : 'Unknown error')
+    } catch {
+      setSummaryData(null)
     } finally {
       setSummaryLoading(false)
     }
@@ -728,6 +737,21 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    params.set('view', activeView)
+    const nextUrl = `${window.location.pathname}?${params.toString()}`
+    window.history.replaceState(null, '', nextUrl)
+  }, [activeView])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onPopState = () => setActiveView(getViewFromUrl())
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  useEffect(() => {
     fetchSummary()
     const interval = window.setInterval(fetchSummary, 15000)
     return () => window.clearInterval(interval)
@@ -774,7 +798,6 @@ function App() {
   const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
   const services = useMemo(() => systemStatus?.service_status ?? [], [systemStatus])
   const repoCards = useMemo(() => systemStatus?.repo_counts ?? {}, [systemStatus])
-  const jobs = useMemo(() => summaryData?.jobs ?? [], [summaryData])
   const worker = useMemo(() => summaryData?.worker, [summaryData])
   const llmRouteRows = useMemo(() => {
     const routes = llmMetrics?.routes ?? {}
@@ -844,6 +867,23 @@ function App() {
     () => artifacts.find((item) => item.artifact_type === 'video'),
     [artifacts],
   )
+  const readyIdeas = ideaStatusSummary.ready_for_gate ?? 0
+  const blockedIdeasCount = ideaStatusSummary.blocked_by_gaps ?? 0
+  const queuedJobs = (summary.queued ?? 0) + (summary.running ?? 0)
+  const compiledIdeas = ideaStatusSummary.compiled ?? 0
+  const renderQueue = animationData.filter((row) =>
+    row.pipeline_stage === 'render' || row.status === 'queued' || row.status === 'running',
+  ).length
+  const qcQueue = animationData.filter((row) => row.pipeline_stage === 'qc').length
+  const publishReady = animationData.filter((row) => row.status === 'accepted').length
+
+  const scrollToSection = (sectionId: string) => {
+    if (typeof window === 'undefined') return
+    const target = window.document.getElementById(sectionId)
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 
   const previewUrl = videoArtifact ? `${API_BASE}/artifacts/${videoArtifact.id}/file` : null
 
@@ -875,6 +915,21 @@ function App() {
         </div>
       </header>
 
+      <nav className="flex flex-wrap gap-2">
+        {APP_VIEWS.map((view) => (
+          <Button
+            key={view}
+            variant={activeView === view ? 'default' : 'outline'}
+            className="rounded-full capitalize"
+            onClick={() => setActiveView(view)}
+          >
+            {view}
+          </Button>
+        ))}
+      </nav>
+
+      {activeView === 'home' ? (
+        <>
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -983,79 +1038,395 @@ function App() {
         ))}
       </section>
 
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
+          <CardHeader>
+            <CardTitle className="text-lg text-stone-900">Co teraz: Idea Gate</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-stone-600">
+            <p>Gotowe idee do wyboru: <span className="font-semibold text-stone-900">{readyIdeas}</span></p>
+            <p>Zablokowane przez gapy: <span className="font-semibold text-stone-900">{blockedIdeasCount}</span></p>
+            <Button className="rounded-full" onClick={() => setActiveView('flow')}>
+              Przejdź do Flow
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
+          <CardHeader>
+            <CardTitle className="text-lg text-stone-900">Co teraz: Produkcja</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-stone-600">
+            <p>Joby w toku: <span className="font-semibold text-stone-900">{queuedJobs}</span></p>
+            <p>Worker: <span className="font-semibold text-stone-900">{worker?.online ? 'online' : 'offline'}</span></p>
+            <Button className="rounded-full" onClick={() => setActiveView('plan')}>
+              Otwórz Plan
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
+          <CardHeader>
+            <CardTitle className="text-lg text-stone-900">Co teraz: Diagnostyka</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-stone-600">
+            <p>Przeglądaj artefakty, audit i metryki LLM.</p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="rounded-full" onClick={() => setActiveView('repositories')}>
+                Repositories
+              </Button>
+              <Button variant="outline" className="rounded-full" onClick={() => setActiveView('settings')}>
+                Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+      
+      </>
+      ) : null}
+
+      {activeView === 'plan' ? (
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
-        <div className="flex flex-col gap-3 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Recent jobs</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Plan / Calendar</h2>
             <p className="text-sm text-stone-600">
-              Latest 12 pipeline executions with status context and timing metadata.
+              Widok operacyjny: co gotowe, co zablokowane i co czeka na decyzję.
+            </p>
+          </div>
+          <Button variant="outline" className="rounded-full" onClick={fetchAnimations}>
+            Odśwież plan
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Ready to publish</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.status === 'accepted').length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">In production</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.status === 'queued' || a.status === 'running').length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Needs QC</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.pipeline_stage === 'qc').length}</div>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Blocked ideas</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{ideaStatusSummary.blocked_by_gaps ?? 0}</div>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button className="rounded-full" onClick={() => setActiveView('flow')}>Przejdź do Flow</Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setActiveView('repositories')}>Otwórz Repositories</Button>
+        </div>
+      </section>
+      ) : null}
+
+      {activeView === 'flow' ? (
+      <>
+      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Flow</h2>
+            <p className="text-sm text-stone-600">Sekwencja operatora: Idea Gate &rarr; Compile &rarr; Render &rarr; QC &rarr; Publish.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {['Idea Gate', 'Compile', 'Render', 'QC', 'Publish'].map((step) => (
+              <Badge key={step} variant="outline" className="border border-stone-300 text-stone-700">
+                {step}
+              </Badge>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-full" onClick={() => {
+            fetchSummary()
+            fetchAnimations()
+            fetchIdeaStatuses()
+            fetchDslGaps()
+          }}>
+            Odśwież Flow
+          </Button>
+          <Button variant="ghost" className="rounded-full" onClick={() => setActiveView('home')}>
+            Wróć do Home
+          </Button>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Idea Gate</div>
+              <div className="text-2xl font-semibold text-stone-900">{readyIdeas}</div>
+              <div className="text-xs text-stone-500">gotowe do wyboru</div>
+              <Button className="w-full rounded-full" onClick={() => scrollToSection('idea-gate-panel')}>
+                Otwórz
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Compile</div>
+              <div className="text-2xl font-semibold text-stone-900">{compiledIdeas}</div>
+              <div className="text-xs text-stone-500">idei skompilowanych</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('dsl-capability-panel')}>
+                DSL Gaps
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Render</div>
+              <div className="text-2xl font-semibold text-stone-900">{renderQueue}</div>
+              <div className="text-xs text-stone-500">w toku / w kolejce</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('flow-animations-panel')}>
+                Animations
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">QC</div>
+              <div className="text-2xl font-semibold text-stone-900">{qcQueue}</div>
+              <div className="text-xs text-stone-500">do decyzji QC</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('flow-animations-panel')}>
+                Sprawdź
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
+            <CardContent className="pt-4 space-y-2">
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Publish</div>
+              <div className="text-2xl font-semibold text-stone-900">{publishReady}</div>
+              <div className="text-xs text-stone-500">gotowe do publikacji</div>
+              <Button variant="outline" className="w-full rounded-full" onClick={() => setActiveView('plan')}>
+                Zaplanuj
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+      <section id="idea-gate-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Idea Gate</h2>
+            <p className="text-sm text-stone-600">
+              Losuj propozycje z repozytorium i sklasifikuj każdą z nich.
             </p>
           </div>
           <div className="text-xs text-stone-500">
-            <div>API: {API_BASE}</div>
-            <div>
-              Worker:{' '}
-              {worker?.online ? `online (${worker.worker_count ?? 0})` : 'offline'}
-              {typeof worker?.queue_depth === 'number' ? `, queue ${worker.queue_depth}` : ''}
-            </div>
-            <div>Updated: {summaryUpdatedAt ? summaryUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            <div>Updated: {ideaUpdatedAt ? ideaUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
           </div>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          {summaryLoading ? (
-            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading pipeline data…
-            </div>
-          ) : summaryError ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-              <div className="font-semibold">Failed to load</div>
-              <div>{summaryError}</div>
-            </div>
-          ) : (
-            <table className="min-w-[720px] w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
-                <tr>
-                  <th className="px-2 py-3">Status</th>
-                  <th className="px-2 py-3">Job type</th>
-                  <th className="px-2 py-3">Animation</th>
-                  <th className="px-2 py-3">Created</th>
-                  <th className="px-2 py-3">Started</th>
-                  <th className="px-2 py-3">Finished</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
-                      No jobs yet. Enqueue a pipeline run to populate this list.
-                    </td>
-                  </tr>
-                ) : (
-                  jobs.map((job) => (
-                    <tr key={job.id} className="border-t border-stone-200/70">
-                      <td className="px-2 py-4">
-                        <Badge variant="outline" className={cn('border', statusTone(job.status))}>
-                          {statusLabel(job.status)}
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Liczba propozycji
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={ideaSampleCount}
+              onChange={(event) => setIdeaSampleCount(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={fetchIdeaCandidates} disabled={ideaLoading}>
+              Losuj propozycje
+            </Button>
+            <Button
+              variant="ghost"
+              className="rounded-full"
+              onClick={() => {
+                setIdeaCandidates([])
+                setIdeaDecisions({})
+                setSelectedIdea(null)
+                setIdeaDecisionError(null)
+                setIdeaDecisionMessage(null)
+              }}
+              disabled={ideaLoading}
+            >
+              Wyczyść
+            </Button>
+          </div>
+        </div>
+
+        {ideaDecisionMessage ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
+            {ideaDecisionMessage}
+          </div>
+        ) : null}
+        {ideaDecisionError ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
+            {ideaDecisionError}
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-3">
+            {ideaLoading ? (
+              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+                Loading ideas…
+              </div>
+            ) : ideaError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+                <div className="font-semibold">Failed to load</div>
+                <div>{ideaError}</div>
+              </div>
+            ) : ideaCandidates.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+                No ideas sampled yet. Click “Losuj propozycje”.
+              </div>
+            ) : (
+              ideaCandidates.map((idea) => {
+                const decision = ideaDecisions[idea.id] || ''
+                return (
+                  <div
+                    key={idea.id}
+                    className={cn(
+                      'rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm transition hover:bg-stone-50',
+                      selectedIdea?.id === idea.id && 'border-stone-400 bg-stone-50',
+                    )}
+                    onClick={() => setSelectedIdea(idea)}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-semibold text-stone-900">
+                          {idea.title ?? 'Untitled'}
+                        </div>
+                        <div className="mt-1 text-sm text-stone-600">
+                          {idea.summary ?? '—'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={cn('border', similarityTone(idea.similarity_status))}>
+                          {idea.similarity_status ?? '—'}
                         </Badge>
-                      </td>
-                      <td className="px-2 py-4 text-stone-700">{job.job_type ?? '—'}</td>
-                      <td className="px-2 py-4 font-mono text-xs text-stone-600">
-                        {job.animation_id ?? '—'}
-                      </td>
-                      <td className="px-2 py-4 text-stone-600">{formatDate(job.created_at)}</td>
-                      <td className="px-2 py-4 text-stone-600">{formatDate(job.started_at)}</td>
-                      <td className="px-2 py-4 text-stone-600">{formatDate(job.finished_at)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+                        <Badge variant="outline" className={cn('border', chipTone(idea.status))}>
+                          {idea.status ?? '—'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                      <span>Source: {idea.generator_source ?? '—'}</span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button
+                        variant={decision === 'picked' ? 'default' : 'outline'}
+                        className="rounded-full"
+                        onClick={() =>
+                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'picked' }))
+                        }
+                      >
+                        Do generowania
+                      </Button>
+                      <Button
+                        variant={decision === 'later' ? 'default' : 'outline'}
+                        className="rounded-full"
+                        onClick={() =>
+                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'later' }))
+                        }
+                      >
+                        Na później
+                      </Button>
+                      <Button
+                        variant={decision === 'rejected' ? 'destructive' : 'outline'}
+                        className="rounded-full"
+                        onClick={() =>
+                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'rejected' }))
+                        }
+                      >
+                        Odrzuć
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-stone-200/70 bg-stone-50/60 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-stone-900">Idea detail</h3>
+                <p className="text-xs text-stone-500">Selection signal and narrative preview.</p>
+              </div>
+              {selectedIdea?.similarity_status && (
+                <Badge variant="outline" className={cn('border', similarityTone(selectedIdea.similarity_status))}>
+                  {selectedIdea.similarity_status}
+                </Badge>
+              )}
+            </div>
+
+            {!selectedIdea ? (
+              <div className="mt-4 rounded-xl border border-dashed border-stone-200 bg-white/70 p-4 text-sm text-stone-500">
+                Select an idea candidate to preview details.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4 text-sm text-stone-700">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Title</div>
+                  <div className="mt-1 text-base font-semibold text-stone-900">
+                    {selectedIdea.title ?? 'Untitled'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Summary</div>
+                  <div className="mt-1 text-sm text-stone-700">
+                    {selectedIdea.summary ?? '—'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">What to expect</div>
+                  <div className="mt-1 text-sm text-stone-700">
+                    {selectedIdea.what_to_expect ?? '—'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Preview</div>
+                  <div className="mt-1 text-sm text-stone-700">
+                    {selectedIdea.preview ?? '—'}
+                  </div>
+                </div>
+                <div className="grid gap-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span>Status</span>
+                    <span className="font-semibold text-stone-800">
+                      {selectedIdea.status ?? '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Decision at</span>
+                    <span className="font-semibold text-stone-800">
+                      {formatDate(selectedIdea.decision_at)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-stone-500">
+            Wymagana klasyfikacja wszystkich propozycji. Decyzje:{' '}
+            {Object.values(ideaDecisions).filter(Boolean).length}/{ideaCandidates.length}
+          </div>
+          <Button
+            className="rounded-full"
+            onClick={submitIdeaDecisions}
+            disabled={ideaDecisionLoading || ideaCandidates.length === 0}
+          >
+            {ideaDecisionLoading ? 'Zapisywanie…' : 'Zatwierdź wybór i uruchom'}
+          </Button>
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+      <section id="dsl-capability-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">DSL Capability</h2>
@@ -1185,7 +1556,184 @@ function App() {
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+      <section id="flow-animations-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Animations (Flow)</h2>
+            <p className="text-sm text-stone-600">
+              Skrócony podgląd dla procesu operatora. Pełna lista w zakładce Repositories.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={fetchAnimations} disabled={animationLoading}>
+              Odśwież listę
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={() => setActiveView('repositories')}>
+              Otwórz Repositories
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          {animationLoading ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading animations…
+            </div>
+          ) : animationError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+              <div className="font-semibold">Failed to load</div>
+              <div>{animationError}</div>
+            </div>
+          ) : (
+            <table className="min-w-[720px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr>
+                  <th className="px-2 py-3">Status</th>
+                  <th className="px-2 py-3">Stage</th>
+                  <th className="px-2 py-3">Animation</th>
+                  <th className="px-2 py-3">Render</th>
+                  <th className="px-2 py-3">Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {animationData.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
+                      No animations yet.
+                    </td>
+                  </tr>
+                ) : (
+                  animationData.slice(0, 8).map((row) => (
+                    <tr key={row.id} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4">
+                        <Badge variant="outline" className={cn('border', chipTone(row.status))}>
+                          {statusLabel(row.status)}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-4">
+                        <Badge variant="outline" className={cn('border', chipTone(row.pipeline_stage))}>
+                          {row.pipeline_stage ?? '—'}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-4 font-mono text-xs text-stone-600">{row.id}</td>
+                      <td className="px-2 py-4 text-stone-600">{row.render?.status ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-600">{formatDate(row.updated_at)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
+      
+      <section id="operations-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Operations</h2>
+            <p className="text-sm text-stone-600">
+              Trigger pipeline actions (enqueue, rerun, cleanup) directly from the panel.
+            </p>
+          </div>
+          <Badge variant="outline" className="border border-amber-200 text-amber-800">
+            operator-only
+          </Badge>
+        </div>
+
+        {opsMessage ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
+            {opsMessage}
+          </div>
+        ) : null}
+        {opsError ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
+            {opsError}
+          </div>
+        ) : null}
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <div className="text-sm font-semibold text-stone-900">Enqueue pipeline</div>
+            <div className="text-xs text-stone-500">Start a fresh pipeline run.</div>
+            <div className="mt-3 space-y-2 text-sm">
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                DSL template
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={enqueueDsl}
+                  onChange={(event) => setEnqueueDsl(event.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                Output root
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={enqueueOutRoot}
+                  onChange={(event) => setEnqueueOutRoot(event.target.value)}
+                />
+              </label>
+              <Button className="w-full rounded-full" onClick={handleEnqueue} disabled={opsEnqueueLoading}>
+                {opsEnqueueLoading ? 'Enqueuing…' : 'Enqueue'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <div className="text-sm font-semibold text-stone-900">Rerun render</div>
+            <div className="text-xs text-stone-500">Requeue a render for a chosen animation.</div>
+            <div className="mt-3 space-y-2 text-sm">
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                Animation ID
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  placeholder="UUID"
+                  value={rerunAnimationId}
+                  onChange={(event) => setRerunAnimationId(event.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                Output root
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={rerunOutRoot}
+                  onChange={(event) => setRerunOutRoot(event.target.value)}
+                />
+              </label>
+              <Button className="w-full rounded-full" onClick={handleRerun} disabled={opsRerunLoading}>
+                {opsRerunLoading ? 'Requeuing…' : 'Rerun render'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <div className="text-sm font-semibold text-stone-900">Cleanup jobs</div>
+            <div className="text-xs text-stone-500">Mark stale running jobs as failed.</div>
+            <div className="mt-3 space-y-2 text-sm">
+              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                Older than (min)
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={cleanupOlderMin}
+                  onChange={(event) => setCleanupOlderMin(event.target.value)}
+                />
+              </label>
+              <Button className="w-full rounded-full" onClick={handleCleanup} disabled={opsCleanupLoading}>
+                {opsCleanupLoading ? 'Cleaning…' : 'Cleanup jobs'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+</>
+      ) : null}
+
+      
+
+{activeView === 'repositories' ? (
+      <>
+<section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Animations</h2>
@@ -1428,220 +1976,7 @@ function App() {
           </div>
         </div>
       </section>
-
-      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
-        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Idea Gate</h2>
-            <p className="text-sm text-stone-600">
-              Losuj propozycje z repozytorium i sklasifikuj każdą z nich.
-            </p>
-          </div>
-          <div className="text-xs text-stone-500">
-            <div>Updated: {ideaUpdatedAt ? ideaUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Liczba propozycji
-            <input
-              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
-              value={ideaSampleCount}
-              onChange={(event) => setIdeaSampleCount(event.target.value)}
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <Button className="rounded-full" onClick={fetchIdeaCandidates} disabled={ideaLoading}>
-              Losuj propozycje
-            </Button>
-            <Button
-              variant="ghost"
-              className="rounded-full"
-              onClick={() => {
-                setIdeaCandidates([])
-                setIdeaDecisions({})
-                setSelectedIdea(null)
-                setIdeaDecisionError(null)
-                setIdeaDecisionMessage(null)
-              }}
-              disabled={ideaLoading}
-            >
-              Wyczyść
-            </Button>
-          </div>
-        </div>
-
-        {ideaDecisionMessage ? (
-          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
-            {ideaDecisionMessage}
-          </div>
-        ) : null}
-        {ideaDecisionError ? (
-          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
-            {ideaDecisionError}
-          </div>
-        ) : null}
-
-        <div className="mt-4 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-3">
-            {ideaLoading ? (
-              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-                Loading ideas…
-              </div>
-            ) : ideaError ? (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-                <div className="font-semibold">Failed to load</div>
-                <div>{ideaError}</div>
-              </div>
-            ) : ideaCandidates.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-                No ideas sampled yet. Click “Losuj propozycje”.
-              </div>
-            ) : (
-              ideaCandidates.map((idea) => {
-                const decision = ideaDecisions[idea.id] || ''
-                return (
-                  <div
-                    key={idea.id}
-                    className={cn(
-                      'rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm transition hover:bg-stone-50',
-                      selectedIdea?.id === idea.id && 'border-stone-400 bg-stone-50',
-                    )}
-                    onClick={() => setSelectedIdea(idea)}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="text-base font-semibold text-stone-900">
-                          {idea.title ?? 'Untitled'}
-                        </div>
-                        <div className="mt-1 text-sm text-stone-600">
-                          {idea.summary ?? '—'}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={cn('border', similarityTone(idea.similarity_status))}>
-                          {idea.similarity_status ?? '—'}
-                        </Badge>
-                        <Badge variant="outline" className={cn('border', chipTone(idea.status))}>
-                          {idea.status ?? '—'}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                      <span>Source: {idea.generator_source ?? '—'}</span>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button
-                        variant={decision === 'picked' ? 'default' : 'outline'}
-                        className="rounded-full"
-                        onClick={() =>
-                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'picked' }))
-                        }
-                      >
-                        Do generowania
-                      </Button>
-                      <Button
-                        variant={decision === 'later' ? 'default' : 'outline'}
-                        className="rounded-full"
-                        onClick={() =>
-                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'later' }))
-                        }
-                      >
-                        Na później
-                      </Button>
-                      <Button
-                        variant={decision === 'rejected' ? 'destructive' : 'outline'}
-                        className="rounded-full"
-                        onClick={() =>
-                          setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'rejected' }))
-                        }
-                      >
-                        Odrzuć
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-stone-200/70 bg-stone-50/60 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-stone-900">Idea detail</h3>
-                <p className="text-xs text-stone-500">Selection signal and narrative preview.</p>
-              </div>
-              {selectedIdea?.similarity_status && (
-                <Badge variant="outline" className={cn('border', similarityTone(selectedIdea.similarity_status))}>
-                  {selectedIdea.similarity_status}
-                </Badge>
-              )}
-            </div>
-
-            {!selectedIdea ? (
-              <div className="mt-4 rounded-xl border border-dashed border-stone-200 bg-white/70 p-4 text-sm text-stone-500">
-                Select an idea candidate to preview details.
-              </div>
-            ) : (
-              <div className="mt-4 space-y-4 text-sm text-stone-700">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Title</div>
-                  <div className="mt-1 text-base font-semibold text-stone-900">
-                    {selectedIdea.title ?? 'Untitled'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Summary</div>
-                  <div className="mt-1 text-sm text-stone-700">
-                    {selectedIdea.summary ?? '—'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">What to expect</div>
-                  <div className="mt-1 text-sm text-stone-700">
-                    {selectedIdea.what_to_expect ?? '—'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Preview</div>
-                  <div className="mt-1 text-sm text-stone-700">
-                    {selectedIdea.preview ?? '—'}
-                  </div>
-                </div>
-                <div className="grid gap-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span>Status</span>
-                    <span className="font-semibold text-stone-800">
-                      {selectedIdea.status ?? '—'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Decision at</span>
-                    <span className="font-semibold text-stone-800">
-                      {formatDate(selectedIdea.decision_at)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-stone-500">
-            Wymagana klasyfikacja wszystkich propozycji. Decyzje:{" "}
-            {Object.values(ideaDecisions).filter(Boolean).length}/{ideaCandidates.length}
-          </div>
-          <Button
-            className="rounded-full"
-            onClick={submitIdeaDecisions}
-            disabled={ideaDecisionLoading || ideaCandidates.length === 0}
-          >
-            {ideaDecisionLoading ? 'Zapisywanie…' : 'Zatwierdź wybór i uruchom'}
-          </Button>
-        </div>
-      </section>
+      
 
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
@@ -1751,104 +2086,12 @@ function App() {
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
-        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Operations</h2>
-            <p className="text-sm text-stone-600">
-              Trigger pipeline actions (enqueue, rerun, cleanup) directly from the panel.
-            </p>
-          </div>
-          <Badge variant="outline" className="border border-amber-200 text-amber-800">
-            operator-only
-          </Badge>
-        </div>
+      
+      </>
+      ) : null}
 
-        {opsMessage ? (
-          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
-            {opsMessage}
-          </div>
-        ) : null}
-        {opsError ? (
-          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
-            {opsError}
-          </div>
-        ) : null}
-
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <div className="text-sm font-semibold text-stone-900">Enqueue pipeline</div>
-            <div className="text-xs text-stone-500">Start a fresh pipeline run.</div>
-            <div className="mt-3 space-y-2 text-sm">
-              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                DSL template
-                <input
-                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                  value={enqueueDsl}
-                  onChange={(event) => setEnqueueDsl(event.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                Output root
-                <input
-                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                  value={enqueueOutRoot}
-                  onChange={(event) => setEnqueueOutRoot(event.target.value)}
-                />
-              </label>
-              <Button className="w-full rounded-full" onClick={handleEnqueue} disabled={opsEnqueueLoading}>
-                {opsEnqueueLoading ? 'Enqueuing…' : 'Enqueue'}
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <div className="text-sm font-semibold text-stone-900">Rerun render</div>
-            <div className="text-xs text-stone-500">Requeue a render for a chosen animation.</div>
-            <div className="mt-3 space-y-2 text-sm">
-              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                Animation ID
-                <input
-                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                  placeholder="UUID"
-                  value={rerunAnimationId}
-                  onChange={(event) => setRerunAnimationId(event.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                Output root
-                <input
-                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                  value={rerunOutRoot}
-                  onChange={(event) => setRerunOutRoot(event.target.value)}
-                />
-              </label>
-              <Button className="w-full rounded-full" onClick={handleRerun} disabled={opsRerunLoading}>
-                {opsRerunLoading ? 'Requeuing…' : 'Rerun render'}
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <div className="text-sm font-semibold text-stone-900">Cleanup jobs</div>
-            <div className="text-xs text-stone-500">Mark stale running jobs as failed.</div>
-            <div className="mt-3 space-y-2 text-sm">
-              <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                Older than (min)
-                <input
-                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                  value={cleanupOlderMin}
-                  onChange={(event) => setCleanupOlderMin(event.target.value)}
-                />
-              </label>
-              <Button className="w-full rounded-full" onClick={handleCleanup} disabled={opsCleanupLoading}>
-                {opsCleanupLoading ? 'Cleaning…' : 'Cleanup jobs'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
+      {activeView === 'settings' ? (
+      <>
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -2027,6 +2270,8 @@ function App() {
           Values are fetched from the backend runtime via <code>/settings</code>.
         </p>
       </section>
+      </>
+      ) : null}
     </div>
   )
 }
