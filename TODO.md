@@ -17,6 +17,12 @@
   - [x] Flow board: karty etapów z licznikami + CTA do odpowiednich sekcji
   - [x] Flow tab zawiera mini‑listę Animations (bez skoku do Repositories)
   - [ ] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
+- [ ] Pipeline: stabilizacja dev (branch: fix/dev-pipeline-stability)
+  - [x] `run-dev` ładuje `.env` i `.env.local`
+  - [x] Worker bez forka (SimpleWorker) w dev
+  - [x] Cleanup jobów w `run-dev` nie ubija po 1 min (konfigurowalne `CLEANUP_OLDER_MIN`)
+  - [x] Wymusić fork-safety dla workera (OBJC var + dispose engine)
+  - [ ] Dodać krótką notkę w README o `CLEANUP_OLDER_MIN` i SimpleWorker w dev
 
 ## Next (Kolejne)
 - [ ] Similarity scaling (branch: feat/similarity-scaling)
@@ -97,6 +103,8 @@
   - [ ] Warianty reguł/parametrów w oparciu o preview/summary
   - [ ] Wymusić widoczne różnice (paleta, tło, kształty, promień orbity)
   - [ ] Test: różne idee → różne DSL
+  - [ ] Dodać metrykę „delta DSL vs template” i minimalny próg różnorodności
+  - [ ] Walidacja: brak użycia template w promptach kompilatora (test regresji)
 - [ ] Audio: SFX repo + kolizje (branch: feat/audio-sfx)
   - [ ] Repozytorium efektów (SFX) + metadane (tagi/rodzaj/poziom głośności)
   - [ ] Mapowanie zdarzeń w rendererze -> SFX (kolizje, spawn, merge/split)
@@ -156,7 +164,7 @@
 - [x] LLM Capability Verifier (branch: feat/llm-capability-verifier) (2026-02-05)
   - [x] Wspolny prompt/DSL spec dla walidatora i kompilatora
   - [x] Walidacja LLM dla idei/kandydatow + fallback heurystyczny
-  - [ ] UI: sygnalizowac czy wynik z LLM czy fallback
+  - [x] UI: sygnalizowac czy wynik z LLM czy fallback
 - [x] Post-merge analysis (2026-02-05)
   - [x] Walidator oparty o LLM + fallback heurystyczny
 - [x] Fix: Idea Gate sample + polish UI (branch: fix/idea-gate-sample) (2026-02-05)
@@ -198,6 +206,9 @@
 - [x] LLM Idea->DSL Compiler (branch: feat/llm-dsl-compiler-impl) (2026-02-04)
   - [x] Kompilacja tylko dla idei `feasible`/`ready_for_gate`
   - [x] Pętla lokalna: `generate -> validate -> repair -> retry`
+  - [x] Kompilator buduje DSL od zera (prompt v2, bez template)
+  - [x] Mediator naprawia odpowiedzi nie-JSON (extract + repair call)
+  - [x] Fallback w weryfikatorze nie oznacza `feasible` bez gapów (zostaje `unverified`)
   - [x] Twarde walidacje syntax + semantics + raport błędów
   - [x] Tryb awaryjny fallback (jawny, nie maskujący błędu semantycznego)
   - [x] Testy E2E: 5 idei referencyjnych + różne wyniki DSL
