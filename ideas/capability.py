@@ -238,14 +238,18 @@ def verify_idea_capability(
         else:
             resolved_gap_ids.append(gap.id)
 
-    feasible = len(blocking_gap_ids) == 0
-    if feasible:
-        if idea.status not in {"picked", "compiled"}:
-            idea.status = "ready_for_gate"
+    fallback_used = bool(llm_meta and llm_meta.get("fallback_used"))
+    if fallback_used and not signals:
+        feasible = False
     else:
-        if idea.status != "compiled":
-            idea.status = "blocked_by_gaps"
-    session.add(idea)
+        feasible = len(blocking_gap_ids) == 0
+        if feasible:
+            if idea.status not in {"picked", "compiled"}:
+                idea.status = "ready_for_gate"
+        else:
+            if idea.status != "compiled":
+                idea.status = "blocked_by_gaps"
+        session.add(idea)
 
     return {
         "idea_id": str(idea.id),
@@ -259,8 +263,8 @@ def verify_idea_capability(
         "blocking_gap_ids": [str(gid) for gid in blocking_gap_ids],
         "resolved_gap_ids": [str(gid) for gid in resolved_gap_ids],
         "verification_report": {
-            "summary": "feasible" if feasible else "blocked_by_gaps",
-            "confidence": 0.95 if feasible else 0.8,
+            "summary": "unverified" if fallback_used and not signals else ("feasible" if feasible else "blocked_by_gaps"),
+            "confidence": 0.2 if fallback_used and not signals else (0.95 if feasible else 0.8),
             "evidence": evidence,
         },
     }
@@ -367,12 +371,16 @@ def verify_candidate_capability(
         else:
             resolved_gap_ids.append(gap.id)
 
-    feasible = len(blocking_gap_ids) == 0
-    candidate.capability_status = "feasible" if feasible else "blocked_by_gaps"
-    session.add(candidate)
-    if candidate.idea is not None and candidate.idea.status != "compiled":
-        candidate.idea.status = "ready_for_gate" if feasible else "blocked_by_gaps"
-        session.add(candidate.idea)
+    fallback_used = bool(llm_meta and llm_meta.get("fallback_used"))
+    if fallback_used and not signals:
+        feasible = False
+    else:
+        feasible = len(blocking_gap_ids) == 0
+        candidate.capability_status = "feasible" if feasible else "blocked_by_gaps"
+        session.add(candidate)
+        if candidate.idea is not None and candidate.idea.status != "compiled":
+            candidate.idea.status = "ready_for_gate" if feasible else "blocked_by_gaps"
+            session.add(candidate.idea)
 
     return {
         "idea_candidate_id": str(candidate.id),
@@ -386,8 +394,8 @@ def verify_candidate_capability(
         "blocking_gap_ids": [str(gid) for gid in blocking_gap_ids],
         "resolved_gap_ids": [str(gid) for gid in resolved_gap_ids],
         "verification_report": {
-            "summary": "feasible" if feasible else "blocked_by_gaps",
-            "confidence": 0.95 if feasible else 0.8,
+            "summary": "unverified" if fallback_used and not signals else ("feasible" if feasible else "blocked_by_gaps"),
+            "confidence": 0.2 if fallback_used and not signals else (0.95 if feasible else 0.8),
             "evidence": evidence,
         },
     }

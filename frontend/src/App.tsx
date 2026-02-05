@@ -1551,6 +1551,145 @@ function App() {
       </section>
 
       
+      <section id="dsl-capability-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">DSL Capability</h2>
+            <p className="text-sm text-stone-600">
+              Weryfikacja kandydatów i zarządzanie listą `dsl_gap`.
+            </p>
+          </div>
+          <div className="text-xs text-stone-500">
+            <div>Updated: {dslGapsUpdatedAt ? dslGapsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            {verifierInfo ? (
+              <div>
+                Verifier: {verifierInfo.fallbackUsed ? 'fallback' : 'LLM'}
+                {verifierInfo.provider ? ` / ${verifierInfo.provider}` : ''}
+                {verifierInfo.model ? ` / ${verifierInfo.model}` : ''}
+                {verifierInfo.verified ? ` (verified: ${verifierInfo.verified})` : ''}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Verify limit
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={verifyLimit}
+              onChange={(event) => setVerifyLimit(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={handleVerifyCandidates} disabled={verifyLoading}>
+              {verifyLoading ? 'Verifying…' : 'Verify candidates'}
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={fetchDslGaps} disabled={dslGapsLoading}>
+              Refresh gaps
+            </Button>
+          </div>
+        </div>
+
+        {blockedCandidates.length > 0 ? (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
+            <div className="font-semibold">
+              {blockedCandidates.length} candidate(s) blocked by DSL gaps and excluded from sampling.
+            </div>
+            <div className="mt-2 space-y-1">
+              {blockedCandidates.map((candidate) => (
+                <div key={candidate.id}>
+                  {candidate.title}:{' '}
+                  {(candidate.gaps ?? []).map((gap) => gap.feature).filter(Boolean).join(', ') || 'gap'}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
+          {['unverified', 'feasible', 'blocked_by_gaps'].map((status) => (
+            <Badge key={status} variant="outline" className={cn('border', chipTone(status))}>
+              {status}: {candidateCapabilitySummary[status] ?? 0}
+            </Badge>
+          ))}
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          {dslGapsLoading ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading DSL gaps…
+            </div>
+          ) : dslGapsError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+              <div className="font-semibold">Failed to load</div>
+              <div>{dslGapsError}</div>
+            </div>
+          ) : (
+            <table className="min-w-[900px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr>
+                  <th className="px-2 py-3">Feature</th>
+                  <th className="px-2 py-3">Status</th>
+                  <th className="px-2 py-3">Version</th>
+                  <th className="px-2 py-3">Reason</th>
+                  <th className="px-2 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dslGaps.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
+                      No DSL gaps yet.
+                    </td>
+                  </tr>
+                ) : (
+                  dslGaps.map((gap) => (
+                    <tr key={gap.id} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4 text-stone-800">{gap.feature ?? '—'}</td>
+                      <td className="px-2 py-4">
+                        <Badge variant="outline" className={cn('border', chipTone(gap.status ?? undefined))}>
+                          {gap.status ?? '—'}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-4 text-stone-600">{gap.dsl_version ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-600">{gap.reason ?? '—'}</td>
+                      <td className="px-2 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => handleGapStatus(gap.id, 'accepted')}
+                            disabled={gapActionLoading[gap.id]}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => handleGapStatus(gap.id, 'in_progress')}
+                            disabled={gapActionLoading[gap.id]}
+                          >
+                            In progress
+                          </Button>
+                          <Button
+                            className="rounded-full"
+                            onClick={() => handleGapStatus(gap.id, 'implemented')}
+                            disabled={gapActionLoading[gap.id]}
+                          >
+                            Implemented
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
       <section id="idea-gate-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1762,145 +1901,6 @@ function App() {
           >
             {ideaDecisionLoading ? 'Zapisywanie…' : 'Zatwierdź wybór i uruchom'}
           </Button>
-        </div>
-      </section>
-
-      <section id="dsl-capability-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
-        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-stone-900">DSL Capability</h2>
-            <p className="text-sm text-stone-600">
-              Weryfikacja kandydatów i zarządzanie listą `dsl_gap`.
-            </p>
-          </div>
-          <div className="text-xs text-stone-500">
-            <div>Updated: {dslGapsUpdatedAt ? dslGapsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
-            {verifierInfo ? (
-              <div>
-                Verifier: {verifierInfo.fallbackUsed ? 'fallback' : 'LLM'}
-                {verifierInfo.provider ? ` / ${verifierInfo.provider}` : ''}
-                {verifierInfo.model ? ` / ${verifierInfo.model}` : ''}
-                {verifierInfo.verified ? ` (verified: ${verifierInfo.verified})` : ''}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Verify limit
-            <input
-              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
-              value={verifyLimit}
-              onChange={(event) => setVerifyLimit(event.target.value)}
-            />
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <Button className="rounded-full" onClick={handleVerifyCandidates} disabled={verifyLoading}>
-              {verifyLoading ? 'Verifying…' : 'Verify candidates'}
-            </Button>
-            <Button variant="outline" className="rounded-full" onClick={fetchDslGaps} disabled={dslGapsLoading}>
-              Refresh gaps
-            </Button>
-          </div>
-        </div>
-
-        {blockedCandidates.length > 0 ? (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
-            <div className="font-semibold">
-              {blockedCandidates.length} candidate(s) blocked by DSL gaps and excluded from sampling.
-            </div>
-            <div className="mt-2 space-y-1">
-              {blockedCandidates.map((candidate) => (
-                <div key={candidate.id}>
-                  {candidate.title}:{' '}
-                  {(candidate.gaps ?? []).map((gap) => gap.feature).filter(Boolean).join(', ') || 'gap'}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          {['unverified', 'feasible', 'blocked_by_gaps'].map((status) => (
-            <Badge key={status} variant="outline" className={cn('border', chipTone(status))}>
-              {status}: {candidateCapabilitySummary[status] ?? 0}
-            </Badge>
-          ))}
-        </div>
-
-        <div className="mt-4 overflow-x-auto">
-          {dslGapsLoading ? (
-            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading DSL gaps…
-            </div>
-          ) : dslGapsError ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-              <div className="font-semibold">Failed to load</div>
-              <div>{dslGapsError}</div>
-            </div>
-          ) : (
-            <table className="min-w-[900px] w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
-                <tr>
-                  <th className="px-2 py-3">Feature</th>
-                  <th className="px-2 py-3">Status</th>
-                  <th className="px-2 py-3">Version</th>
-                  <th className="px-2 py-3">Reason</th>
-                  <th className="px-2 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dslGaps.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
-                      No DSL gaps yet.
-                    </td>
-                  </tr>
-                ) : (
-                  dslGaps.map((gap) => (
-                    <tr key={gap.id} className="border-t border-stone-200/70">
-                      <td className="px-2 py-4 text-stone-800">{gap.feature ?? '—'}</td>
-                      <td className="px-2 py-4">
-                        <Badge variant="outline" className={cn('border', chipTone(gap.status ?? undefined))}>
-                          {gap.status ?? '—'}
-                        </Badge>
-                      </td>
-                      <td className="px-2 py-4 text-stone-600">{gap.dsl_version ?? '—'}</td>
-                      <td className="px-2 py-4 text-stone-600">{gap.reason ?? '—'}</td>
-                      <td className="px-2 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant="outline"
-                            className="rounded-full"
-                            onClick={() => handleGapStatus(gap.id, 'accepted')}
-                            disabled={gapActionLoading[gap.id]}
-                          >
-                            Accept
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="rounded-full"
-                            onClick={() => handleGapStatus(gap.id, 'in_progress')}
-                            disabled={gapActionLoading[gap.id]}
-                          >
-                            In progress
-                          </Button>
-                          <Button
-                            className="rounded-full"
-                            onClick={() => handleGapStatus(gap.id, 'implemented')}
-                            disabled={gapActionLoading[gap.id]}
-                          >
-                            Implemented
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
         </div>
       </section>
 

@@ -38,8 +38,8 @@ def compile_idea_to_dsl(
 
     template_yaml = template_path.read_text()
     dsl_spec = read_dsl_spec()
-    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v1")
-    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v1")
+    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v2")
+    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v2")
     errors: list[str] = []
     repairs = 0
 
@@ -150,9 +150,14 @@ def _build_compile_prompt(
         f"Previous validation errors: {previous_errors}\n\n"
         "DSL spec (short reference):\n"
         f"{dsl_spec[:8000]}\n\n"
-        "Base template YAML:\n"
-        f"{template_yaml}\n\n"
-        "Return DSL YAML that is valid and concrete for this idea."
+        "Build a complete DSL YAML FROM SCRATCH that represents the idea.\n"
+        "Do NOT copy or lightly tweak any existing template; create a fresh structure that fits the idea.\n"
+        "Requirements:\n"
+        "- include all required sections for a valid DSL document\n"
+        "- use concrete values (no placeholders)\n"
+        "- ensure entities/spawns/rules are coherent\n"
+        "- keep the output concise but faithful to the idea\n\n"
+        "Return only the DSL YAML."
     )
 
 

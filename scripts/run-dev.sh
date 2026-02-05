@@ -4,6 +4,19 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PID_FILE="${TMPDIR:-/tmp}/shortlab-dev.pids"
 
+if [ -f "${ROOT_DIR}/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${ROOT_DIR}/.env"
+  set +a
+fi
+if [ -f "${ROOT_DIR}/.env.local" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${ROOT_DIR}/.env.local"
+  set +a
+fi
+
 API_PORT="${API_PORT:-8016}"
 UI_PORT="${UI_PORT:-5173}"
 REDIS_URL="${REDIS_URL:-redis://localhost:6379/1}"
@@ -80,8 +93,9 @@ kill_port "${UI_PORT}"
 
 REDIS_URL="${REDIS_URL}" PYTHONPATH="${ROOT_DIR}" "${ROOT_DIR}/${VENV_DIR}/bin/python" \
   "${ROOT_DIR}/scripts/cleanup-rq-failed.py" --all >/dev/null 2>&1 || true
+CLEANUP_OLDER_MIN="${CLEANUP_OLDER_MIN:-30}"
 REDIS_URL="${REDIS_URL}" PYTHONPATH="${ROOT_DIR}" "${ROOT_DIR}/${VENV_DIR}/bin/python" \
-  "${ROOT_DIR}/scripts/cleanup-jobs.py" --older-min 1 >/dev/null 2>&1 || true
+  "${ROOT_DIR}/scripts/cleanup-jobs.py" --older-min "${CLEANUP_OLDER_MIN}" >/dev/null 2>&1 || true
 
 start_bg "OPERATOR_TOKEN='${OPERATOR_TOKEN}' REDIS_URL='${REDIS_URL}' VENV_DIR='${VENV_DIR}' API_PORT='${API_PORT}' make api" "${API_LOG}"
 API_PID=$!

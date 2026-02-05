@@ -244,13 +244,43 @@ class LLMMediator:
         start = time.perf_counter()
         response = self._call_with_retries(task_type, route, payload)
         try:
-            content = response["choices"][0]["message"]["content"]
-            if not isinstance(content, str):
-                raise LLMError(
-                    code="invalid_response",
-                    message="LLM response content is not text",
-                    provider=route.provider,
+            try:
+                content = response["choices"][0]["message"]["content"]
+                if not isinstance(content, str):
+                    raise LLMError(
+                        code="invalid_response",
+                        message="LLM response content is not text",
+                        provider=route.provider,
+                        task_type=task_type,
+                    )
+                parsed = self._parse_json_content(content)
+            except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError) as exc:
+                fail_count = self._failures.get(breaker_key, 0) + 1
+                self._failures[breaker_key] = fail_count
+                self._track_metrics(
                     task_type=task_type,
+                    provider=route.provider,
+                    model=route.model,
+                    success=False,
+                    latency_ms=0.0,
+                    prompt_tokens=0.0,
+                    completion_tokens=0.0,
+                    estimated_cost_usd=0.0,
+                )
+                if fail_count >= route.breaker_threshold:
+                    self._breaker_until[breaker_key] = now_ts + route.breaker_cooldown_s
+                if isinstance(exc, LLMError):
+                    raise exc
+                raw_content = ""
+                try:
+                    raw_content = response["choices"][0]["message"]["content"]
+                except Exception:
+                    raw_content = ""
+                parsed, response = self._repair_json_response(
+                    task_type=task_type,
+                    route=route,
+                    payload=payload,
+                    content=raw_content,
                 )
             self._failures[breaker_key] = 0
             latency_ms = (time.perf_counter() - start) * 1000.0
@@ -276,34 +306,11 @@ class LLMMediator:
                 completion_tokens=completion_tokens,
                 estimated_cost_usd=estimated_cost,
             )
-            return json.loads(content), {
+            return parsed, {
                 "provider": route.provider,
                 "model": route.model,
                 "id": response.get("id"),
             }
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError) as exc:
-            fail_count = self._failures.get(breaker_key, 0) + 1
-            self._failures[breaker_key] = fail_count
-            self._track_metrics(
-                task_type=task_type,
-                provider=route.provider,
-                model=route.model,
-                success=False,
-                latency_ms=0.0,
-                prompt_tokens=0.0,
-                completion_tokens=0.0,
-                estimated_cost_usd=0.0,
-            )
-            if fail_count >= route.breaker_threshold:
-                self._breaker_until[breaker_key] = now_ts + route.breaker_cooldown_s
-            if isinstance(exc, LLMError):
-                raise exc
-            raise LLMError(
-                code="invalid_json",
-                message=f"Failed to parse LLM JSON response: {exc}",
-                provider=route.provider,
-                task_type=task_type,
-            ) from exc
         finally:
             self._persist_state()
 
@@ -360,6 +367,76 @@ class LLMMediator:
             },
         }
         return payload
+
+    def _parse_json_content(self, content: str) -> dict[str, Any]:
+        content = content.strip()
+        if not content:
+            raise json.JSONDecodeError("empty response", content, 0)
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            extracted = self._extract_json_block(content)
+            if extracted is None:
+                raise
+            return json.loads(extracted)
+
+    def _extract_json_block(self, content: str) -> str | None:
+        start = min(
+            (idx for idx in (content.find("{"), content.find("[")) if idx != -1),
+            default=-1,
+        )
+        if start == -1:
+            return None
+        end_obj = content.rfind("}")
+        end_arr = content.rfind("]")
+        end = max(end_obj, end_arr)
+        if end == -1 or end <= start:
+            return None
+        return content[start : end + 1]
+
+    def _repair_json_response(
+        self,
+        *,
+        task_type: str,
+        route: TaskRoute,
+        payload: dict[str, Any],
+        content: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        repair_payload = dict(payload)
+        repair_payload.pop("response_format", None)
+        messages = list(payload.get("messages", []))
+        messages.append(
+            {
+                "role": "system",
+                "content": "Return ONLY valid JSON that matches the requested schema. Do not include markdown.",
+            }
+        )
+        if content and content.strip():
+            messages.append(
+                {
+                    "role": "user",
+                    "content": f"Reformat this into JSON only:\n{content}",
+                }
+            )
+        repair_payload["messages"] = messages
+        response = self._call_with_retries(task_type, route, repair_payload)
+        try:
+            content = response["choices"][0]["message"]["content"]
+            if not isinstance(content, str):
+                raise LLMError(
+                    code="invalid_response",
+                    message="LLM response content is not text",
+                    provider=route.provider,
+                    task_type=task_type,
+                )
+            return self._parse_json_content(content), response
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError) as exc:
+            raise LLMError(
+                code="invalid_json",
+                message=f"Failed to parse LLM JSON response: {exc}",
+                provider=route.provider,
+                task_type=task_type,
+            ) from exc
 
     def _call_chat_completion(
         self,

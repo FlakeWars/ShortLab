@@ -159,15 +159,15 @@ api: ## Run backend API (placeholder)
 
 .PHONY: worker
 worker: ## Run worker process (placeholder)
-	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py
+	@OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES RQ_SIMPLE_WORKER=1 PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py
 
 .PHONY: worker-dev
 worker-dev: ## Run worker with isolated Redis DB
-	@REDIS_URL="$(REDIS_URL_DEV)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py
+	@OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES RQ_SIMPLE_WORKER=1 REDIS_URL="$(REDIS_URL_DEV)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py
 
 .PHONY: worker-burst
 worker-burst: ## Run worker in burst mode (process jobs then exit)
-	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py --burst
+	@OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES RQ_SIMPLE_WORKER=1 PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py --burst
 
 .PHONY: scheduler
 scheduler: ## Run scheduler (placeholder)
