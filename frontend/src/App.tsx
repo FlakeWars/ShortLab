@@ -130,6 +130,41 @@ const ANIMATION_STATUSES = [
 const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
 const APP_VIEWS = ['home', 'plan', 'flow', 'repositories', 'settings'] as const
 type AppView = (typeof APP_VIEWS)[number]
+const REPO_CARD_ORDER = [
+  'idea_candidates',
+  'ideas',
+  'dsl_gaps',
+  'animations',
+  'renders',
+  'artifacts',
+  'jobs',
+  'sfx',
+  'music',
+] as const
+
+const REPO_LABELS: Record<(typeof REPO_CARD_ORDER)[number], string> = {
+  idea_candidates: 'Idea Candidates',
+  ideas: 'Ideas',
+  dsl_gaps: 'DSL Gaps',
+  animations: 'Animations',
+  renders: 'Renders',
+  artifacts: 'Artifacts',
+  jobs: 'Jobs',
+  sfx: 'SFX',
+  music: 'Music',
+}
+
+const REPO_HINTS: Record<(typeof REPO_CARD_ORDER)[number], string> = {
+  idea_candidates: 'Surowe propozycje przed decyzją operatora (new/later/picked/rejected).',
+  ideas: 'Idee w procesie pipeline (unverified/ready/blocked/feasible/compiled).',
+  dsl_gaps: 'Braki DSL blokujące ideę.',
+  animations: 'Animacje powiązane z ideami.',
+  renders: 'Renderowania i ich statusy.',
+  artifacts: 'Pliki wynikowe (wideo/metadata).',
+  jobs: 'Joby pipeline (queued/running/failed).',
+  sfx: 'Repozytorium efektów dźwiękowych (planowane).',
+  music: 'Repozytorium podkładów muzycznych (planowane).',
+}
 
 function getViewFromUrl(): AppView {
   if (typeof window === 'undefined') return 'home'
@@ -798,6 +833,12 @@ function App() {
   const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
   const services = useMemo(() => systemStatus?.service_status ?? [], [systemStatus])
   const repoCards = useMemo(() => systemStatus?.repo_counts ?? {}, [systemStatus])
+  type RepoKey = (typeof REPO_CARD_ORDER)[number]
+  const orderedRepoCards = useMemo(() => {
+    const entries = Object.entries(repoCards) as Array<[RepoKey, typeof repoCards[RepoKey]]>
+    const priority = new Map(REPO_CARD_ORDER.map((name, index) => [name, index]))
+    return entries.sort(([a], [b]) => (priority.get(a) ?? 99) - (priority.get(b) ?? 99))
+  }, [repoCards])
   const worker = useMemo(() => summaryData?.worker, [summaryData])
   const llmRouteRows = useMemo(() => {
     const routes = llmMetrics?.routes ?? {}
@@ -984,16 +1025,21 @@ function App() {
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {Object.entries(repoCards).map(([name, value]) => (
+          {orderedRepoCards.map(([name, value]) => (
             <Card key={name} className="border border-stone-200 bg-stone-50/60 shadow-none">
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs uppercase tracking-[0.18em] text-stone-500">{name}</div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                    {REPO_LABELS[name] ?? name}
+                  </div>
                   {value.placeholder ? (
                     <Badge variant="outline" className="border border-stone-300 text-stone-600">
                       planned
                     </Badge>
                   ) : null}
+                </div>
+                <div className="mt-1 text-xs text-stone-500">
+                  {REPO_HINTS[name] ?? ''}
                 </div>
                 <div className="mt-2 text-2xl font-semibold text-stone-900">{value.total ?? '—'}</div>
                 <div className="mt-2 flex flex-wrap gap-1">
