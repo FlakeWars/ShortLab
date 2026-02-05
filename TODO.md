@@ -6,6 +6,7 @@
   - [x] API: weryfikacja kandydatów + sampling tylko feasible + decide tworzy `idea` jako `ready_for_gate`
   - [x] UI: liczniki wg capability + lista zablokowanych kandydatów
   - [ ] Spiąć komunikację/UX w panelach (nazewnictwo, podpowiedzi, flow)
+  - [x] Docs sync: PRD/tech-stack/README (capability na kandydatach + status kompilatora + komendy verify)
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
