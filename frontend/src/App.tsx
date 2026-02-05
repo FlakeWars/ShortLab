@@ -379,6 +379,12 @@ function App() {
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [gapActionLoading, setGapActionLoading] = useState<Record<string, boolean>>({})
   const [blockedCandidates, setBlockedCandidates] = useState<BlockedIdeaCandidate[]>([])
+  const [verifierInfo, setVerifierInfo] = useState<{
+    provider?: string | null
+    model?: string | null
+    fallbackUsed?: boolean | null
+    verified?: number | null
+  } | null>(null)
   const [candidateList, setCandidateList] = useState<IdeaCandidate[]>([])
   const [candidateListLoading, setCandidateListLoading] = useState(false)
   const [candidateListError, setCandidateListError] = useState<string | null>(null)
@@ -801,6 +807,22 @@ function App() {
       }
       const payload = (await response.json()) as Record<string, unknown>
       setOpsMessage(`Verification done: ${JSON.stringify(payload)}`)
+      const reports = Array.isArray((payload as { reports?: unknown }).reports)
+        ? ((payload as { reports: unknown[] }).reports as Array<Record<string, unknown>>)
+        : []
+      const metas = reports
+        .map((report) => report.verifier_meta as Record<string, unknown> | undefined)
+        .filter(Boolean) as Array<Record<string, unknown>>
+      const fallbackUsed = metas.some((meta) => Boolean(meta.fallback_used))
+      const meta = metas.find((item) => item.provider || item.model) ?? metas[0]
+      setVerifierInfo({
+        provider: (meta?.provider as string | undefined) ?? null,
+        model: (meta?.model as string | undefined) ?? null,
+        fallbackUsed: metas.length ? fallbackUsed : null,
+        verified: typeof (payload as { verified?: number }).verified === 'number'
+          ? (payload as { verified?: number }).verified ?? null
+          : null,
+      })
       fetchDslGaps()
       fetchIdeaCandidates()
       fetchSystemStatus()
@@ -1753,6 +1775,14 @@ function App() {
           </div>
           <div className="text-xs text-stone-500">
             <div>Updated: {dslGapsUpdatedAt ? dslGapsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            {verifierInfo ? (
+              <div>
+                Verifier: {verifierInfo.fallbackUsed ? 'fallback' : 'LLM'}
+                {verifierInfo.provider ? ` / ${verifierInfo.provider}` : ''}
+                {verifierInfo.model ? ` / ${verifierInfo.model}` : ''}
+                {verifierInfo.verified ? ` (verified: ${verifierInfo.verified})` : ''}
+              </div>
+            ) : null}
           </div>
         </div>
 
