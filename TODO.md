@@ -1,10 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] LLM Capability Verifier (branch: feat/llm-capability-verifier)
-  - [x] Wspolny prompt/DSL spec dla walidatora i kompilatora
-  - [x] Walidacja LLM dla idei/kandydatow + fallback heurystyczny
-  - [ ] UI: sygnalizowac czy wynik z LLM czy fallback
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
@@ -153,6 +149,12 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] LLM Capability Verifier (branch: feat/llm-capability-verifier) (2026-02-05)
+  - [x] Wspolny prompt/DSL spec dla walidatora i kompilatora
+  - [x] Walidacja LLM dla idei/kandydatow + fallback heurystyczny
+  - [ ] UI: sygnalizowac czy wynik z LLM czy fallback
+- [x] Post-merge analysis (2026-02-05)
+  - [x] Walidator oparty o LLM + fallback heurystyczny
 - [x] Fix: Idea Gate sample + polish UI (branch: fix/idea-gate-sample) (2026-02-05)
   - [x] `/idea-repo/sample` zwraca kompletne pola kandydatów (bez `{}`)
   - [x] Flow panel przed Generator w zakładce Flow
