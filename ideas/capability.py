@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
 from uuid import UUID
 
 from db.models import DslGap, Idea, IdeaCandidate, IdeaCandidateGapLink, IdeaGapLink
+from llm import get_mediator
+from .prompting import build_idea_context, read_dsl_spec
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -41,6 +44,7 @@ GAP_SIGNALS: tuple[GapSignal, ...] = (
 )
 
 BLOCKING_GAP_STATUSES = {"new", "accepted", "in_progress", "rejected"}
+LLM_CAPABILITY_PROMPT_VERSION = "idea-capability-v1"
 
 
 def _gap_key(dsl_version: str, feature: str, reason: str) -> str:
@@ -55,6 +59,56 @@ def _extract_signals(text_parts: Iterable[str | None]) -> list[GapSignal]:
         if any(keyword in haystack for keyword in signal.keywords):
             matched.append(signal)
     return matched
+
+
+def _llm_capability_check(
+    *,
+    title: str,
+    summary: str | None,
+    what_to_expect: str | None,
+    preview: str | None,
+    dsl_spec: str,
+) -> tuple[dict, dict]:
+    user_prompt = (
+        f"{build_idea_context(title=title, summary=summary, what_to_expect=what_to_expect, preview=preview)}\n"
+        "DSL spec (short reference):\n"
+        f"{dsl_spec}\n\n"
+        "Decide if the DSL can express this idea without adding new primitives. "
+        "If not, list missing capabilities as gaps."
+    )
+    payload, route_meta = get_mediator().generate_json(
+        task_type="idea_verify_capability",
+        system_prompt=(
+            "You verify whether a short animation idea is feasible with the current DSL. "
+            "Return JSON only, matching the schema."
+        ),
+        user_prompt=user_prompt,
+        json_schema={
+            "type": "object",
+            "properties": {
+                "feasible": {"type": "boolean"},
+                "gaps": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "feature": {"type": "string"},
+                            "reason": {"type": "string"},
+                            "impact": {"type": "string"},
+                        },
+                        "required": ["feature", "reason"],
+                        "additionalProperties": False,
+                    },
+                },
+                "notes": {"type": "string"},
+            },
+            "required": ["feasible", "gaps"],
+            "additionalProperties": False,
+        },
+        max_tokens=int(os.getenv("IDEA_DSL_CAPABILITY_MAX_TOKENS", "1200")),
+        temperature=float(os.getenv("IDEA_DSL_CAPABILITY_TEMPERATURE", "0.1")),
+    )
+    return payload, route_meta
 
 
 def _ensure_gap(
@@ -94,7 +148,62 @@ def verify_idea_capability(
     if idea is None:
         raise RuntimeError(f"Idea not found: {idea_id}")
 
-    signals = _extract_signals((idea.title, idea.summary, idea.what_to_expect, idea.preview))
+    dsl_spec = read_dsl_spec()
+    signals: list[GapSignal] = []
+    llm_meta: dict[str, str | int | bool] | None = None
+    llm_errors: list[str] = []
+    use_llm = os.getenv("IDEA_DSL_CAPABILITY_USE_LLM", "1") == "1"
+    llm_feasible: bool | None = None
+    if use_llm:
+        try:
+            payload, route_meta = _llm_capability_check(
+                title=idea.title,
+                summary=idea.summary,
+                what_to_expect=idea.what_to_expect,
+                preview=idea.preview,
+                dsl_spec=dsl_spec,
+            )
+            llm_feasible = bool(payload.get("feasible", True))
+            gaps = payload.get("gaps", [])
+            for gap in gaps:
+                feature = str(gap.get("feature", "")).strip()
+                reason = str(gap.get("reason", "")).strip()
+                if not feature or not reason:
+                    continue
+                signals.append(
+                    GapSignal(
+                        feature=feature,
+                        reason=reason,
+                        impact=str(gap.get("impact", "")).strip(),
+                        keywords=(),
+                    )
+                )
+            llm_meta = {
+                "provider": route_meta.get("provider"),
+                "model": route_meta.get("model"),
+                "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
+                "llm_feasible": llm_feasible,
+                "fallback_used": False,
+            }
+            if llm_feasible is False and not signals:
+                signals.append(
+                    GapSignal(
+                        feature="dsl_gap_unknown",
+                        reason="LLM marked idea infeasible but did not provide explicit gaps.",
+                        impact="Manual review required to define missing DSL capability.",
+                        keywords=(),
+                    )
+                )
+        except Exception as exc:
+            llm_errors.append(str(exc))
+            llm_meta = {
+                "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
+                "llm_feasible": llm_feasible,
+                "fallback_used": True,
+            }
+            signals = _extract_signals((idea.title, idea.summary, idea.what_to_expect, idea.preview))
+    else:
+        signals = _extract_signals((idea.title, idea.summary, idea.what_to_expect, idea.preview))
     now = datetime.now(timezone.utc)
     new_gap_ids: list[UUID] = []
     existing_gap_ids: list[UUID] = []
@@ -143,6 +252,8 @@ def verify_idea_capability(
         "dsl_version": dsl_version,
         "verification_policy_version": policy_version,
         "feasible": feasible,
+        "verifier_meta": llm_meta,
+        "verifier_errors": llm_errors,
         "new_gap_ids": [str(gid) for gid in new_gap_ids],
         "existing_gap_ids": [str(gid) for gid in existing_gap_ids],
         "blocking_gap_ids": [str(gid) for gid in blocking_gap_ids],
@@ -166,7 +277,62 @@ def verify_candidate_capability(
     if candidate is None:
         raise RuntimeError(f"Idea candidate not found: {idea_candidate_id}")
 
-    signals = _extract_signals((candidate.title, candidate.summary, candidate.what_to_expect, candidate.preview))
+    dsl_spec = read_dsl_spec()
+    signals: list[GapSignal] = []
+    llm_meta: dict[str, str | int | bool] | None = None
+    llm_errors: list[str] = []
+    use_llm = os.getenv("IDEA_DSL_CAPABILITY_USE_LLM", "1") == "1"
+    llm_feasible: bool | None = None
+    if use_llm:
+        try:
+            payload, route_meta = _llm_capability_check(
+                title=candidate.title,
+                summary=candidate.summary,
+                what_to_expect=candidate.what_to_expect,
+                preview=candidate.preview,
+                dsl_spec=dsl_spec,
+            )
+            llm_feasible = bool(payload.get("feasible", True))
+            gaps = payload.get("gaps", [])
+            for gap in gaps:
+                feature = str(gap.get("feature", "")).strip()
+                reason = str(gap.get("reason", "")).strip()
+                if not feature or not reason:
+                    continue
+                signals.append(
+                    GapSignal(
+                        feature=feature,
+                        reason=reason,
+                        impact=str(gap.get("impact", "")).strip(),
+                        keywords=(),
+                    )
+                )
+            llm_meta = {
+                "provider": route_meta.get("provider"),
+                "model": route_meta.get("model"),
+                "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
+                "llm_feasible": llm_feasible,
+                "fallback_used": False,
+            }
+            if llm_feasible is False and not signals:
+                signals.append(
+                    GapSignal(
+                        feature="dsl_gap_unknown",
+                        reason="LLM marked candidate infeasible but did not provide explicit gaps.",
+                        impact="Manual review required to define missing DSL capability.",
+                        keywords=(),
+                    )
+                )
+        except Exception as exc:
+            llm_errors.append(str(exc))
+            llm_meta = {
+                "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
+                "llm_feasible": llm_feasible,
+                "fallback_used": True,
+            }
+            signals = _extract_signals((candidate.title, candidate.summary, candidate.what_to_expect, candidate.preview))
+    else:
+        signals = _extract_signals((candidate.title, candidate.summary, candidate.what_to_expect, candidate.preview))
     now = datetime.now(timezone.utc)
     new_gap_ids: list[UUID] = []
     existing_gap_ids: list[UUID] = []
@@ -213,6 +379,8 @@ def verify_candidate_capability(
         "dsl_version": dsl_version,
         "verification_policy_version": policy_version,
         "feasible": feasible,
+        "verifier_meta": llm_meta,
+        "verifier_errors": llm_errors,
         "new_gap_ids": [str(gid) for gid in new_gap_ids],
         "existing_gap_ids": [str(gid) for gid in existing_gap_ids],
         "blocking_gap_ids": [str(gid) for gid in blocking_gap_ids],

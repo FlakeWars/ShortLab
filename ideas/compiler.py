@@ -9,6 +9,7 @@ from typing import Any
 from db.models import Idea
 from dsl.validate import validate_file
 from llm import get_mediator
+from .prompting import build_idea_context, read_dsl_spec
 
 
 ALLOWED_IDEA_STATUSES = {"feasible", "ready_for_gate"}
@@ -36,7 +37,7 @@ def compile_idea_to_dsl(
         raise FileNotFoundError(f"DSL template not found: {template_path}")
 
     template_yaml = template_path.read_text()
-    dsl_spec = _read_text(Path(".ai/dsl-v1.md"))
+    dsl_spec = read_dsl_spec()
     prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v1")
     repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v1")
     errors: list[str] = []
@@ -145,10 +146,7 @@ def _build_compile_prompt(
     mode = "repair" if is_repair else "compile"
     return (
         f"Mode: {mode}\n"
-        f"Idea title: {idea.title}\n"
-        f"Idea summary: {idea.summary or ''}\n"
-        f"Idea what_to_expect: {idea.what_to_expect or ''}\n"
-        f"Idea preview: {idea.preview or ''}\n"
+        f"{build_idea_context(title=idea.title, summary=idea.summary, what_to_expect=idea.what_to_expect, preview=idea.preview)}"
         f"Previous validation errors: {previous_errors}\n\n"
         "DSL spec (short reference):\n"
         f"{dsl_spec[:8000]}\n\n"
@@ -156,13 +154,6 @@ def _build_compile_prompt(
         f"{template_yaml}\n\n"
         "Return DSL YAML that is valid and concrete for this idea."
     )
-
-
-def _read_text(path: Path) -> str:
-    try:
-        return path.read_text()
-    except Exception:
-        return ""
 
 
 def _semantic_validate(model) -> list[str]:
