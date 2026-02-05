@@ -12,8 +12,8 @@ class ParsedIdea:
     preview: str
 
 
-def parse_ideas_file(path: Path) -> list[ParsedIdea]:
-    text = path.read_text().splitlines()
+def parse_ideas_text(text: str) -> list[ParsedIdea]:
+    lines = text.splitlines()
     ideas: list[ParsedIdea] = []
     current_title: str | None = None
     current_lines: list[str] = []
@@ -35,7 +35,7 @@ def parse_ideas_file(path: Path) -> list[ParsedIdea]:
         current_title = None
         current_lines = []
 
-    for line in text:
+    for line in lines:
         if _is_title_line(line):
             flush()
             current_title = _extract_title(line)
@@ -45,6 +45,10 @@ def parse_ideas_file(path: Path) -> list[ParsedIdea]:
 
     flush()
     return ideas
+
+
+def parse_ideas_file(path: Path) -> list[ParsedIdea]:
+    return parse_ideas_text(path.read_text())
 
 
 def _is_title_line(line: str) -> bool:

@@ -64,6 +64,7 @@ type IdeaCandidate = {
   preview?: string | null
   generator_source?: string | null
   similarity_status?: string | null
+  capability_status?: string | null
   status?: string | null
   selected?: boolean | null
   selected_at?: string | null
@@ -333,6 +334,15 @@ function App() {
   const [ideaDecisionError, setIdeaDecisionError] = useState<string | null>(null)
   const [ideaDecisionMessage, setIdeaDecisionMessage] = useState<string | null>(null)
   const [ideaDecisionLoading, setIdeaDecisionLoading] = useState(false)
+  const [generatorMode, setGeneratorMode] = useState<'llm' | 'text' | 'file'>('llm')
+  const [generatorLimit, setGeneratorLimit] = useState('5')
+  const [generatorPrompt, setGeneratorPrompt] = useState('')
+  const [generatorText, setGeneratorText] = useState('')
+  const [generatorFileName, setGeneratorFileName] = useState('')
+  const [generatorFileContent, setGeneratorFileContent] = useState('')
+  const [generatorMessage, setGeneratorMessage] = useState<string | null>(null)
+  const [generatorError, setGeneratorError] = useState<string | null>(null)
+  const [generatorLoading, setGeneratorLoading] = useState(false)
 
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [auditError, setAuditError] = useState<string | null>(null)
@@ -369,6 +379,13 @@ function App() {
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [gapActionLoading, setGapActionLoading] = useState<Record<string, boolean>>({})
   const [blockedCandidates, setBlockedCandidates] = useState<BlockedIdeaCandidate[]>([])
+  const [candidateList, setCandidateList] = useState<IdeaCandidate[]>([])
+  const [candidateListLoading, setCandidateListLoading] = useState(false)
+  const [candidateListError, setCandidateListError] = useState<string | null>(null)
+  const [candidateFilterStatus, setCandidateFilterStatus] = useState('')
+  const [candidateFilterCapability, setCandidateFilterCapability] = useState('')
+  const [candidateFilterSimilarity, setCandidateFilterSimilarity] = useState('')
+  const [candidateListLimit, setCandidateListLimit] = useState('25')
 
   const opsHeaders = (): Record<string, string> => {
     const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
@@ -481,6 +498,44 @@ function App() {
       setIdeaError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setIdeaLoading(false)
+    }
+  }
+
+  const handleGenerateCandidates = async () => {
+    setGeneratorLoading(true)
+    setGeneratorError(null)
+    setGeneratorMessage(null)
+    try {
+      const payload: Record<string, unknown> = { mode: generatorMode }
+      if (generatorMode === 'llm') {
+        const limit = Number(generatorLimit || '5')
+        payload.limit = Number.isNaN(limit) ? 5 : Math.max(1, Math.min(limit, 50))
+        if (generatorPrompt.trim()) {
+          payload.prompt = generatorPrompt.trim()
+        }
+      } else if (generatorMode === 'text') {
+        payload.text = generatorText.trim()
+      } else if (generatorMode === 'file') {
+        payload.file_name = generatorFileName || undefined
+        payload.file_content = generatorFileContent.trim()
+      }
+      const response = await fetch(`${API_BASE}/idea-candidates/generate`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const result = (await response.json()) as { created?: number; skipped?: number }
+      setGeneratorMessage(`Utworzono ${result.created ?? 0} kandydatow, pominieto ${result.skipped ?? 0}.`)
+      fetchSystemStatus()
+      fetchIdeaCandidates()
+      fetchCandidateList()
+    } catch (err) {
+      setGeneratorError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setGeneratorLoading(false)
     }
   }
 
@@ -704,6 +759,29 @@ function App() {
     }
   }
 
+  const fetchCandidateList = async () => {
+    setCandidateListLoading(true)
+    setCandidateListError(null)
+    try {
+      const params = new URLSearchParams()
+      const limit = Number(candidateListLimit || '25')
+      params.set('limit', String(Number.isNaN(limit) ? 25 : Math.max(1, Math.min(limit, 200))))
+      if (candidateFilterStatus) params.set('status', candidateFilterStatus)
+      if (candidateFilterCapability) params.set('capability_status', candidateFilterCapability)
+      if (candidateFilterSimilarity) params.set('similarity_status', candidateFilterSimilarity)
+      const response = await fetch(`${API_BASE}/idea-candidates?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as IdeaCandidate[]
+      setCandidateList(payload)
+    } catch (err) {
+      setCandidateListError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setCandidateListLoading(false)
+    }
+  }
+
   const handleVerifyCandidates = async () => {
     setVerifyLoading(true)
     setOpsError(null)
@@ -724,6 +802,7 @@ function App() {
       fetchIdeaCandidates()
       fetchSystemStatus()
       fetchBlockedCandidates()
+      fetchCandidateList()
     } catch (err) {
       setOpsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -1227,8 +1306,128 @@ function App() {
           </Card>
         </div>
 
+        <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-2xl border border-stone-200/70 bg-stone-50/70 p-4">
+            <div className="text-sm font-semibold text-stone-900">Tryb generowania</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(['llm', 'text', 'file'] as const).map((mode) => (
+                <Button
+                  key={mode}
+                  variant={generatorMode === mode ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => setGeneratorMode(mode)}
+                >
+                  {mode.toUpperCase()}
+                </Button>
+              ))}
+            </div>
+
+            {generatorMode === 'llm' ? (
+              <div className="mt-4 space-y-3 text-sm">
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                  Limit
+                  <input
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={generatorLimit}
+                    onChange={(event) => setGeneratorLimit(event.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                  Prompt (opcjonalny)
+                  <textarea
+                    className="min-h-[90px] rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={generatorPrompt}
+                    onChange={(event) => setGeneratorPrompt(event.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {generatorMode === 'text' ? (
+              <div className="mt-4 space-y-3 text-sm">
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                  Tekst pomyslu
+                  <textarea
+                    className="min-h-[140px] rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={generatorText}
+                    onChange={(event) => setGeneratorText(event.target.value)}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {generatorMode === 'file' ? (
+              <div className="mt-4 space-y-3 text-sm">
+                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                  Plik z pomyslami (tekst/markdown)
+                  <input
+                    type="file"
+                    accept=".txt,.md"
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0]
+                      if (!file) {
+                        setGeneratorFileName('')
+                        setGeneratorFileContent('')
+                        return
+                      }
+                      setGeneratorFileName(file.name)
+                      const reader = new FileReader()
+                      reader.onload = () => setGeneratorFileContent(String(reader.result || ''))
+                      reader.readAsText(file)
+                    }}
+                  />
+                </label>
+                <textarea
+                  className="min-h-[120px] rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                  value={generatorFileContent}
+                  onChange={(event) => setGeneratorFileContent(event.target.value)}
+                />
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button className="rounded-full" onClick={handleGenerateCandidates} disabled={generatorLoading}>
+                {generatorLoading ? 'Generuje…' : 'Generuj'}
+              </Button>
+              <Button
+                variant="ghost"
+                className="rounded-full"
+                onClick={() => {
+                  setGeneratorPrompt('')
+                  setGeneratorText('')
+                  setGeneratorFileName('')
+                  setGeneratorFileContent('')
+                }}
+                disabled={generatorLoading}
+              >
+                Wyczyść
+              </Button>
+            </div>
+            {generatorMessage ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-800">
+                {generatorMessage}
+              </div>
+            ) : null}
+            {generatorError ? (
+              <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">
+                {generatorError}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-stone-200/70 bg-white/70 p-4 text-sm text-stone-600">
+            <div className="text-sm font-semibold text-stone-900">Jak to dziala</div>
+            <ul className="mt-2 list-disc space-y-2 pl-4 text-xs text-stone-600">
+              <li>LLM: generuje wiele propozycji na podstawie promptu.</li>
+              <li>Text: jedna propozycja na bazie wlasnego opisu.</li>
+              <li>File: wczytanie wielu pomyslow z pliku.</li>
+            </ul>
+          </div>
+        </div>
+
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-stone-500">
-          <span>Generator uruchamiany obecnie przez CLI: `make idea-generate`.</span>
+          <span>Generator dostepny z UI oraz CLI: `make idea-generate`.</span>
           <span>Weryfikacja DSL: `make idea-verify-capability`.</span>
           <span>Similarity: porównanie kandydata do historii idei (embedding + cosine similarity).</span>
         </div>
@@ -1238,7 +1437,7 @@ function App() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Flow</h2>
-            <p className="text-sm text-stone-600">Sekwencja operatora: Idea Gate &rarr; Compile &rarr; Render &rarr; QC &rarr; Publish.</p>
+            <p className="text-sm text-stone-600">Sekwencja operatora: Idea Generator &rarr; Idea Gate &rarr; Compile &rarr; Render &rarr; QC &rarr; Publish.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {['Idea Generator', 'Idea Gate', 'Compile', 'Render', 'QC', 'Publish'].map((step) => (
@@ -1847,6 +2046,143 @@ function App() {
 
 {activeView === 'repositories' ? (
       <>
+<section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">Idea Candidates</h2>
+            <p className="text-sm text-stone-600">
+              Repozytorium kandydatow wraz ze statusem decyzji i capability.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="flex min-w-[160px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Status
+            <select
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={candidateFilterStatus}
+              onChange={(event) => setCandidateFilterStatus(event.target.value)}
+            >
+              <option value="">All</option>
+              {CANDIDATE_STATUS_ORDER.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Capability
+            <select
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={candidateFilterCapability}
+              onChange={(event) => setCandidateFilterCapability(event.target.value)}
+            >
+              <option value="">All</option>
+              {CANDIDATE_CAPABILITY_ORDER.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Similarity
+            <select
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={candidateFilterSimilarity}
+              onChange={(event) => setCandidateFilterSimilarity(event.target.value)}
+            >
+              <option value="">All</option>
+              {['ok', 'too_similar', 'unknown'].map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[120px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+            Limit
+            <input
+              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+              value={candidateListLimit}
+              onChange={(event) => setCandidateListLimit(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button className="rounded-full" onClick={fetchCandidateList} disabled={candidateListLoading}>
+              Apply filters
+            </Button>
+            <Button
+              variant="ghost"
+              className="rounded-full"
+              onClick={() => {
+                setCandidateFilterStatus('')
+                setCandidateFilterCapability('')
+                setCandidateFilterSimilarity('')
+                window.setTimeout(fetchCandidateList, 0)
+              }}
+              disabled={candidateListLoading}
+            >
+              Reset
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          {candidateListLoading ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading candidates…
+            </div>
+          ) : candidateListError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+              <div className="font-semibold">Failed to load</div>
+              <div>{candidateListError}</div>
+            </div>
+          ) : (
+            <table className="min-w-[880px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr>
+                  <th className="px-2 py-3">Status</th>
+                  <th className="px-2 py-3">Capability</th>
+                  <th className="px-2 py-3">Similarity</th>
+                  <th className="px-2 py-3">Title</th>
+                  <th className="px-2 py-3">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidateList.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
+                      No candidates matched. Adjust filters or generate new ideas.
+                    </td>
+                  </tr>
+                ) : (
+                  candidateList.map((row) => (
+                    <tr key={row.id} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4">
+                        <Badge variant="outline" className={cn('border', chipTone(row.status))}>
+                          {row.status ?? '—'}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-4">
+                        <Badge variant="outline" className={cn('border', chipTone(row.capability_status))}>
+                          {row.capability_status ?? '—'}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-4 text-stone-600">{row.similarity_status ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-700">{row.title ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-600">{formatDate(row.created_at)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
 <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

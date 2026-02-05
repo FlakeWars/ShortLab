@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, desc, func, select, text
 
+from embeddings import EmbeddingConfig, EmbeddingService
 from db.models import (
     Animation,
     AuditEvent,
@@ -25,6 +26,7 @@ from db.models import (
     IdeaCandidateGapLink,
     IdeaEmbedding,
     IdeaGapLink,
+    IdeaBatch,
     MetricsDaily,
     QCDecision,
     Render,
@@ -38,6 +40,8 @@ from ideas.capability import (
     verify_idea_capability,
 )
 from ideas.compiler import compile_idea_to_dsl
+from ideas.generator import IdeaDraft, generate_ideas, save_ideas
+from ideas.parser import parse_ideas_text
 from llm import get_mediator
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
@@ -212,6 +216,19 @@ class IdeaCompileRequest(BaseModel):
     out_root: str = Field(default="out/manual-compile")
     max_attempts: int = Field(default=3, ge=1, le=10)
     max_repairs: int = Field(default=2, ge=0, le=10)
+
+
+class IdeaCandidateGenerateRequest(BaseModel):
+    mode: Literal["llm", "text", "file"]
+    limit: int | None = Field(default=None, ge=1, le=50)
+    prompt: str | None = Field(default=None)
+    text: str | None = Field(default=None)
+    title: str | None = Field(default=None)
+    summary: str | None = Field(default=None)
+    what_to_expect: str | None = Field(default=None)
+    preview: str | None = Field(default=None)
+    file_name: str | None = Field(default=None)
+    file_content: str | None = Field(default=None)
 
 
 @app.get("/health")
@@ -391,6 +408,7 @@ def list_metrics_daily(
 def list_idea_candidates(
     idea_batch_id: Optional[UUID] = None,
     similarity_status: Optional[str] = None,
+    capability_status: Optional[str] = None,
     selected: Optional[bool] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -403,6 +421,8 @@ def list_idea_candidates(
             stmt = stmt.where(IdeaCandidate.idea_batch_id == idea_batch_id)
         if similarity_status:
             stmt = stmt.where(IdeaCandidate.similarity_status == similarity_status)
+        if capability_status:
+            stmt = stmt.where(IdeaCandidate.capability_status == capability_status)
         if selected is not None:
             stmt = stmt.where(IdeaCandidate.selected == selected)
         stmt = stmt.order_by(desc(IdeaCandidate.created_at)).limit(limit).offset(offset)
@@ -840,6 +860,97 @@ def list_idea_embeddings(
         stmt = stmt.order_by(desc(IdeaEmbedding.created_at)).limit(limit).offset(offset)
         rows = session.execute(stmt).scalars().all()
         return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
+@app.post("/idea-candidates/generate")
+def generate_idea_candidates(
+    request: IdeaCandidateGenerateRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        mode = request.mode
+        drafts: list[IdeaDraft] = []
+        if mode == "llm":
+            if request.limit is None:
+                raise HTTPException(status_code=400, detail="limit_required_for_llm")
+            drafts = generate_ideas(
+                source="openai",
+                limit=request.limit,
+                prompt=request.prompt or "",
+            )
+        elif mode == "text":
+            base_text = (request.text or "").strip()
+            title = (request.title or "").strip()
+            summary = (request.summary or "").strip()
+            if not (base_text or title or summary):
+                raise HTTPException(status_code=400, detail="text_or_title_required")
+            if not title:
+                title = base_text.splitlines()[0][:120] if base_text else summary[:120]
+            if not summary:
+                summary = base_text if base_text else title
+            drafts = [
+                IdeaDraft(
+                    title=title,
+                    summary=summary,
+                    what_to_expect=(request.what_to_expect or "").strip(),
+                    preview=(request.preview or "").strip(),
+                    source="manual",
+                    generation_meta={"mode": "text"},
+                    idea_hash=_hash_idea(title, summary),
+                )
+            ]
+        elif mode == "file":
+            content = (request.file_content or "").strip()
+            if not content:
+                raise HTTPException(status_code=400, detail="file_content_required")
+            parsed = parse_ideas_text(content)
+            drafts = [
+                IdeaDraft(
+                    title=item.title,
+                    summary=item.summary,
+                    what_to_expect=item.what_to_expect,
+                    preview=item.preview,
+                    source="file",
+                    generation_meta={"mode": "file", "file_name": request.file_name},
+                    idea_hash=_hash_idea(item.title, item.summary),
+                )
+                for item in parsed
+            ]
+        else:
+            raise HTTPException(status_code=400, detail="unsupported_mode")
+
+        if not drafts:
+            return jsonable_encoder({"created": 0, "skipped": 0, "idea_candidate_ids": []})
+
+        idea_batch = IdeaBatch(
+            run_date=date.today(),
+            window_id=datetime.now(timezone.utc).strftime("ui-%Y%m%d-%H%M%S"),
+            source="manual",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(idea_batch)
+        session.flush()
+
+        embedder = EmbeddingService(EmbeddingConfig(provider="sklearn-hash"))
+        created = save_ideas(
+            session,
+            drafts,
+            embedder,
+            similarity_threshold=0.97,
+            idea_batch_id=idea_batch.id,
+        )
+        session.commit()
+        return jsonable_encoder(
+            {
+                "created": len(created),
+                "skipped": len(drafts) - len(created),
+                "idea_batch_id": str(idea_batch.id),
+                "idea_candidate_ids": [str(item.id) for item in created],
+            }
+        )
     finally:
         session.close()
 
