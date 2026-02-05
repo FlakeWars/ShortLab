@@ -1,12 +1,6 @@
 # TODO
 
 ## Now (W toku)
-- [ ] DSL capability na IdeaCandidate (wariant A) (branch: feat/idea-candidate-capability)
-  - [x] Model DB: `capability_status` na `idea_candidate` + tabela `idea_candidate_gap_link`
-  - [x] API: weryfikacja kandydatów + sampling tylko feasible + decide tworzy `idea` jako `ready_for_gate`
-  - [x] UI: liczniki wg capability + lista zablokowanych kandydatów
-  - [ ] Spiąć komunikację/UX w panelach (nazewnictwo, podpowiedzi, flow)
-  - [x] Docs sync: PRD/tech-stack/README (capability na kandydatach + status kompilatora + komendy verify)
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
@@ -25,6 +19,9 @@
   - [ ] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
 
 ## Next (Kolejne)
+- [ ] UI: doprecyzować komunikację capability vs idea (branch: feat/ui-capability-copy)
+  - [ ] Spójne nazewnictwo kandydatów vs idei w panelach Flow/DSL Capability
+  - [ ] Podpowiedzi w UI: kiedy powstaje Idea i dlaczego Idea Gate filtruje tylko feasible
 - [ ] UI: LLM usage panel v1.1 (branch: feat/ui-llm-usage)
   - [ ] Dodać drill-down per request/run (powiązanie z konkretnym `idea_id` / jobem)
   - [ ] Dodać komunikat, że koszt estymowany = 0 gdy brak `LLM_PRICE_DEFAULT_*`
@@ -147,6 +144,14 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] DSL capability na IdeaCandidate (branch: feat/idea-candidate-capability) (2026-02-05)
+  - [x] Model DB: `capability_status` na `idea_candidate` + tabela `idea_candidate_gap_link`
+  - [x] API: weryfikacja kandydatów + sampling tylko feasible + decide tworzy `idea` jako `ready_for_gate`
+  - [x] UI: liczniki wg capability + lista zablokowanych kandydatów
+  - [x] Docs sync: PRD/tech-stack/README (capability na kandydatach + status kompilatora + komendy verify)
+  - [x] Dodany opis flow w `.ai/flow.md`
+- [x] Post-merge analysis (2026-02-05)
+  - [x] Dokumentacja zaktualizowana: `.ai/prd.md`, `.ai/tech-stack.md`, `README.md`
 - [x] UI: panel LLM usage (branch: feat/ui-llm-usage) (2026-02-04)
   - [x] Widok tokenów/kosztu per task/provider/model na podstawie `/llm/metrics`
   - [x] Kafelki sumaryczne (calls, tokens, est. cost, daily budget)
