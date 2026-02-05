@@ -149,6 +149,10 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] UI: pokazuj zrodlo weryfikacji (LLM/fallback) (branch: feat/ui-verifier-indicator) (2026-02-05)
+  - [x] Panel DSL Capability: provider/model + tryb weryfikacji
+- [x] Post-merge analysis (2026-02-05)
+  - [x] UI z indykatorem weryfikatora LLM/fallback
 - [x] LLM Capability Verifier (branch: feat/llm-capability-verifier) (2026-02-05)
   - [x] Wspolny prompt/DSL spec dla walidatora i kompilatora
   - [x] Walidacja LLM dla idei/kandydatow + fallback heurystyczny
