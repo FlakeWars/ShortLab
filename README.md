@@ -97,6 +97,8 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - `OPERATOR_TOKEN=sekret make api` – włącza guard operatora dla `/ops/*`.
   - Jeśli pojawia się warning `nice(5) failed`, uruchom `make api` poza sandboxem (to ograniczenie środowiska, nie projektu).
 - `make run-dev` – spójne uruchomienie API+UI+worker (PORT API=8016, UI=5173, REDIS db=1).
+- `make run-dev` ładuje `.env` i `.env.local` (zmienne przekazywane do API/worker/UI).
+- Worker w dev uruchamia się jako `SimpleWorker` (bez forka) dla stabilności na macOS; jeśli potrzebujesz forka, ustaw `RQ_SIMPLE_WORKER=0`.
 - `make run-dev` jest idempotentne: jeśli już działa, zwraca komunikat i exit 0.
 - `make stop-dev` – zatrzymuje procesy uruchomione przez `make run-dev` i zwalnia porty API/UI.
 
@@ -140,6 +142,7 @@ curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
 - `ARTIFACTS_BASE_DIR` – katalog bazowy dla serwowania artefaktów (domyślnie `out`).
 - `OPERATOR_TOKEN` – prosty token operatora dla endpointów `/ops/*` (nagłówek `X-Operator-Token`).
 - `ALLOW_OPS_WITHOUT_TOKEN` – jeśli `1`, pozwala na `/ops/*` bez tokena (domyślnie `0`).
+- `CLEANUP_OLDER_MIN` – próg minut dla auto-cleanup `running` przy starcie `make run-dev` (domyślnie 30).
 
 ## Makefile
 Dostępne cele:
