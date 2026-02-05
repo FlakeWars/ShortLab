@@ -43,6 +43,7 @@
 - generator_source TEXT NOT NULL CHECK (generator_source IN ('ai','fallback','manual'))
 - similarity_status TEXT NOT NULL CHECK (similarity_status IN ('ok','too_similar','unknown'))
 - status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','later','picked'))
+- capability_status TEXT NOT NULL DEFAULT 'unverified' CHECK (capability_status IN ('unverified','feasible','blocked_by_gaps'))
 - selected BOOLEAN NOT NULL DEFAULT false
 - selected_by UUID REFERENCES user_account(id)
 - selected_at TIMESTAMPTZ
@@ -78,6 +79,13 @@
 - dsl_gap_id UUID NOT NULL REFERENCES dsl_gap(id) ON DELETE CASCADE
 - detected_at TIMESTAMPTZ NOT NULL
 - UNIQUE (idea_id, dsl_gap_id)
+
+**idea_candidate_gap_link**
+- id UUID PK DEFAULT gen_random_uuid()
+- idea_candidate_id UUID NOT NULL REFERENCES idea_candidate(id) ON DELETE CASCADE
+- dsl_gap_id UUID NOT NULL REFERENCES dsl_gap(id) ON DELETE CASCADE
+- detected_at TIMESTAMPTZ NOT NULL
+- UNIQUE (idea_candidate_id, dsl_gap_id)
 
 **idea_similarity**
 - id UUID PK DEFAULT gen_random_uuid()
@@ -294,6 +302,7 @@
 - idea_batch 1‑N idea_candidate
 - idea_candidate 1‑0..1 idea (wybór operatora)
 - idea 1‑N idea_gap_link, dsl_gap 1‑N idea_gap_link (globalna lista luk DSL + powiązania z ideami)
+- idea_candidate 1‑N idea_candidate_gap_link, dsl_gap 1‑N idea_candidate_gap_link (weryfikacja możliwości DSL na kandydatach)
 - idea_candidate 1‑N idea_similarity, idea_similarity N‑1 idea (historyczne porównanie)
 - idea_candidate 1‑N idea_embedding (wektory embeddingów)
 - idea 1‑N animation

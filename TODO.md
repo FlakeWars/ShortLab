@@ -1,6 +1,11 @@
 # TODO
 
 ## Now (W toku)
+- [ ] DSL capability na IdeaCandidate (wariant A) (branch: feat/idea-candidate-capability)
+  - [x] Model DB: `capability_status` na `idea_candidate` + tabela `idea_candidate_gap_link`
+  - [x] API: weryfikacja kandydatów + sampling tylko feasible + decide tworzy `idea` jako `ready_for_gate`
+  - [x] UI: liczniki wg capability + lista zablokowanych kandydatów
+  - [ ] Spiąć komunikację/UX w panelach (nazewnictwo, podpowiedzi, flow)
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny

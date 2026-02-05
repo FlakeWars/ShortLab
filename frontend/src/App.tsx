@@ -104,12 +104,7 @@ type DslGap = {
   updated_at?: string | null
 }
 
-type IdeaStatusRow = {
-  id: string
-  status?: string | null
-}
-
-type BlockedIdea = {
+type BlockedIdeaCandidate = {
   id: string
   title?: string | null
   status?: string | null
@@ -229,7 +224,15 @@ type LLMMetricsResponse = {
 
 type SystemStatusResponse = {
   service_status?: Array<{ service?: string; status?: string; details?: string | null }>
-  repo_counts?: Record<string, { total?: number | null; by_status?: Record<string, number>; placeholder?: boolean }>
+  repo_counts?: Record<
+    string,
+    {
+      total?: number | null
+      by_status?: Record<string, number>
+      by_capability?: Record<string, number>
+      placeholder?: boolean
+    }
+  >
   worker?: {
     redis_ok?: boolean
     online?: boolean
@@ -363,8 +366,7 @@ function App() {
   const [verifyLimit, setVerifyLimit] = useState('20')
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [gapActionLoading, setGapActionLoading] = useState<Record<string, boolean>>({})
-  const [ideaStatusRows, setIdeaStatusRows] = useState<IdeaStatusRow[]>([])
-  const [blockedIdeas, setBlockedIdeas] = useState<BlockedIdea[]>([])
+  const [blockedCandidates, setBlockedCandidates] = useState<BlockedIdeaCandidate[]>([])
 
   const opsHeaders = (): Record<string, string> => {
     const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
@@ -689,35 +691,24 @@ function App() {
     }
   }
 
-  const fetchIdeaStatuses = async () => {
+  const fetchBlockedCandidates = async () => {
     try {
-      const response = await fetch(`${API_BASE}/ideas?limit=100`)
+      const response = await fetch(`${API_BASE}/idea-candidates/blocked?limit=6`)
       if (!response.ok) return
-      const payload = (await response.json()) as IdeaStatusRow[]
-      setIdeaStatusRows(payload)
-    } catch {
-      // Keep UI resilient; errors are surfaced in other panels.
-    }
-  }
-
-  const fetchBlockedIdeas = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/ideas/blocked?limit=6`)
-      if (!response.ok) return
-      const payload = (await response.json()) as BlockedIdea[]
-      setBlockedIdeas(payload)
+      const payload = (await response.json()) as BlockedIdeaCandidate[]
+      setBlockedCandidates(payload)
     } catch {
       // Non-critical panel, ignore transient fetch issues.
     }
   }
 
-  const handleVerifyIdeas = async () => {
+  const handleVerifyCandidates = async () => {
     setVerifyLoading(true)
     setOpsError(null)
     setOpsMessage(null)
     try {
       const limit = Number(verifyLimit || '20')
-      const response = await fetch(`${API_BASE}/ideas/verify-capability/batch`, {
+      const response = await fetch(`${API_BASE}/idea-candidates/verify-capability/batch`, {
         method: 'POST',
         headers: opsHeaders(),
         body: JSON.stringify({ limit: Number.isNaN(limit) ? 20 : Math.max(1, Math.min(limit, 200)) }),
@@ -729,8 +720,8 @@ function App() {
       setOpsMessage(`Verification done: ${JSON.stringify(payload)}`)
       fetchDslGaps()
       fetchIdeaCandidates()
-      fetchIdeaStatuses()
-      fetchBlockedIdeas()
+      fetchSystemStatus()
+      fetchBlockedCandidates()
     } catch (err) {
       setOpsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -756,8 +747,8 @@ function App() {
       setOpsMessage(`Gap updated: ${JSON.stringify(payload)}`)
       fetchDslGaps()
       fetchIdeaCandidates()
-      fetchIdeaStatuses()
-      fetchBlockedIdeas()
+      fetchSystemStatus()
+      fetchBlockedCandidates()
     } catch (err) {
       setOpsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -819,11 +810,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    fetchIdeaStatuses()
-  }, [])
-
-  useEffect(() => {
-    fetchBlockedIdeas()
+    fetchBlockedCandidates()
   }, [])
 
   useEffect(() => {
@@ -897,19 +884,18 @@ function App() {
     )
   }, [llmRouteRows])
   const ideaStatusSummary = useMemo(() => {
-    return ideaStatusRows.reduce<Record<string, number>>((acc, row) => {
-      const key = row.status || 'unknown'
-      acc[key] = (acc[key] || 0) + 1
-      return acc
-    }, {})
-  }, [ideaStatusRows])
+    return systemStatus?.repo_counts?.ideas?.by_status ?? {}
+  }, [systemStatus])
+  const candidateCapabilitySummary = useMemo(() => {
+    return systemStatus?.repo_counts?.idea_candidates?.by_capability ?? {}
+  }, [systemStatus])
 
   const videoArtifact = useMemo(
     () => artifacts.find((item) => item.artifact_type === 'video'),
     [artifacts],
   )
-  const readyIdeas = ideaStatusSummary.ready_for_gate ?? 0
-  const blockedIdeasCount = ideaStatusSummary.blocked_by_gaps ?? 0
+  const readyCandidates = candidateCapabilitySummary.feasible ?? 0
+  const blockedCandidatesCount = candidateCapabilitySummary.blocked_by_gaps ?? 0
   const queuedJobs = (summary.queued ?? 0) + (summary.running ?? 0)
   const compiledIdeas = ideaStatusSummary.compiled ?? 0
   const renderQueue = animationData.filter((row) =>
@@ -1090,8 +1076,8 @@ function App() {
             <CardTitle className="text-lg text-stone-900">Co teraz: Idea Gate</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-stone-600">
-            <p>Gotowe idee do wyboru: <span className="font-semibold text-stone-900">{readyIdeas}</span></p>
-            <p>Zablokowane przez gapy: <span className="font-semibold text-stone-900">{blockedIdeasCount}</span></p>
+            <p>Gotowe propozycje do wyboru: <span className="font-semibold text-stone-900">{readyCandidates}</span></p>
+            <p>Zablokowane przez gapy: <span className="font-semibold text-stone-900">{blockedCandidatesCount}</span></p>
             <Button className="rounded-full" onClick={() => setActiveView('flow')}>
               Przejdź do Flow
             </Button>
@@ -1164,8 +1150,8 @@ function App() {
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Blocked ideas</div>
-              <div className="mt-2 text-2xl font-semibold text-stone-900">{ideaStatusSummary.blocked_by_gaps ?? 0}</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Blocked candidates</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{blockedCandidatesCount}</div>
             </CardContent>
           </Card>
         </div>
@@ -1196,8 +1182,9 @@ function App() {
           <Button variant="outline" className="rounded-full" onClick={() => {
             fetchSummary()
             fetchAnimations()
-            fetchIdeaStatuses()
+            fetchSystemStatus()
             fetchDslGaps()
+            fetchBlockedCandidates()
           }}>
             Odśwież Flow
           </Button>
@@ -1209,7 +1196,7 @@ function App() {
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4 space-y-2">
               <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Idea Gate</div>
-              <div className="text-2xl font-semibold text-stone-900">{readyIdeas}</div>
+              <div className="text-2xl font-semibold text-stone-900">{readyCandidates}</div>
               <div className="text-xs text-stone-500">gotowe do wyboru</div>
               <Button className="w-full rounded-full" onClick={() => scrollToSection('idea-gate-panel')}>
                 Otwórz
@@ -1477,7 +1464,7 @@ function App() {
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">DSL Capability</h2>
             <p className="text-sm text-stone-600">
-              Weryfikacja idei i zarządzanie listą `dsl_gap`.
+              Weryfikacja kandydatów i zarządzanie listą `dsl_gap`.
             </p>
           </div>
           <div className="text-xs text-stone-500">
@@ -1495,8 +1482,8 @@ function App() {
             />
           </label>
           <div className="flex flex-wrap gap-2">
-            <Button className="rounded-full" onClick={handleVerifyIdeas} disabled={verifyLoading}>
-              {verifyLoading ? 'Verifying…' : 'Verify ideas'}
+            <Button className="rounded-full" onClick={handleVerifyCandidates} disabled={verifyLoading}>
+              {verifyLoading ? 'Verifying…' : 'Verify candidates'}
             </Button>
             <Button variant="outline" className="rounded-full" onClick={fetchDslGaps} disabled={dslGapsLoading}>
               Refresh gaps
@@ -1504,15 +1491,16 @@ function App() {
           </div>
         </div>
 
-        {blockedIdeas.length > 0 ? (
+        {blockedCandidates.length > 0 ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
             <div className="font-semibold">
-              {blockedIdeas.length} idea(s) blocked by DSL gaps and excluded from sampling.
+              {blockedCandidates.length} candidate(s) blocked by DSL gaps and excluded from sampling.
             </div>
             <div className="mt-2 space-y-1">
-              {blockedIdeas.map((idea) => (
-                <div key={idea.id}>
-                  {idea.title}: {(idea.gaps ?? []).map((gap) => gap.feature).filter(Boolean).join(', ') || 'gap'}
+              {blockedCandidates.map((candidate) => (
+                <div key={candidate.id}>
+                  {candidate.title}:{' '}
+                  {(candidate.gaps ?? []).map((gap) => gap.feature).filter(Boolean).join(', ') || 'gap'}
                 </div>
               ))}
             </div>
@@ -1520,9 +1508,9 @@ function App() {
         ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          {['unverified', 'ready_for_gate', 'blocked_by_gaps', 'feasible', 'picked', 'compiled'].map((status) => (
+          {['unverified', 'feasible', 'blocked_by_gaps'].map((status) => (
             <Badge key={status} variant="outline" className={cn('border', chipTone(status))}>
-              {status}: {ideaStatusSummary[status] ?? 0}
+              {status}: {candidateCapabilitySummary[status] ?? 0}
             </Badge>
           ))}
         </div>

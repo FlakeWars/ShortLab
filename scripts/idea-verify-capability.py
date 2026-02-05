@@ -5,41 +5,41 @@ import argparse
 import json
 from uuid import UUID
 
-from db.models import Idea
+from db.models import IdeaCandidate
 from db.session import SessionLocal
-from ideas.capability import verify_idea_capability
+from ideas.capability import verify_candidate_capability
 from sqlalchemy import select
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Verify Idea capability against current DSL")
-    parser.add_argument("--idea-id", type=UUID, help="Verify single idea by UUID")
-    parser.add_argument("--limit", type=int, default=20, help="Batch size for unverified ideas")
+    parser = argparse.ArgumentParser(description="Verify IdeaCandidate capability against current DSL")
+    parser.add_argument("--idea-candidate-id", type=UUID, help="Verify single idea candidate by UUID")
+    parser.add_argument("--limit", type=int, default=20, help="Batch size for unverified idea candidates")
     parser.add_argument("--dsl-version", default="v1")
     args = parser.parse_args()
 
     session = SessionLocal()
     try:
         reports: list[dict] = []
-        if args.idea_id:
-            report = verify_idea_capability(
+        if args.idea_candidate_id:
+            report = verify_candidate_capability(
                 session,
-                idea_id=args.idea_id,
+                idea_candidate_id=args.idea_candidate_id,
                 dsl_version=args.dsl_version,
             )
             reports.append(report)
         else:
             rows = session.execute(
-                select(Idea.id)
-                .where(Idea.status == "unverified")
-                .order_by(Idea.created_at.desc())
+                select(IdeaCandidate.id)
+                .where(IdeaCandidate.capability_status == "unverified")
+                .order_by(IdeaCandidate.created_at.desc())
                 .limit(max(1, args.limit))
             ).all()
-            for (idea_id,) in rows:
+            for (candidate_id,) in rows:
                 reports.append(
-                    verify_idea_capability(
+                    verify_candidate_capability(
                         session,
-                        idea_id=idea_id,
+                        idea_candidate_id=candidate_id,
                         dsl_version=args.dsl_version,
                     )
                 )
