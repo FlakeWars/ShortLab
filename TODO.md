@@ -1,6 +1,10 @@
 # TODO
 
 ## Now (W toku)
+- [ ] LLM Capability Verifier (branch: feat/llm-capability-verifier)
+  - [x] Wspolny prompt/DSL spec dla walidatora i kompilatora
+  - [x] Walidacja LLM dla idei/kandydatow + fallback heurystyczny
+  - [ ] UI: sygnalizowac czy wynik z LLM czy fallback
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
