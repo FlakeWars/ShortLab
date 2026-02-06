@@ -17,13 +17,6 @@
   - [x] Flow board: karty etapów z licznikami + CTA do odpowiednich sekcji
   - [x] Flow tab zawiera mini‑listę Animations (bez skoku do Repositories)
   - [ ] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
-- [ ] Pipeline: stabilizacja dev (branch: fix/dev-pipeline-stability)
-  - [x] `run-dev` ładuje `.env` i `.env.local`
-  - [x] Worker bez forka (SimpleWorker) w dev
-  - [x] Cleanup jobów w `run-dev` nie ubija po 1 min (konfigurowalne `CLEANUP_OLDER_MIN`)
-  - [x] Wymusić fork-safety dla workera (OBJC var + dispose engine)
-  - [x] Dodać krótką notkę w README o `CLEANUP_OLDER_MIN` i SimpleWorker w dev
-
 ## Next (Kolejne)
 - [ ] Similarity scaling (branch: feat/similarity-scaling)
   - [ ] Wdrozyć ANN index (FAISS/HNSW) dla embeddingów idei
@@ -127,6 +120,7 @@
   - [ ] Sprawdzić limity tokenów po rozbudowie promptów (verifier/compiler) i dostroić `*_MAX_TOKENS`
   - [ ] Rozważyć skróconą wersję DSL spec dla promptów (kompresja/skrót) bez utraty kluczowych definicji
   - [x] Dodać `language` do CLI (`make idea-generate`, `make idea-verify-capability`)
+  - [ ] Udokumentować `IDEA_GEN_LANGUAGE` i `IDEA_VERIFY_LANGUAGE` w README
 - [ ] Platform Registry (branch: feat/platform-registry)
   - [ ] Ujednolicony interfejs publikacji (publish/status/metrics)
   - [ ] Rejestr platform + pluginy (YouTube/TikTok jako pierwsze)
@@ -162,6 +156,12 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Pipeline: stabilizacja dev (branch: fix/dev-pipeline-stability) (2026-02-06)
+  - [x] `run-dev` ładuje `.env` i `.env.local`
+  - [x] Worker bez forka (SimpleWorker) w dev
+  - [x] Cleanup jobów w `run-dev` nie ubija po 1 min (konfigurowalne `CLEANUP_OLDER_MIN`)
+  - [x] Wymusić fork-safety dla workera (OBJC var + dispose engine)
+  - [x] Dodać krótką notkę w README o `CLEANUP_OLDER_MIN` i SimpleWorker w dev
 - [x] UI: przełącznik języka + motyw jasny/ciemny (2026-02-06)
   - [x] UI: language selector (PL/EN) zapisany w localStorage i używany w generatorze/weryfikatorze
   - [x] UI: theme toggle (light/dark) z `.dark` na `<html>`
