@@ -118,6 +118,7 @@
   - [ ] Interfejs (UI/API) do przeglądu insightów
 - [ ] LLM prompt hardening (branch: feat/llm-prompt-hardening)
   - [x] Dopasować przykłady odpowiedzi w promptach do wybranego języka (PL/EN)
+  - [ ] Wdrożyć rytuał postmortem dla błędów LLM: log błędu -> poprawka prompta -> test regresji (DSL/compiler/validator)
   - [ ] Sprawdzić limity tokenów po rozbudowie promptów (verifier/compiler) i dostroić `*_MAX_TOKENS`
   - [ ] Rozważyć skróconą wersję DSL spec dla promptów (kompresja/skrót) bez utraty kluczowych definicji
   - [x] Dodać `language` do CLI (`make idea-generate`, `make idea-verify-capability`)
