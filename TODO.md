@@ -85,6 +85,7 @@
   - [ ] Diagnostyka: worker/redis/queue
   - [x] UI: sygnalizacja „worker offline”
   - [ ] Dodać watchdog stale queued (timeout + auto-requeue lub fail-safe)
+  - [x] Domyślny SimpleWorker w dev eliminuje crash `objc` i stuck jobs
 - [ ] Pipeline: worker crash przy niepoprawnym UUID (branch: fix/worker-failure-callback)
   - [x] Zabezpieczyć rq_on_failure/_coerce_uuid przed ValueError (nie crashować workera)
   - [ ] Dodać test lub smoke case dla błędnego job_id
