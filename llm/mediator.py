@@ -431,6 +431,9 @@ class LLMMediator:
                 }
             )
         repair_payload["messages"] = messages
+        if route.provider == "gemini":
+            # Trigger JSON-only response for Gemini via responseMimeType
+            repair_payload["response_format"] = {"type": "json_object"}
         response = self._call_with_retries(task_type, route, repair_payload)
         try:
             content = response["choices"][0]["message"]["content"]
