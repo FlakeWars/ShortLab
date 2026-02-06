@@ -550,14 +550,8 @@ class LLMMediator:
             "temperature": payload.get("temperature"),
             "maxOutputTokens": payload.get("max_tokens"),
         }
-        response_schema = (
-            payload.get("response_format", {})
-            .get("json_schema", {})
-            .get("schema")
-        )
-        if response_schema:
+        if payload.get("response_format"):
             generation_config["responseMimeType"] = "application/json"
-            generation_config["responseSchema"] = response_schema
 
         body = {
             "contents": [
