@@ -162,6 +162,68 @@ button {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --bg: #0b0f16;
+  --panel: #111827;
+  --ink: #e5e7eb;
+  --muted: rgba(15, 23, 42, 0.7);
+  --accent: rgba(30, 41, 59, 0.9);
+  --stroke: rgba(148, 163, 184, 0.25);
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.dark body::before {
+  background:
+    radial-gradient(60rem 60rem at 10% 20%, rgba(14, 116, 144, 0.18), transparent 60%),
+    radial-gradient(50rem 50rem at 90% 10%, rgba(15, 23, 42, 0.35), transparent 55%),
+    radial-gradient(40rem 40rem at 80% 80%, rgba(59, 130, 246, 0.12), transparent 60%),
+    repeating-linear-gradient(120deg, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.08) 1px, transparent 1px, transparent 9px);
+}
+
+.dark .bg-white,
+.dark .bg-white\/70,
+.dark .bg-white\/80,
+.dark .bg-white\/90 {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+}
+
+.dark .bg-stone-50,
+.dark .bg-stone-50\/60,
+.dark .bg-stone-50\/70 {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+}
+
+.dark .bg-stone-900\/5,
+.dark .bg-stone-900\/10 {
+  background-color: rgba(0, 0, 0, 0.45) !important;
+}
+
+.dark .border-stone-200,
+.dark .border-stone-200\/70,
+.dark .border-stone-200\/80,
+.dark .border-stone-200\/60 {
+  border-color: rgba(148, 163, 184, 0.25) !important;
+}
+
+.dark .text-stone-900,
+.dark .text-stone-800,
+.dark .text-stone-700,
+.dark .text-stone-600,
+.dark .text-stone-500 {
+  color: #e5e7eb !important;
+}
+
+.dark .text-stone-500 {
+  color: rgba(226, 232, 240, 0.7) !important;
+}
+
+.dark .bg-amber-50,
+.dark .bg-amber-50\/70,
+.dark .bg-rose-50\/70,
+.dark .bg-emerald-50\/70,
+.dark .bg-amber-100\/70 {
+  background-color: rgba(30, 41, 59, 0.7) !important;
+  color: #e2e8f0 !important;
 }
 
 @layer base {

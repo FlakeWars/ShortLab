@@ -20,7 +20,7 @@ def main() -> None:
         os.register_at_fork(after_in_child=lambda: engine.dispose())
 
     queue = get_queue(args.queue)
-    worker_cls = SimpleWorker if os.getenv("RQ_SIMPLE_WORKER", "0") == "1" else Worker
+    worker_cls = SimpleWorker if os.getenv("RQ_SIMPLE_WORKER", "1") == "1" else Worker
     worker = worker_cls([queue], connection=get_redis())
     worker.work(with_scheduler=False, burst=args.burst)
 
