@@ -38,8 +38,8 @@ def compile_idea_to_dsl(
 
     template_yaml = template_path.read_text()
     dsl_spec = read_dsl_spec()
-    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v3")
-    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v3")
+    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v4")
+    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v4")
     errors: list[str] = []
     repairs = 0
 

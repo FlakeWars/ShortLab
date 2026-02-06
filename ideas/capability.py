@@ -44,7 +44,7 @@ GAP_SIGNALS: tuple[GapSignal, ...] = (
 )
 
 BLOCKING_GAP_STATUSES = {"new", "accepted", "in_progress", "rejected"}
-LLM_CAPABILITY_PROMPT_VERSION = "idea-capability-v1"
+LLM_CAPABILITY_PROMPT_VERSION = "idea-capability-v2"
 
 
 def _gap_key(dsl_version: str, feature: str, reason: str) -> str:
