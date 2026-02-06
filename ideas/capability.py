@@ -71,18 +71,58 @@ def _llm_capability_check(
     language: str,
 ) -> tuple[dict, dict]:
     user_prompt = (
-        f"{build_idea_context(title=title, summary=summary, what_to_expect=what_to_expect, preview=preview)}\n"
-        "DSL spec (short reference):\n"
-        f"{dsl_spec}\n\n"
-        "Evaluation frame (same creative constraints as idea generation):\n"
-        "- Uses simple geometric primitives.\n"
-        "- Motion is deterministic (physics-like rules, parametric paths, or rule-based behaviors).\n"
+        "IDEA (BEGIN):\n"
+        "<<<IDEA_BEGIN>>>\n"
+        f"{build_idea_context(title=title, summary=summary, what_to_expect=what_to_expect, preview=preview)}"
+        "<<<IDEA_END>>>\n\n"
+        "GOAL:\n"
+        "We want short, deterministic 2D animations based on simple geometric primitives.\n"
+        "The idea should feel visually engaging and somewhat hypnotic, avoid trivial motion,\n"
+        "and be feasible for rendering in a structured DSL.\n\n"
+        "DSL SPEC (BEGIN):\n"
+        "<<<DSL_SPEC_BEGIN>>>\n"
+        f"{dsl_spec}\n"
+        "<<<DSL_SPEC_END>>>\n\n"
+        "EVALUATION FRAME (same as generator):\n"
+        "- Use simple geometric primitives.\n"
+        "- Motion is deterministic: physics-like forces, parametric paths, or rule-based behaviors.\n"
         "- No external assets, characters, dialog, camera cuts, or photorealism.\n\n"
-        "Decide if the DSL can express this idea without adding new primitives.\n"
-        "If not, list missing capabilities as gaps. If the idea violates the frame above, "
-        "treat it as infeasible and explain why.\n"
-        f"Write gap reason/impact and notes in {language.upper()}.\n"
-        "Keep `feature` in stable snake_case (English)."
+        "ALGORITHM:\n"
+        "1) Identify animation elements (visual primitives, motions, forces, timing, interactions).\n"
+        "2) Map each element to existing DSL concepts if possible.\n"
+        "3) If an element cannot be mapped, define a DSL gap.\n"
+        "4) Decide feasibility:\n"
+        "   - feasible = true if all essential elements are expressible.\n"
+        "   - feasible = false if any essential element is missing OR violates the frame above.\n\n"
+        "GAP DEFINITION:\n"
+        "Each gap is a missing DSL capability (e.g., visual primitive, motion rule,\n"
+        "control/parameter type, or system feature). For each gap provide:\n"
+        "- feature: stable snake_case identifier in English\n"
+        "- reason: human-readable description of the missing capability\n"
+        "- impact: what this feature would enable after implementation\n\n"
+        "LANGUAGE:\n"
+        f"Write reason/impact/notes in {language.upper()}. Keep `feature` in English snake_case.\n\n"
+        "RESPONSE FORMAT EXAMPLES (BEGIN):\n"
+        "<<<RESPONSE_OK>>>\n"
+        "{\n"
+        '  "feasible": true,\n'
+        '  "gaps": [],\n'
+        '  "notes": "Krótko: idea w pełni opisywalna DSL."\n'
+        "}\n"
+        "<<<RESPONSE_NOT_OK>>>\n"
+        "{\n"
+        '  "feasible": false,\n'
+        '  "gaps": [\n'
+        "    {\n"
+        '      "feature": "motion_blur_trail",\n'
+        '      "reason": "Brakuje możliwości generowania smugi ruchu obiektu.",\n'
+        '      "impact": "Pozwoliłoby to na wizualizację szybkiego ruchu i jego dynamiki."\n'
+        "    }\n"
+        "  ],\n"
+        '  "notes": "Idea wymaga efektu, którego DSL obecnie nie wspiera."\n'
+        "}\n"
+        "<<<RESPONSE_FORMAT_END>>>\n\n"
+        "Return JSON only."
     )
     payload, route_meta = get_mediator().generate_json(
         task_type="idea_verify_capability",
