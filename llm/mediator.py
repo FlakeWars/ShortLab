@@ -44,6 +44,8 @@ class LLMError(Exception):
 
 def _provider_defaults(provider: str) -> tuple[str, str]:
     provider = provider.lower().strip()
+    if provider == "gemini":
+        return "https://generativelanguage.googleapis.com/v1beta", "GEMINI_API_KEY"
     if provider == "codex_cli":
         return "codex-cli", "CODEX_CLI_AUTH"
     if provider == "openrouter":
@@ -53,6 +55,13 @@ def _provider_defaults(provider: str) -> tuple[str, str]:
     if provider == "litellm":
         return os.getenv("LITELLM_BASE_URL", "http://localhost:4000"), "LITELLM_API_KEY"
     return "https://api.openai.com/v1", "OPENAI_API_KEY"
+
+
+def _default_api_key_header(provider: str) -> str:
+    provider = provider.lower().strip()
+    if provider == "gemini":
+        return "x-goog-api-key"
+    return "Authorization"
 
 
 DEFAULT_TASK_PROFILES: dict[str, str] = {
@@ -116,7 +125,7 @@ def _load_route(task_type: str) -> TaskRoute:
     api_key_header = _first_non_empty(
         os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADER"),
         os.getenv(f"{profile_key}API_KEY_HEADER") if profile_key else None,
-        "Authorization",
+        _default_api_key_header(provider),
     )
     timeout_s = int(
         _first_non_empty(
@@ -447,6 +456,8 @@ class LLMMediator:
         route: TaskRoute,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
+        if route.provider == "gemini":
+            return self._call_gemini_generate_content(task_type, route, payload)
         if route.provider == "codex_cli":
             try:
                 content = run_codex_cli(
@@ -519,6 +530,94 @@ class LLMMediator:
         text = (message or "").replace("\n", " ")
         text = text.replace("Bearer ", "Bearer [redacted]")
         return text[:300]
+
+    def _call_gemini_generate_content(
+        self,
+        task_type: str,
+        route: TaskRoute,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        headers = {"Content-Type": "application/json"}
+        headers[route.api_key_header] = route.api_key
+        messages = payload.get("messages", [])
+        system_prompt = ""
+        user_prompt = ""
+        if len(messages) >= 1:
+            system_prompt = str(messages[0].get("content", ""))
+        if len(messages) >= 2:
+            user_prompt = str(messages[1].get("content", ""))
+        body = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": user_prompt,
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": payload.get("temperature"),
+                "maxOutputTokens": payload.get("max_tokens"),
+            },
+        }
+        if system_prompt:
+            body["system_instruction"] = {"parts": [{"text": system_prompt}]}
+
+        req = urlrequest.Request(
+            url=f"{route.base_url}/models/{route.model}:generateContent",
+            data=json.dumps(body).encode("utf-8"),
+            method="POST",
+            headers=headers,
+        )
+        try:
+            with urlrequest.urlopen(req, timeout=max(5, route.timeout_s)) as resp:
+                response = json.loads(resp.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8")
+            raise LLMError(
+                code=f"http_{exc.code}",
+                message=self._sanitize_error_message(detail),
+                provider=route.provider,
+                task_type=task_type,
+                retryable=exc.code >= 500 or exc.code == 429,
+            ) from exc
+        except URLError as exc:
+            raise LLMError(
+                code="network_error",
+                message=self._sanitize_error_message(str(exc)),
+                provider=route.provider,
+                task_type=task_type,
+                retryable=True,
+            ) from exc
+
+        candidates = response.get("candidates") if isinstance(response, dict) else None
+        if not candidates:
+            raise LLMError(
+                code="invalid_response",
+                message="Gemini response missing candidates",
+                provider=route.provider,
+                task_type=task_type,
+            )
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text_chunks = [part.get("text", "") for part in parts if isinstance(part, dict)]
+        content = "".join(text_chunks).strip()
+        if not content:
+            raise LLMError(
+                code="invalid_response",
+                message="Gemini response content is empty",
+                provider=route.provider,
+                task_type=task_type,
+            )
+        usage = response.get("usageMetadata", {}) if isinstance(response, dict) else {}
+        return {
+            "id": response.get("responseId"),
+            "choices": [{"message": {"content": content}}],
+            "usage": {
+                "prompt_tokens": usage.get("promptTokenCount", 0) or 0,
+                "completion_tokens": usage.get("candidatesTokenCount", 0) or 0,
+            },
+        }
 
     def _estimate_cost_usd(self, prompt_tokens: float, completion_tokens: float) -> float:
         in_rate = float(os.getenv("LLM_PRICE_DEFAULT_INPUT_PER_1K", "0") or 0)
