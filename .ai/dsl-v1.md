@@ -91,11 +91,10 @@ Zasady:
 #### 3.1.2. entities.size (v1.1)
 `size` może być:
 - number (stały rozmiar w `px`)
-- object:
-  - `value` (number, stały rozmiar w `px`)
+- object **(wymaga `min` i `max`)**:
   - `min` (number, px)
   - `max` (number, px)
-  - `distribution` (string: "uniform" | "normal", default="uniform")
+  - `distribution` (string: "uniform" | "normal", optional)
 
 #### 3.1.3. entities.render (v1.1)
 Dozwolone pola:
@@ -109,19 +108,18 @@ Jak obiekty pojawiają się na starcie.
 Minimalne pola:
 - `entity_id` (string)
 - `count` (integer)
-- `distribution` (object, np. "random", "grid", "orbit")
-- `params` (object)
+- `distribution` (object: `type` + opcjonalne `params`)
 
 #### 3.2.2. Słownik dystrybucji spawnu/emiterów (v1.1)
 `distribution.type`:
 - `center` — punkt środka ekranu
-  - params: brak
+  - params: **brak** (nie podawaj pustego `params`)
 - `random` — losowy punkt w obszarze
   - params: `padding` (number, optional)
 - `grid` — siatka
-  - params: `cols` (integer), `rows` (integer)
+  - params: **wymagane** `cols` (integer), `rows` (integer)
 - `orbit` — punkt na okręgu
-  - params: `radius` (number), `speed` (number, optional)
+  - params: **wymagane** `radius` (number), `speed` (number, optional)
 
 #### 3.2.1. Emitery / spawny w czasie (v1.1)
 Dodatkowa sekcja `emitters` w `systems` opisuje spawny w czasie.
@@ -132,7 +130,7 @@ Struktura:
   - `entity_id` (string)
   - `rate_per_s` (number) — średnia liczba obiektów na sekundę
   - `distribution` (object; jak w `spawns`)
-  - `params` (object, optional)
+  - `params` (object, optional) — **opcjonalne tylko dla emitera**
   - `start_s` (number, optional, default=0)
   - `end_s` (number, optional) — jeśli brak, emituje do końca
 - `limit` (integer, optional) — maksymalna liczba obiektów z emitera
@@ -198,6 +196,12 @@ Ustawienia czasu (np. skala symulacji).
 - **Jednostki przestrzeni**: wszystkie pozycje i rozmiary w pikselach ekranu (`px`).
 - **Jednostki czasu**: `duration_s`, `at_s` i parametry prędkości są w sekundach (`s`).
 - **Prędkość**: wyrażona w `px/s`.
+
+## 5. Częste błędy (do unikania)
+- **`entities.size` jako obiekt bez `min` i `max`** → niepoprawne.
+- **`entities.size.value`** → nie jest obsługiwane (użyj liczby lub `{min,max}`).
+- **`spawns.params` na poziomie spawnu** → nie istnieje; `params` są tylko w `distribution`.
+- **`distribution.params: {}` dla `center`** → pomiń `params` w całości.
 - **Kąty**: podawane w stopniach (`deg`), zgodnie z ruchem wskazówek zegara.
 - **Wektory 2D**: `[x, y]` w `px` lub jednostkach bezwzględnych (bez normalizacji); jeśli wymagany kierunek, normalizacja odbywa się w rendererze.
 - **Punkty (point)**: zapis jako obiekt `{ x: number, y: number }` w `px`.
