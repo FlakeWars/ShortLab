@@ -38,8 +38,8 @@ root
     - `height` (integer)
     - `fps` (integer)
     - `duration_s` (number)
-  - `palette` (array of color tokens, np. hex "#RRGGBB")
-  - `background` (color token)
+- `palette` (array of color tokens, np. hex "#RRGGBB")
+- `background` (color token, **musi być elementem `palette`**)
 
 ### 2.4. systems
 Minimalny zestaw systemów, które opisują reguły animacji.

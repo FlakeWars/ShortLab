@@ -168,6 +168,7 @@ def _build_compile_prompt(
         "- spawns do NOT accept params at top-level; params are only under distribution.\n"
         "- distribution.params must be omitted when not required (e.g., center).\n"
         "- grid requires cols+rows; orbit requires radius (speed optional).\n\n"
+        "- scene.background MUST be one of scene.palette colors.\n\n"
         "ALGORITHM:\n"
         "1) Identify visual elements, motion rules, forces, timing, interactions.\n"
         "2) Map them to DSL concepts.\n"
