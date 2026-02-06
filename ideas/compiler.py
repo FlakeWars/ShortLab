@@ -38,8 +38,8 @@ def compile_idea_to_dsl(
 
     template_yaml = template_path.read_text()
     dsl_spec = read_dsl_spec()
-    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v2")
-    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v2")
+    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v3")
+    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v3")
     errors: list[str] = []
     repairs = 0
 
@@ -145,24 +145,43 @@ def _build_compile_prompt(
 ) -> str:
     mode = "repair" if is_repair else "compile"
     return (
-        f"Mode: {mode}\n"
+        f"MODE: {mode}\n\n"
+        "IDEA (BEGIN):\n"
+        "<<<IDEA_BEGIN>>>\n"
         f"{build_idea_context(title=idea.title, summary=idea.summary, what_to_expect=idea.what_to_expect, preview=idea.preview)}"
+        "<<<IDEA_END>>>\n\n"
         f"Previous validation errors: {previous_errors}\n\n"
-        "DSL spec (short reference):\n"
-        f"{dsl_spec[:8000]}\n\n"
-        "Build a complete DSL YAML FROM SCRATCH that represents the idea.\n"
-        "Do NOT copy or lightly tweak any existing template; create a fresh structure that fits the idea.\n"
-        "Follow the same creative frame as idea generation:\n"
+        "GOAL:\n"
+        "We want short, deterministic 2D animations based on simple geometric primitives.\n"
+        "Target a visually engaging, rhythmic, somewhat hypnotic result.\n"
+        "Avoid trivial motion and aim for interesting interactions or evolving structures.\n\n"
+        "DSL SPEC (BEGIN):\n"
+        "<<<DSL_SPEC_BEGIN>>>\n"
+        f"{dsl_spec[:8000]}\n"
+        "<<<DSL_SPEC_END>>>\n\n"
+        "CREATIVE FRAME:\n"
         "- Use simple geometric primitives.\n"
-        "- Motion must be deterministic (physics-like rules, parametric paths, or rule-based behaviors).\n"
-        "- Avoid external assets, characters, dialog, camera cuts, or photorealism.\n"
-        "Requirements:\n"
-        "- include all required sections for a valid DSL document\n"
-        "- use concrete values (no placeholders)\n"
-        "- ensure entities/spawns/rules are coherent\n"
-        "- keep the output concise but faithful to the idea\n\n"
+        "- Motion is deterministic (physics-like forces, parametric paths, or rule-based behaviors).\n"
+        "- No external assets, characters, dialog, camera cuts, or photorealism.\n\n"
+        "ALGORITHM:\n"
+        "1) Identify visual elements, motion rules, forces, timing, interactions.\n"
+        "2) Map them to DSL concepts.\n"
+        "3) Choose concrete parameter values (no placeholders).\n"
+        "4) Assemble a complete DSL YAML document.\n\n"
+        "REQUIREMENTS:\n"
+        "- Build DSL YAML FROM SCRATCH (do NOT copy any template).\n"
+        "- Include all required sections for a valid DSL document.\n"
+        "- Ensure entities/spawns/rules are coherent.\n"
+        "- Keep output concise but faithful to the idea.\n\n"
+        "LANGUAGE:\n"
         "Use the same language as the idea text for any human-readable fields.\n\n"
-        "Return only the DSL YAML."
+        "RESPONSE FORMAT EXAMPLE (BEGIN):\n"
+        "<<<RESPONSE_EXAMPLE>>>\n"
+        "{\n"
+        '  "dsl_yaml": "dsl_version: \'1.0\'\\nmeta:\\n  id: \'idea-001\'\\n  title: \'...\'\\n"\n'
+        "}\n"
+        "<<<RESPONSE_FORMAT_END>>>\n\n"
+        "Return JSON only. Do not wrap YAML in markdown or backticks."
     )
 
 
