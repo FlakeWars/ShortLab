@@ -7,6 +7,7 @@
   - [x] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
   - [x] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
   - [ ] Dodać test integracyjny mapowania profili na realnych providerach (OpenRouter/Groq/LiteLLM) poza mockami
+  - [ ] Opcja provider `codex_cli` (abonament) dla kompilatora: JSON-RPC bridge + konfiguracja
 - [ ] UI: układ i nawigacja (branch: feat/ui-layout)
   - [x] Przeprojektowanie z "długiej strony" na app-shell z nawigacją zakładkową (MVP)
   - [x] Wdrożenie kolejności: `Home/Control Tower` -> `Plan/Calendar` -> `Flow` -> `Repositories` -> `Settings`

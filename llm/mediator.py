@@ -12,6 +12,7 @@ from urllib.error import HTTPError, URLError
 
 from db.models import LLMMediatorBudgetDaily, LLMMediatorRouteMetric
 from db.session import SessionLocal
+from llm.codex_cli import CodexCliError, run_codex_cli
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,8 @@ class LLMError(Exception):
 
 def _provider_defaults(provider: str) -> tuple[str, str]:
     provider = provider.lower().strip()
+    if provider == "codex_cli":
+        return "codex-cli", "CODEX_CLI_AUTH"
     if provider == "openrouter":
         return "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"
     if provider == "groq":
@@ -108,7 +111,7 @@ def _load_route(task_type: str) -> TaskRoute:
     )
     assert model is not None and key_env is not None
     api_key = os.getenv(key_env, "").strip()
-    if not api_key:
+    if provider != "codex_cli" and not api_key:
         raise RuntimeError(f"Missing API key for task '{task_type}' (env: {key_env})")
     api_key_header = _first_non_empty(
         os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADER"),
@@ -444,6 +447,30 @@ class LLMMediator:
         route: TaskRoute,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
+        if route.provider == "codex_cli":
+            try:
+                content = run_codex_cli(
+                    system_prompt=payload["messages"][0]["content"],
+                    user_prompt=payload["messages"][1]["content"],
+                    json_schema=payload.get("response_format", {})
+                    .get("json_schema", {})
+                    .get("schema", {}),
+                    model=route.model,
+                    timeout_s=route.timeout_s,
+                )
+            except CodexCliError as exc:
+                raise LLMError(
+                    code="codex_cli_error",
+                    message=str(exc),
+                    provider=route.provider,
+                    task_type=task_type,
+                    retryable=True,
+                ) from exc
+            return {
+                "id": "codex-cli",
+                "choices": [{"message": {"content": content}}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0},
+            }
         headers = {"Content-Type": "application/json"}
         if route.api_key_header.lower() == "authorization":
             headers["Authorization"] = f"Bearer {route.api_key}"
