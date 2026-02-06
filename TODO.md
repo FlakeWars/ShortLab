@@ -123,10 +123,10 @@
   - [ ] Raport/insight: rekomendacje dla generatora idei
   - [ ] Interfejs (UI/API) do przeglądu insightów
 - [ ] LLM prompt hardening (branch: feat/llm-prompt-hardening)
-  - [ ] Dopasować przykłady odpowiedzi w promptach do wybranego języka (PL/EN)
+  - [x] Dopasować przykłady odpowiedzi w promptach do wybranego języka (PL/EN)
   - [ ] Sprawdzić limity tokenów po rozbudowie promptów (verifier/compiler) i dostroić `*_MAX_TOKENS`
   - [ ] Rozważyć skróconą wersję DSL spec dla promptów (kompresja/skrót) bez utraty kluczowych definicji
-  - [ ] Dodać `language` do CLI (`make idea-generate`, `make idea-verify-capability`)
+  - [x] Dodać `language` do CLI (`make idea-generate`, `make idea-verify-capability`)
 - [ ] Platform Registry (branch: feat/platform-registry)
   - [ ] Ujednolicony interfejs publikacji (publish/status/metrics)
   - [ ] Rejestr platform + pluginy (YouTube/TikTok jako pierwsze)

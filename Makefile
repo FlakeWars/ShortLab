@@ -217,6 +217,7 @@ idea-generate: ## Generate ideas into DB (file/template)
 		--limit "$(IDEA_GEN_LIMIT)" \
 		--seed "$(IDEA_GEN_SEED)" \
 		--prompt "$(IDEA_GEN_PROMPT)" \
+		--language "$(IDEA_GEN_LANGUAGE)" \
 		--similarity-threshold "$(IDEA_GEN_SIM_THRESHOLD)"
 
 .PHONY: idea-verify-capability
@@ -224,6 +225,7 @@ idea-verify-capability: ## Verify idea candidates against DSL capability (suppor
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-verify-capability.py \
 		--limit "$(IDEA_VERIFY_LIMIT)" \
 		--dsl-version "$(IDEA_DSL_VERSION)" \
+		--language "$(IDEA_VERIFY_LANGUAGE)" \
 		$(if $(IDEA_VERIFY_CANDIDATE_ID),--idea-candidate-id "$(IDEA_VERIFY_CANDIDATE_ID)",$(if $(IDEA_VERIFY_ID),--idea-candidate-id "$(IDEA_VERIFY_ID)",))
 
 .PHONY: dsl-gap-status

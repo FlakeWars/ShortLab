@@ -70,6 +70,49 @@ def _llm_capability_check(
     dsl_spec: str,
     language: str,
 ) -> tuple[dict, dict]:
+    language_code = (language or "pl").lower()
+    if language_code.startswith("en"):
+        response_ok = (
+            "{\n"
+            '  "feasible": true,\n'
+            '  "gaps": [],\n'
+            '  "notes": "Brief: idea fully expressible in the current DSL."\n'
+            "}\n"
+        )
+        response_not_ok = (
+            "{\n"
+            '  "feasible": false,\n'
+            '  "gaps": [\n'
+            "    {\n"
+            '      "feature": "motion_blur_trail",\n'
+            '      "reason": "Missing the ability to generate a motion blur trail for fast objects.",\n'
+            '      "impact": "Would enable visualizing high-speed motion and its dynamics."\n'
+            "    }\n"
+            "  ],\n"
+            '  "notes": "The idea requires an effect the DSL does not yet support."\n'
+            "}\n"
+        )
+    else:
+        response_ok = (
+            "{\n"
+            '  "feasible": true,\n'
+            '  "gaps": [],\n'
+            '  "notes": "Krótko: idea w pełni opisywalna DSL."\n'
+            "}\n"
+        )
+        response_not_ok = (
+            "{\n"
+            '  "feasible": false,\n'
+            '  "gaps": [\n'
+            "    {\n"
+            '      "feature": "motion_blur_trail",\n'
+            '      "reason": "Brakuje możliwości generowania smugi ruchu obiektu.",\n'
+            '      "impact": "Pozwoliłoby to na wizualizację szybkiego ruchu i jego dynamiki."\n'
+            "    }\n"
+            "  ],\n"
+            '  "notes": "Idea wymaga efektu, którego DSL obecnie nie wspiera."\n'
+            "}\n"
+        )
     user_prompt = (
         "IDEA (BEGIN):\n"
         "<<<IDEA_BEGIN>>>\n"
@@ -104,23 +147,9 @@ def _llm_capability_check(
         f"Write reason/impact/notes in {language.upper()}. Keep `feature` in English snake_case.\n\n"
         "RESPONSE FORMAT EXAMPLES (BEGIN):\n"
         "<<<RESPONSE_OK>>>\n"
-        "{\n"
-        '  "feasible": true,\n'
-        '  "gaps": [],\n'
-        '  "notes": "Krótko: idea w pełni opisywalna DSL."\n'
-        "}\n"
+        f"{response_ok}"
         "<<<RESPONSE_NOT_OK>>>\n"
-        "{\n"
-        '  "feasible": false,\n'
-        '  "gaps": [\n'
-        "    {\n"
-        '      "feature": "motion_blur_trail",\n'
-        '      "reason": "Brakuje możliwości generowania smugi ruchu obiektu.",\n'
-        '      "impact": "Pozwoliłoby to na wizualizację szybkiego ruchu i jego dynamiki."\n'
-        "    }\n"
-        "  ],\n"
-        '  "notes": "Idea wymaga efektu, którego DSL obecnie nie wspiera."\n'
-        "}\n"
+        f"{response_not_ok}"
         "<<<RESPONSE_FORMAT_END>>>\n\n"
         "Return JSON only."
     )

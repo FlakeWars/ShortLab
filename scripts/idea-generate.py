@@ -24,6 +24,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0, help="Seed for template source")
     parser.add_argument("--prompt", default="", help="Optional prompt for template source")
     parser.add_argument(
+        "--language",
+        default="pl",
+        choices=["pl", "en"],
+        help="Language for generated idea text",
+    )
+    parser.add_argument(
         "--similarity-threshold",
         type=float,
         default=0.97,
@@ -41,6 +47,7 @@ def main() -> None:
         limit=args.limit,
         seed=args.seed,
         prompt=args.prompt or None,
+        language=args.language,
     )
 
     if args.dry_run:

@@ -16,6 +16,12 @@ def main() -> None:
     parser.add_argument("--idea-candidate-id", type=UUID, help="Verify single idea candidate by UUID")
     parser.add_argument("--limit", type=int, default=20, help="Batch size for unverified idea candidates")
     parser.add_argument("--dsl-version", default="v1")
+    parser.add_argument(
+        "--language",
+        default="pl",
+        choices=["pl", "en"],
+        help="Language for gap reason/impact",
+    )
     args = parser.parse_args()
 
     session = SessionLocal()
@@ -26,6 +32,7 @@ def main() -> None:
                 session,
                 idea_candidate_id=args.idea_candidate_id,
                 dsl_version=args.dsl_version,
+                language=args.language,
             )
             reports.append(report)
         else:
@@ -41,6 +48,7 @@ def main() -> None:
                         session,
                         idea_candidate_id=candidate_id,
                         dsl_version=args.dsl_version,
+                        language=args.language,
                     )
                 )
 
