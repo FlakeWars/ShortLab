@@ -253,9 +253,29 @@ def _openai_ideas(*, limit: int, seed: int | None, prompt: str, language: str) -
         "additionalProperties": False,
     }
     system_prompt = (
-        "You generate concise idea proposals for short, deterministic 2D animations. "
-        "Return JSON matching the provided schema exactly. "
-        "Ideas must be distinct and useful for 30-60s animation loops. "
+        "You generate concise idea proposals for short, deterministic 2D animations.\n\n"
+        "Core constraints (must):\n"
+        "- The animation uses simple geometric primitives (circles, squares, triangles, lines, particles).\n"
+        "- Motion must be expressible via deterministic rules: physics-like forces (gravity, orbit, "
+        "attraction/repulsion), parametric paths, or rule-based behaviors.\n"
+        "- The idea must be describable with a structured animation DSL (do not mention the DSL explicitly).\n"
+        "- Avoid photorealism, characters, dialog, camera cuts, or external assets.\n"
+        "- Keep ideas feasible for a short format (30–60s) and easy to render.\n\n"
+        "Audience impact (target):\n"
+        "- Proposals should feel visually engaging, rhythmic, and somewhat hypnotic.\n"
+        "- Avoid trivial motions (e.g., a single square sliding left to right).\n"
+        "- Favor interactions, emergent patterns, layered motion, or evolving structures.\n\n"
+        "Optional creative guidance (use as suggestions, not requirements):\n"
+        "- Hook & payoff: consider a clear early hook and a satisfying visual payoff.\n"
+        "- Phases: consider 2–3 phases (build-up → transformation → resolution).\n"
+        "- Core mechanic: consider one dominant mechanic rather than many unrelated ones.\n"
+        "- Contrast: consider contrast in scale, speed, density, or spacing to create rhythm.\n"
+        "- Focal point: consider a clear point of attention with supporting motion around it.\n"
+        "- Emergent patterns: consider recognizable patterns (spiral, lattice, wave) from simple rules.\n"
+        "- Mobile legibility: consider larger, readable shapes for small screens.\n"
+        "- Parameterization: consider \"knobs\" (count, speed, force, spacing) for easy variants.\n"
+        "- Aesthetic tone: consider a satisfying/mesmerizing visual feel without narrative.\n\n"
+        "Return JSON matching the provided schema exactly.\n"
         f"Write all human-readable fields in {language.upper()}."
     )
     user_prompt = "\n".join(
