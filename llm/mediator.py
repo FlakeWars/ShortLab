@@ -546,6 +546,19 @@ class LLMMediator:
             system_prompt = str(messages[0].get("content", ""))
         if len(messages) >= 2:
             user_prompt = str(messages[1].get("content", ""))
+        generation_config = {
+            "temperature": payload.get("temperature"),
+            "maxOutputTokens": payload.get("max_tokens"),
+        }
+        response_schema = (
+            payload.get("response_format", {})
+            .get("json_schema", {})
+            .get("schema")
+        )
+        if response_schema:
+            generation_config["responseMimeType"] = "application/json"
+            generation_config["responseSchema"] = response_schema
+
         body = {
             "contents": [
                 {
@@ -556,10 +569,7 @@ class LLMMediator:
                     ]
                 }
             ],
-            "generationConfig": {
-                "temperature": payload.get("temperature"),
-                "maxOutputTokens": payload.get("max_tokens"),
-            },
+            "generationConfig": generation_config,
         }
         if system_prompt:
             body["system_instruction"] = {"parts": [{"text": system_prompt}]}
