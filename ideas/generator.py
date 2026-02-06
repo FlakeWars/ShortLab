@@ -34,6 +34,7 @@ def generate_ideas(
     limit: int | None = None,
     seed: int | None = None,
     prompt: str | None = None,
+    language: str = "pl",
 ) -> list[IdeaDraft]:
     if source == "auto":
         if os.getenv("OPENAI_API_KEY"):
@@ -44,6 +45,7 @@ def generate_ideas(
                     limit=limit,
                     seed=seed,
                     prompt=prompt,
+                    language=language,
                 )
             except Exception:
                 pass
@@ -54,6 +56,7 @@ def generate_ideas(
                 limit=limit,
                 seed=seed,
                 prompt=prompt,
+                language=language,
             )
         except Exception:
             if ideas_path:
@@ -63,6 +66,7 @@ def generate_ideas(
                     limit=limit,
                     seed=seed,
                     prompt=prompt,
+                    language=language,
                 )
             raise
     if source == "file":
@@ -71,10 +75,10 @@ def generate_ideas(
         parsed = parse_ideas_file(Path(ideas_path))
         return _drafts_from_parsed(parsed, source="file", meta={"path": ideas_path}, limit=limit)
     if source == "openai":
-        return _openai_ideas(limit=limit or 5, seed=seed, prompt=prompt or "")
+        return _openai_ideas(limit=limit or 5, seed=seed, prompt=prompt or "", language=language)
     if source == "template":
         rng = random.Random(seed or 0)
-        return _template_ideas(rng, limit or 5, prompt)
+        return _template_ideas(rng, limit or 5, prompt, language=language)
     raise ValueError(f"Unsupported idea source: {source}")
 
 
@@ -184,13 +188,26 @@ def _drafts_from_parsed(
     return out
 
 
-def _template_ideas(rng: random.Random, count: int, prompt: str | None) -> list[IdeaDraft]:
-    motifs = [
-        ("Pulsujace jądro", "Czastki orbituja i dziela sie w rytmie uderzen."),
-        ("Grawitacyjna zmiana", "Grawitacja odwraca sie cyklicznie, tworząc rytm."),
+def _template_ideas(
+    rng: random.Random,
+    count: int,
+    prompt: str | None,
+    *,
+    language: str,
+) -> list[IdeaDraft]:
+    motifs_pl = [
+        ("Pulsujące jądro", "Cząstki orbitują i dzielą się w rytmie uderzeń."),
+        ("Grawitacyjna zmiana", "Grawitacja odwraca się cyklicznie, tworząc rytm."),
         ("Wzrost krystaliczny", "Kryształy rosną i blokują przestrzeń."),
-        ("Siec napiec", "Punkty lacza sie i pekaja przy nadmiernym napieciu."),
+        ("Sieć napięć", "Punkty łączą się i pękają przy nadmiernym napięciu."),
     ]
+    motifs_en = [
+        ("Pulsing core", "Particles orbit and split in a steady heartbeat."),
+        ("Gravity flip", "Gravity inverts cyclically to create a rhythm."),
+        ("Crystal growth", "Crystals expand and block the space."),
+        ("Tension lattice", "Points connect and snap under rising tension."),
+    ]
+    motifs = motifs_en if language.lower().startswith("en") else motifs_pl
     out: list[IdeaDraft] = []
     for idx in range(count):
         title, summary = rng.choice(motifs)
@@ -211,7 +228,7 @@ def _template_ideas(rng: random.Random, count: int, prompt: str | None) -> list[
     return out
 
 
-def _openai_ideas(*, limit: int, seed: int | None, prompt: str) -> list[IdeaDraft]:
+def _openai_ideas(*, limit: int, seed: int | None, prompt: str, language: str) -> list[IdeaDraft]:
     schema = {
         "type": "object",
         "properties": {
@@ -238,13 +255,15 @@ def _openai_ideas(*, limit: int, seed: int | None, prompt: str) -> list[IdeaDraf
     system_prompt = (
         "You generate concise idea proposals for short, deterministic 2D animations. "
         "Return JSON matching the provided schema exactly. "
-        "Ideas must be distinct and useful for 30-60s animation loops."
+        "Ideas must be distinct and useful for 30-60s animation loops. "
+        f"Write all human-readable fields in {language.upper()}."
     )
     user_prompt = "\n".join(
         [
             f"Generate {limit} ideas.",
             f"Seed: {seed}" if seed is not None else "Seed: none",
             f"User prompt: {prompt.strip()}" if prompt.strip() else "",
+            f"Output language: {language}",
         ]
     ).strip()
     data, meta = get_mediator().generate_json(

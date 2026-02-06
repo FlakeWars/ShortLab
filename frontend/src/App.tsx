@@ -113,6 +113,10 @@ type BlockedIdeaCandidate = {
 }
 
 const STATUS_ORDER = ['queued', 'running', 'failed', 'succeeded']
+const LANGUAGE_OPTIONS = [
+  { value: 'pl', label: 'PL' },
+  { value: 'en', label: 'EN' },
+] as const
 const ANIMATION_STATUSES = [
   'draft',
   'queued',
@@ -303,6 +307,14 @@ function SettingRow({ label, value }: { label: string; value?: string | null }) 
 
 function App() {
   const [activeView, setActiveView] = useState<AppView>(getViewFromUrl)
+  const [uiLanguage, setUiLanguage] = useState<'pl' | 'en'>(() => {
+    if (typeof window === 'undefined') return 'pl'
+    return (window.localStorage.getItem('shortlab.ui.language') as 'pl' | 'en') || 'pl'
+  })
+  const [uiTheme, setUiTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light'
+    return (window.localStorage.getItem('shortlab.ui.theme') as 'light' | 'dark') || 'light'
+  })
   const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null)
   const [systemStatusLoading, setSystemStatusLoading] = useState(false)
   const [systemStatusError, setSystemStatusError] = useState<string | null>(null)
@@ -528,6 +540,7 @@ function App() {
         payload.file_name = generatorFileName || undefined
         payload.file_content = generatorFileContent.trim()
       }
+      payload.language = uiLanguage
       const response = await fetch(`${API_BASE}/idea-candidates/generate`, {
         method: 'POST',
         headers: opsHeaders(),
@@ -800,7 +813,10 @@ function App() {
       const response = await fetch(`${API_BASE}/idea-candidates/verify-capability/batch`, {
         method: 'POST',
         headers: opsHeaders(),
-        body: JSON.stringify({ limit: Number.isNaN(limit) ? 20 : Math.max(1, Math.min(limit, 200)) }),
+        body: JSON.stringify({
+          limit: Number.isNaN(limit) ? 20 : Math.max(1, Math.min(limit, 200)),
+          language: uiLanguage,
+        }),
       })
       if (!response.ok) {
         throw new Error(`API error ${response.status}`)
@@ -867,6 +883,17 @@ function App() {
     const interval = window.setInterval(fetchSystemStatus, 15000)
     return () => window.clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('shortlab.ui.language', uiLanguage)
+  }, [uiLanguage])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('shortlab.ui.theme', uiTheme)
+    window.document.documentElement.classList.toggle('dark', uiTheme === 'dark')
+  }, [uiTheme])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1040,9 +1067,50 @@ function App() {
             </p>
           </div>
           <div className="flex flex-col gap-3 lg:items-end">
-            <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-4 py-2 text-xs font-medium text-stone-600 shadow">
-              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
-              Auto-refresh every 15s
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-xs font-medium text-stone-600 shadow">
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
+                Auto-refresh every 15s
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-xs text-stone-600 shadow">
+                <span className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Lang</span>
+                <select
+                  className="rounded-full border border-stone-200 bg-white px-2 py-1 text-xs text-stone-700"
+                  value={uiLanguage}
+                  onChange={(event) => setUiLanguage(event.target.value as 'pl' | 'en')}
+                >
+                  {LANGUAGE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-xs text-stone-600 shadow">
+                <span className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Theme</span>
+                <div className="flex overflow-hidden rounded-full border border-stone-200 bg-white">
+                  <button
+                    type="button"
+                    className={cn(
+                      'px-2 py-1 text-[10px] uppercase tracking-[0.18em]',
+                      uiTheme === 'light' ? 'bg-stone-900 text-white' : 'text-stone-600',
+                    )}
+                    onClick={() => setUiTheme('light')}
+                  >
+                    Light
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      'px-2 py-1 text-[10px] uppercase tracking-[0.18em]',
+                      uiTheme === 'dark' ? 'bg-stone-900 text-white' : 'text-stone-600',
+                    )}
+                    onClick={() => setUiTheme('dark')}
+                  >
+                    Dark
+                  </button>
+                </div>
+              </div>
             </div>
             <Button variant="outline" className="rounded-full" onClick={fetchSummary} disabled={summaryLoading}>
               Refresh now

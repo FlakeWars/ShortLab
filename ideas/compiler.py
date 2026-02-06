@@ -157,6 +157,7 @@ def _build_compile_prompt(
         "- use concrete values (no placeholders)\n"
         "- ensure entities/spawns/rules are coherent\n"
         "- keep the output concise but faithful to the idea\n\n"
+        "Use the same language as the idea text for any human-readable fields.\n\n"
         "Return only the DSL YAML."
     )
 

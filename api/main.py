@@ -181,21 +181,25 @@ class IdeaDecisionRequest(BaseModel):
 class IdeaCapabilityVerifyRequest(BaseModel):
     idea_id: UUID
     dsl_version: str = Field(default="v1")
+    language: Literal["pl", "en"] = Field(default="pl")
 
 
 class IdeaCapabilityVerifyBatchRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=200)
     dsl_version: str = Field(default="v1")
+    language: Literal["pl", "en"] = Field(default="pl")
 
 
 class IdeaCandidateCapabilityVerifyRequest(BaseModel):
     idea_candidate_id: UUID
     dsl_version: str = Field(default="v1")
+    language: Literal["pl", "en"] = Field(default="pl")
 
 
 class IdeaCandidateCapabilityVerifyBatchRequest(BaseModel):
     limit: int = Field(default=20, ge=1, le=200)
     dsl_version: str = Field(default="v1")
+    language: Literal["pl", "en"] = Field(default="pl")
 
 
 class DslGapStatusRequest(BaseModel):
@@ -222,6 +226,7 @@ class IdeaCandidateGenerateRequest(BaseModel):
     mode: Literal["llm", "text", "file"]
     limit: int | None = Field(default=None, ge=1, le=50)
     prompt: str | None = Field(default=None)
+    language: Literal["pl", "en"] = Field(default="pl")
     text: str | None = Field(default=None)
     title: str | None = Field(default=None)
     summary: str | None = Field(default=None)
@@ -679,6 +684,7 @@ def verify_capability(
             session,
             idea_id=request.idea_id,
             dsl_version=request.dsl_version,
+            language=request.language,
         )
         session.commit()
         return jsonable_encoder(report)
@@ -704,6 +710,7 @@ def verify_capability_batch(
                 session,
                 idea_id=idea_id,
                 dsl_version=request.dsl_version,
+                language=request.language,
             )
             for (idea_id,) in idea_ids
         ]
@@ -724,6 +731,7 @@ def verify_candidate_capability_endpoint(
             session,
             idea_candidate_id=request.idea_candidate_id,
             dsl_version=request.dsl_version,
+            language=request.language,
         )
         session.commit()
         return jsonable_encoder(report)
@@ -749,6 +757,7 @@ def verify_candidate_capability_batch(
                 session,
                 idea_candidate_id=candidate_id,
                 dsl_version=request.dsl_version,
+                language=request.language,
             )
             for (candidate_id,) in candidate_ids
         ]
@@ -899,6 +908,7 @@ def generate_idea_candidates(
                 source="openai",
                 limit=request.limit,
                 prompt=request.prompt or "",
+                language=request.language,
             )
         elif mode == "text":
             base_text = (request.text or "").strip()

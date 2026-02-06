@@ -68,13 +68,16 @@ def _llm_capability_check(
     what_to_expect: str | None,
     preview: str | None,
     dsl_spec: str,
+    language: str,
 ) -> tuple[dict, dict]:
     user_prompt = (
         f"{build_idea_context(title=title, summary=summary, what_to_expect=what_to_expect, preview=preview)}\n"
         "DSL spec (short reference):\n"
         f"{dsl_spec}\n\n"
         "Decide if the DSL can express this idea without adding new primitives. "
-        "If not, list missing capabilities as gaps."
+        "If not, list missing capabilities as gaps.\n"
+        f"Write gap reason/impact and notes in {language.upper()}.\n"
+        "Keep `feature` in stable snake_case (English)."
     )
     payload, route_meta = get_mediator().generate_json(
         task_type="idea_verify_capability",
@@ -143,6 +146,7 @@ def verify_idea_capability(
     idea_id: UUID,
     dsl_version: str = "v1",
     policy_version: str = "capability-v1",
+    language: str = "pl",
 ) -> dict:
     idea = session.get(Idea, idea_id)
     if idea is None:
@@ -162,6 +166,7 @@ def verify_idea_capability(
                 what_to_expect=idea.what_to_expect,
                 preview=idea.preview,
                 dsl_spec=dsl_spec,
+                language=language,
             )
             llm_feasible = bool(payload.get("feasible", True))
             gaps = payload.get("gaps", [])
@@ -276,6 +281,7 @@ def verify_candidate_capability(
     idea_candidate_id: UUID,
     dsl_version: str = "v1",
     policy_version: str = "capability-v1",
+    language: str = "pl",
 ) -> dict:
     candidate = session.get(IdeaCandidate, idea_candidate_id)
     if candidate is None:
@@ -295,6 +301,7 @@ def verify_candidate_capability(
                 what_to_expect=candidate.what_to_expect,
                 preview=candidate.preview,
                 dsl_spec=dsl_spec,
+                language=language,
             )
             llm_feasible = bool(payload.get("feasible", True))
             gaps = payload.get("gaps", [])

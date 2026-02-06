@@ -157,6 +157,13 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] UI: przełącznik języka + motyw jasny/ciemny (2026-02-06)
+  - [x] UI: language selector (PL/EN) zapisany w localStorage i używany w generatorze/weryfikatorze
+  - [x] UI: theme toggle (light/dark) z `.dark` na `<html>`
+- [x] Prompty LLM: parametr języka odpowiedzi (2026-02-06)
+  - [x] Generator idei: wymusza język odpowiedzi
+  - [x] Weryfikator DSL: gap reason/impact w języku użytkownika (feature w snake_case)
+  - [x] Kompilator: język pól „human-readable” zgodny z ideą
 - [x] UI: pokazuj zrodlo weryfikacji (LLM/fallback) (branch: feat/ui-verifier-indicator) (2026-02-05)
   - [x] Panel DSL Capability: provider/model + tryb weryfikacji
 - [x] Post-merge analysis (2026-02-05)
