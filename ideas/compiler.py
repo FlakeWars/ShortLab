@@ -75,6 +75,7 @@ def compile_idea_to_dsl(
             if not dsl_yaml:
                 raise RuntimeError("empty_dsl_yaml")
             target_path.write_text(dsl_yaml)
+            _ensure_background_in_palette(target_path)
             model = validate_file(target_path)
             semantic_errors = _semantic_validate(model)
             if semantic_errors:
@@ -105,6 +106,7 @@ def compile_idea_to_dsl(
 
     if os.getenv("IDEA_DSL_COMPILER_FALLBACK_TEMPLATE", "1") == "1":
         target_path.write_text(template_yaml)
+        _ensure_background_in_palette(target_path)
         model = validate_file(target_path)
         semantic_errors = _semantic_validate(model)
         if semantic_errors:
@@ -225,3 +227,28 @@ def _semantic_validate(model) -> list[str]:
             errors.append("termination.time cannot exceed scene.canvas.duration_s")
 
     return errors
+
+
+def _ensure_background_in_palette(target_path: Path) -> None:
+    try:
+        payload = yaml.safe_load(target_path.read_text())
+    except (OSError, yaml.YAMLError):
+        return
+    if not isinstance(payload, dict):
+        return
+    scene = payload.get("scene")
+    if not isinstance(scene, dict):
+        return
+    palette = scene.get("palette")
+    background = scene.get("background")
+    if not isinstance(background, str) or not background.strip():
+        return
+    if palette is None:
+        scene["palette"] = [background]
+        target_path.write_text(yaml.safe_dump(payload, sort_keys=False))
+        return
+    if isinstance(palette, list):
+        if background not in palette:
+            palette.append(background)
+            scene["palette"] = palette
+            target_path.write_text(yaml.safe_dump(payload, sort_keys=False))
