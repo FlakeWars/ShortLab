@@ -43,6 +43,7 @@ from ideas.compiler import compile_idea_to_dsl
 from ideas.generator import IdeaDraft, generate_ideas, save_ideas
 from ideas.parser import parse_ideas_text
 from llm import get_mediator
+from llm.mediator import _load_route
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
 
@@ -342,6 +343,30 @@ def get_settings() -> dict:
         "openai_temperature": flag("OPENAI_TEMPERATURE", "0.7"),
         "openai_max_output_tokens": flag("OPENAI_MAX_OUTPUT_TOKENS", "800"),
     }
+
+
+@app.get("/debug/llm-routes")
+def debug_llm_routes(_guard: None = Depends(_require_operator)) -> dict:
+    tasks = [
+        "idea_generate",
+        "idea_verify_capability",
+        "idea_compile_dsl",
+        "dsl_repair",
+    ]
+    routes: dict[str, dict[str, str | bool]] = {}
+    for task in tasks:
+        try:
+            route = _load_route(task)
+            routes[task] = {
+                "provider": route.provider,
+                "model": route.model,
+                "base_url": route.base_url,
+                "api_key_header": route.api_key_header,
+                "api_key_present": bool(route.api_key),
+            }
+        except Exception as exc:
+            routes[task] = {"error": str(exc)}
+    return {"routes": routes}
 
 
 @app.get("/audit-events")
