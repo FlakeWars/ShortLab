@@ -12,7 +12,7 @@ from llm import get_mediator
 from .prompting import build_idea_context, read_dsl_spec
 
 
-ALLOWED_IDEA_STATUSES = {"feasible", "ready_for_gate"}
+ALLOWED_IDEA_STATUSES = {"feasible", "ready_for_gate", "picked"}
 
 
 @dataclass(frozen=True)
