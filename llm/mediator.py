@@ -247,8 +247,11 @@ class LLMMediator:
         self._spent_usd_total = 0.0
         self._daily_budget_usd = float(os.getenv("LLM_DAILY_BUDGET_USD", "0") or 0)
         self._budget_day = self._today_utc()
+        self._token_budget_models: dict[str, int] = {}
+        self._token_budget_groups: dict[str, dict[str, Any]] = {}
         self._persist_backend = os.getenv("LLM_MEDIATOR_PERSIST_BACKEND", "db").strip().lower()
         self._state_file = Path(os.getenv("LLM_MEDIATOR_STATE_FILE", ".state/llm-mediator-state.json"))
+        self._load_token_budgets()
         self._load_state()
 
     def get_metrics_snapshot(self) -> dict[str, Any]:
@@ -300,6 +303,7 @@ class LLMMediator:
             )
             start = time.perf_counter()
             try:
+                self._assert_token_budget(task_type=task_type, provider=route.provider, model=route.model)
                 response = self._call_with_retries(task_type, route, payload)
                 try:
                     content = response["choices"][0]["message"]["content"]
@@ -787,6 +791,89 @@ class LLMMediator:
         if today != self._budget_day:
             self._budget_day = today
             self._spent_usd_total = 0.0
+            self._metrics = {}
+
+    def _load_token_budgets(self) -> None:
+        raw = os.getenv("LLM_TOKEN_BUDGETS", "").strip()
+        if not raw:
+            return
+        try:
+            data = json.loads(raw)
+        except Exception:
+            return
+        if not isinstance(data, dict):
+            return
+        models = data.get("models")
+        if isinstance(models, dict):
+            for key, limit in models.items():
+                try:
+                    self._token_budget_models[str(key)] = int(limit)
+                except Exception:
+                    continue
+        groups = data.get("groups")
+        if isinstance(groups, dict):
+            for name, payload in groups.items():
+                if isinstance(payload, dict):
+                    limit = payload.get("limit")
+                    members = payload.get("members", [])
+                else:
+                    limit = payload
+                    members = []
+                try:
+                    limit_value = int(limit)
+                except Exception:
+                    continue
+                member_list = [str(m) for m in members if m]
+                self._token_budget_groups[str(name)] = {
+                    "limit": limit_value,
+                    "members": member_list,
+                }
+
+    def _tokens_used_for_model(self, *, provider: str, model: str) -> float:
+        total = 0.0
+        for key, bucket in self._metrics.items():
+            _, key_provider, key_model = self._route_key_parts(key)
+            if key_provider == provider and key_model == model:
+                total += float(bucket.get("prompt_tokens_total", 0.0) or 0.0)
+                total += float(bucket.get("completion_tokens_total", 0.0) or 0.0)
+        return total
+
+    def _tokens_used_for_group(self, *, members: list[str]) -> float:
+        total = 0.0
+        for member in members:
+            if ":" not in member:
+                continue
+            provider, model = member.split(":", 1)
+            total += self._tokens_used_for_model(provider=provider, model=model)
+        return total
+
+    def _assert_token_budget(self, *, task_type: str, provider: str, model: str) -> None:
+        model_key = f"{provider}:{model}"
+        limit = self._token_budget_models.get(model_key)
+        if limit is not None:
+            used = self._tokens_used_for_model(provider=provider, model=model)
+            if used >= limit:
+                raise LLMError(
+                    code="token_budget_exceeded",
+                    message=f"Token budget exceeded for model {model_key}",
+                    provider=provider,
+                    task_type=task_type,
+                )
+        for group_name, payload in self._token_budget_groups.items():
+            members = payload.get("members", [])
+            if model_key not in members:
+                continue
+            group_limit = int(payload.get("limit", 0) or 0)
+            if group_limit <= 0:
+                continue
+            used = self._tokens_used_for_group(members=members)
+            if used >= group_limit:
+                raise LLMError(
+                    code="token_budget_exceeded",
+                    message=f"Token budget exceeded for group {group_name}",
+                    provider=provider,
+                    task_type=task_type,
+                )
 
     def _load_state(self) -> None:
         if self._persist_backend == "db" and self._load_state_db():

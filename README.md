@@ -77,7 +77,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - `LLM_ROUTE_<TASK>_*` nadal ma najwyższy priorytet (nadpisuje profil)
   - resiliency: `LLM_ROUTE_IDEA_GENERATE_TIMEOUT_S`, `..._RETRIES`, `..._BREAKER_*`
   - telemetria/cost estimate: `LLM_PRICE_DEFAULT_INPUT_PER_1K`, `LLM_PRICE_DEFAULT_OUTPUT_PER_1K`
-  - safety caps: `LLM_ROUTE_IDEA_GENERATE_MAX_TOKENS`, `..._MAX_COST_USD`, `LLM_DAILY_BUDGET_USD`
+  - safety caps: `LLM_ROUTE_IDEA_GENERATE_MAX_TOKENS`, `..._MAX_COST_USD`, `LLM_DAILY_BUDGET_USD`, `LLM_TOKEN_BUDGETS`
   - persystencja metryk/budżetu: `LLM_MEDIATOR_PERSIST_BACKEND=db` (fallback: `LLM_MEDIATOR_STATE_FILE`)
   - retention: `LLM_MEDIATOR_METRICS_RETENTION_DAYS`, `LLM_MEDIATOR_BUDGET_RETENTION_DAYS`
   - metryki runtime: `GET /llm/metrics` (operator-only)
@@ -146,6 +146,10 @@ curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
 - `CLEANUP_OLDER_MIN` – próg minut dla auto-cleanup `running` przy starcie `make run-dev` (domyślnie 30).
 - `LLM_ROUTE_<TASK>_PROVIDERS` / `LLM_ROUTE_<TASK>_MODELS` – lista providerów/modeli w kolejności fallbacku (np. `gemini,openai` / `gemini-2.5-pro,gpt-5.2-codex`).
 - `LLM_ROUTE_<TASK>_API_KEY_ENVS` / `LLM_ROUTE_<TASK>_API_KEY_HEADERS` – opcjonalne listy kluczy/nagłówków dla powyższych providerów.
+- `LLM_TOKEN_BUDGETS` – JSON limitów tokenów per model lub grupa modeli (sumuje prompt+completion, reset dzienny). Przykład:
+  ```
+  {"models":{"openai:gpt-5.1-codex-mini":2000000},"groups":{"codex":{"limit":2000000,"members":["openai:gpt-5.1-codex-mini","openai:gpt-5.2-codex"]}}}
+  ```
 
 ## Makefile
 Dostępne cele:

@@ -9,6 +9,7 @@
   - [x] Cofnij decyzję Idea Gate (picked/later/rejected -> new) + UI akcja
   - [x] Idea Gate: wybór konkretnego kandydata (nie tylko losowanie)
   - [x] Manualne uruchamianie compile/render z UI (bez auto)
+- [ ] LLM: limity tokenów per model/grupa + hard-stop (branch: feat/dev-manual-flow)
 ## Next (Kolejne)
 - [ ] Manual Flow v1.1 (branch: feat/dev-manual-flow-v1-1)
   - [ ] Render-only z istniejącego DSL (bez ponownej kompilacji) + UI akcja
