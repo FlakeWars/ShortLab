@@ -113,6 +113,25 @@ def _sanitize_openai_schema(schema: Any) -> Any:
     return schema
 
 
+def _enforce_dsl_model_uniform() -> None:
+    if os.getenv("LLM_ENFORCE_DSL_MODEL_UNIFORM", "1") != "1":
+        return
+    tasks = ["idea_verify_capability", "idea_compile_dsl", "dsl_repair"]
+    routes_by_task: dict[str, tuple[str, str]] = {}
+    for task in tasks:
+        routes = _load_routes(task)
+        if len(routes) != 1:
+            raise RuntimeError(
+                f"DSL model uniform requires single route for '{task}', got {len(routes)}"
+            )
+        route = routes[0]
+        routes_by_task[task] = (route.provider, route.model)
+    unique = {value for value in routes_by_task.values()}
+    if len(unique) > 1:
+        details = ", ".join(f"{task}={provider}:{model}" for task, (provider, model) in routes_by_task.items())
+        raise RuntimeError(f"DSL model uniform mismatch: {details}")
+
+
 DEFAULT_TASK_PROFILES: dict[str, str] = {
     "idea_generate": "creative",
     "idea_verify_capability": "analytical",
@@ -297,6 +316,7 @@ class LLMMediator:
         self._state_file = Path(os.getenv("LLM_MEDIATOR_STATE_FILE", ".state/llm-mediator-state.json"))
         self._load_token_budgets()
         self._load_state()
+        _enforce_dsl_model_uniform()
 
     @staticmethod
     def log_event(message: str, *, payload: dict[str, Any] | None = None) -> None:
