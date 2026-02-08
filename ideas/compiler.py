@@ -40,8 +40,8 @@ def compile_idea_to_dsl(
 
     template_yaml = template_path.read_text()
     dsl_spec = read_dsl_spec()
-    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v4")
-    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v4")
+    prompt_version = os.getenv("IDEA_DSL_COMPILER_PROMPT_VERSION", "idea-to-dsl-v5")
+    repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v5")
     errors: list[str] = []
     repairs = 0
 
@@ -49,18 +49,14 @@ def compile_idea_to_dsl(
         current_task = "dsl_repair" if errors else "idea_compile_dsl"
         user_prompt = _build_compile_prompt(
             idea=idea,
-            template_yaml=template_yaml,
-            dsl_spec=dsl_spec,
             previous_errors=errors,
             is_repair=bool(errors),
         )
         try:
+            system_prompt = _build_compiler_system_prompt(dsl_spec=dsl_spec)
             payload, route_meta = get_mediator().generate_json(
                 task_type=current_task,
-                system_prompt=(
-                    "You compile one feasible short animation idea into YAML DSL. "
-                    "Return JSON only."
-                ),
+                system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 json_schema={
                     "type": "object",
@@ -142,8 +138,6 @@ def can_use_llm_compiler() -> bool:
 def _build_compile_prompt(
     *,
     idea: Idea,
-    template_yaml: str,
-    dsl_spec: str,
     previous_errors: list[str],
     is_repair: bool,
 ) -> str:
@@ -155,13 +149,21 @@ def _build_compile_prompt(
         f"{build_idea_context(title=idea.title, summary=idea.summary, what_to_expect=idea.what_to_expect, preview=idea.preview)}"
         "<<<IDEA_END>>>\n\n"
         f"Previous validation errors: {previous_errors}\n\n"
+        "Return JSON only. Do not wrap YAML in markdown or backticks."
+    )
+
+
+def _build_compiler_system_prompt(*, dsl_spec: str) -> str:
+    return (
+        "You compile one feasible short animation idea into YAML DSL. "
+        "Return JSON only.\n\n"
         "GOAL:\n"
         "We want short, deterministic 2D animations based on simple geometric primitives.\n"
         "Target a visually engaging, rhythmic, somewhat hypnotic result.\n"
         "Avoid trivial motion and aim for interesting interactions or evolving structures.\n\n"
         "DSL SPEC (BEGIN):\n"
         "<<<DSL_SPEC_BEGIN>>>\n"
-        f"{dsl_spec[:8000]}\n"
+        f"{dsl_spec}\n"
         "<<<DSL_SPEC_END>>>\n\n"
         "CREATIVE FRAME:\n"
         "- Use simple geometric primitives.\n"
@@ -171,7 +173,7 @@ def _build_compile_prompt(
         "- entities.size object MUST include min and max; do not use size.value.\n"
         "- spawns do NOT accept params at top-level; params are only under distribution.\n"
         "- distribution.params must be omitted when not required (e.g., center).\n"
-        "- grid requires cols+rows; orbit requires radius (speed optional).\n\n"
+        "- grid requires cols+rows; orbit requires radius (speed optional).\n"
         "- scene.background MUST be one of scene.palette colors.\n\n"
         "ALGORITHM:\n"
         "1) Identify visual elements, motion rules, forces, timing, interactions.\n"

@@ -48,7 +48,7 @@ GAP_SIGNALS: tuple[GapSignal, ...] = (
 )
 
 BLOCKING_GAP_STATUSES = {"new", "accepted", "in_progress", "rejected"}
-LLM_CAPABILITY_PROMPT_VERSION = "idea-capability-v2"
+LLM_CAPABILITY_PROMPT_VERSION = "idea-capability-v3"
 
 
 def _gap_key(dsl_version: str, feature: str, reason: str) -> str:
@@ -117,11 +117,9 @@ def _llm_capability_check(
             '  "notes": "Idea wymaga efektu, którego DSL obecnie nie wspiera."\n'
             "}\n"
         )
-    user_prompt = (
-        "IDEA (BEGIN):\n"
-        "<<<IDEA_BEGIN>>>\n"
-        f"{build_idea_context(title=title, summary=summary, what_to_expect=what_to_expect, preview=preview)}"
-        "<<<IDEA_END>>>\n\n"
+    system_prompt = (
+        "You verify whether a short animation idea is feasible with the current DSL. "
+        "Return JSON only, matching the schema.\n\n"
         "GOAL:\n"
         "We want short, deterministic 2D animations based on simple geometric primitives.\n"
         "The idea should feel visually engaging and somewhat hypnotic, avoid trivial motion,\n"
@@ -154,7 +152,8 @@ def _llm_capability_check(
         "- reason: human-readable description of the missing capability\n"
         "- impact: what this feature would enable after implementation\n\n"
         "LANGUAGE:\n"
-        f"Write reason/impact/notes in {language.upper()}. Keep `feature` in English snake_case.\n\n"
+        "Use the language requested in the USER message for reason/impact/notes.\n"
+        "Keep `feature` in English snake_case.\n\n"
         "RESPONSE FORMAT EXAMPLES (BEGIN):\n"
         "<<<RESPONSE_OK>>>\n"
         f"{response_ok}"
@@ -163,12 +162,16 @@ def _llm_capability_check(
         "<<<RESPONSE_FORMAT_END>>>\n\n"
         "Return JSON only."
     )
+    user_prompt = (
+        "IDEA (BEGIN):\n"
+        "<<<IDEA_BEGIN>>>\n"
+        f"{build_idea_context(title=title, summary=summary, what_to_expect=what_to_expect, preview=preview)}"
+        "<<<IDEA_END>>>\n\n"
+        f"LANGUAGE: {language.upper()}\n"
+    )
     payload, route_meta = get_mediator().generate_json(
         task_type="idea_verify_capability",
-        system_prompt=(
-            "You verify whether a short animation idea is feasible with the current DSL. "
-            "Return JSON only, matching the schema."
-        ),
+        system_prompt=system_prompt,
         user_prompt=user_prompt,
         json_schema={
             "type": "object",
