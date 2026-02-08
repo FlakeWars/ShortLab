@@ -742,12 +742,16 @@ class LLMMediator:
         output_text = response.get("output_text")
         if not output_text:
             output = response.get("output", [])
-            if output:
-                content = output[0].get("content", [])
+            for item in output:
+                content = item.get("content", []) if isinstance(item, dict) else []
                 for part in content:
-                    if part.get("type") == "output_text":
+                    if not isinstance(part, dict):
+                        continue
+                    if part.get("type") in {"output_text", "text"} and part.get("text"):
                         output_text = part.get("text")
                         break
+                if output_text:
+                    break
         if not output_text:
             raise LLMError(
                 code="invalid_response",
