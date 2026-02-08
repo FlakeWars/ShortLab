@@ -435,6 +435,7 @@ function App() {
   const [dslGapsLoading, setDslGapsLoading] = useState(false)
   const [dslGapsError, setDslGapsError] = useState<string | null>(null)
   const [dslGapsUpdatedAt, setDslGapsUpdatedAt] = useState<Date | null>(null)
+  const [dslGapPromptId, setDslGapPromptId] = useState<string | null>(null)
   const [dslVersions, setDslVersions] = useState<DslVersionRow[]>([])
   const [dslVersionsLoading, setDslVersionsLoading] = useState(false)
   const [dslVersionsError, setDslVersionsError] = useState<string | null>(null)
@@ -1042,6 +1043,51 @@ function App() {
     }
   }
 
+  const buildGapPrompt = (gap: DslGap) => {
+    const currentDslVersion = systemStatus?.dsl_version_current ?? 'v1'
+    return [
+      'Jesteś asystentem programistycznym. Twoim zadaniem jest wdrożyć GAP w DSL.',
+      '',
+      'KONTEKST PROJEKTU:',
+      `- Repo: ${window.location.origin}`,
+      '- Przeczytaj i przestrzegaj zasad: AGENTS.md',
+      '- Dokumentacja: .ai/prd.md, .ai/tech-stack.md, .ai/flow.md',
+      '- Specyfikacja DSL: .ai/dsl-v1.md (zaktualizuj i bump wersji)',
+      '- TODO: TODO.md',
+      '',
+      'GAP DO WDROZENIA:',
+      `- feature: ${gap.feature ?? 'unknown'}`,
+      `- reason: ${gap.reason ?? '—'}`,
+      `- impact: ${gap.impact ?? '—'}`,
+      `- introduced in DSL: ${gap.dsl_version ?? '—'}`,
+      `- current DSL version: ${currentDslVersion}`,
+      '',
+      'WYMAGANIA:',
+      '- Wprowadz zmiany w DSL (spec + walidator + renderer, gdzie potrzebne).',
+      '- Przygotuj migracje, jesli zmienia sie schema danych.',
+      '- Upewnij sie, ze GAP jest pokryty i da sie go zweryfikowac.',
+      '- Po wdrozeniu bumpnij wersje DSL (np. 1.1) i oznacz GAP jako implemented.',
+      '',
+      'PROCES (KROKI):',
+      '1) Zaproponuj plan implementacji GAP (krótko).',
+      '2) Zidentyfikuj pliki do zmiany (specyfikacja, walidacja, renderer, modele).',
+      '3) Wprowadz zmiany w kodzie.',
+      '4) Dodaj/aktualizuj testy, jeśli są.',
+      '5) Uruchom formatery i lintery przez Makefile.',
+      '6) Opisz jak przetestowac recznie.',
+      '',
+      'KOMENDY (przykladowe):',
+      '- make format',
+      '- make lint',
+      '- make run-dev',
+      '- make db-migrate',
+      '',
+      'UWAGI:',
+      '- Trzymaj sie zasad z AGENTS.md (gałęzie, commit, merge).',
+      '- Zwracaj uwage na kompatybilnosc z aktualna wersja DSL.',
+    ].join('\n')
+  }
+
   const fetchDslVersions = async () => {
     setDslVersionsLoading(true)
     setDslVersionsError(null)
@@ -1394,6 +1440,9 @@ function App() {
   ).length
   const qcQueue = animationData.filter((row) => row.pipeline_stage === 'qc').length
   const publishReady = animationData.filter((row) => row.status === 'accepted').length
+  const selectedGap = dslGapPromptId
+    ? dslGaps.find((gap) => gap.id === dslGapPromptId) ?? null
+    : null
 
   const scrollToSection = (sectionId: string) => {
     if (typeof window === 'undefined') return
@@ -2246,6 +2295,15 @@ function App() {
                           >
                             Implemented
                           </Button>
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() =>
+                              setDslGapPromptId((prev) => (prev === gap.id ? null : gap.id))
+                            }
+                          >
+                            AI prompt
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -2255,6 +2313,42 @@ function App() {
             </table>
           )}
         </div>
+        {selectedGap ? (
+          <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-stone-800">
+                Prompt do wdrozenia GAP: {selectedGap.feature ?? 'gap'}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={async () => {
+                    const text = buildGapPrompt(selectedGap)
+                    if (navigator.clipboard?.writeText) {
+                      await navigator.clipboard.writeText(text)
+                    }
+                  }}
+                >
+                  Copy prompt
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="rounded-full"
+                  onClick={() => setDslGapPromptId(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+            <textarea
+              className="mt-3 w-full rounded-2xl border border-stone-200 bg-white/90 p-3 text-xs text-stone-700"
+              rows={14}
+              readOnly
+              value={buildGapPrompt(selectedGap)}
+            />
+          </div>
+        ) : null}
       </section>
 
       <section className="mt-6 rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
