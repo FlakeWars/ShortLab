@@ -1,21 +1,7 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Dev Mode: manualny flow + cofanie kroków (branch: feat/dev-manual-flow)
-  - [x] Tryb manualny: wyłącz automaty (verify/compile/render) w dev
-  - [x] Cofnij weryfikację kandydata (status -> unverified) + UI akcja
-  - [x] Ręczne ustawienie capability (feasible/blocked) bez LLM
-  - [x] Usuń kandydata (soft delete) + UI akcja
-  - [x] Cofnij decyzję Idea Gate (picked/later/rejected -> new) + UI akcja
-  - [x] Idea Gate: wybór konkretnego kandydata (nie tylko losowanie)
-  - [x] Manualne uruchamianie compile/render z UI (bez auto)
-- [ ] LLM: limity tokenów per model/grupa + hard-stop (branch: feat/dev-manual-flow)
-- [ ] DSL: workflow gapów + wersjonowanie spec (branch: feat/dev-manual-flow)
-  - [ ] Migracja: `implemented_in_version`, `resolved_at/by`, `dsl_version.is_active/notes`
-  - [ ] API: wersje DSL + aktywna wersja w system status
-  - [ ] Weryfikacja: dołącz listę aktywnych gapów do prompta
-  - [ ] Reverify: po implementacji gapu -> status `unverified` i ponowna weryfikacja
-  - [ ] UI: historia wersji DSL + status aktywnej wersji
+- [ ] (brak aktywnego zadania — czeka na wybór)
 ## Next (Kolejne)
 - [ ] Manual Flow v1.1 (branch: feat/dev-manual-flow-v1-1)
   - [ ] Render-only z istniejącego DSL (bez ponownej kompilacji) + UI akcja
@@ -182,6 +168,22 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Dev Mode: manualny flow + cofanie kroków (branch: feat/dev-manual-flow) (2026-02-08)
+  - [x] Tryb manualny: wyłącz automaty (verify/compile/render) w dev
+  - [x] Cofnij weryfikację kandydata (status -> unverified) + UI akcja
+  - [x] Ręczne ustawienie capability (feasible/blocked) bez LLM
+  - [x] Usuń kandydata (soft delete) + UI akcja
+  - [x] Cofnij decyzję Idea Gate (picked/later/rejected -> new) + UI akcja
+  - [x] Idea Gate: wybór konkretnego kandydata (nie tylko losowanie)
+  - [x] Manualne uruchamianie compile/render z UI (bez auto)
+- [x] LLM: limity tokenów per model/grupa + hard-stop (branch: feat/dev-manual-flow) (2026-02-08)
+- [x] DSL: workflow gapów + wersjonowanie spec (branch: feat/dev-manual-flow) (2026-02-08)
+  - [x] Migracja: `implemented_in_version`, `resolved_at/by`, `dsl_version.is_active/notes`
+  - [x] API: wersje DSL + aktywna wersja w system status
+  - [x] Weryfikacja: dołącz listę aktywnych gapów do prompta
+  - [x] Reverify: po implementacji gapu -> status `unverified` i ponowna weryfikacja
+  - [x] UI: historia wersji DSL + status aktywnej wersji
+  - [x] UI: prompt wdrożeniowy GAP (kopiowalny)
 - [x] Pipeline: stabilizacja dev (branch: fix/dev-pipeline-stability) (2026-02-06)
   - [x] `run-dev` ładuje `.env` i `.env.local`
   - [x] Worker bez forka (SimpleWorker) w dev
