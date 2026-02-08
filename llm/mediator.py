@@ -292,6 +292,13 @@ class LLMMediator:
                     raw_content = response["choices"][0]["message"]["content"]
                 except Exception:
                     raw_content = ""
+                if route.provider == "gemini" and os.getenv("LLM_GEMINI_DISABLE_REPAIR", "1") == "1":
+                    raise LLMError(
+                        code="invalid_json",
+                        message=f"Failed to parse LLM JSON response: {exc}",
+                        provider=route.provider,
+                        task_type=task_type,
+                    ) from exc
                 parsed, response = self._repair_json_response(
                     task_type=task_type,
                     route=route,
@@ -391,6 +398,12 @@ class LLMMediator:
         try:
             return json.loads(content)
         except json.JSONDecodeError:
+            try:
+                parsed = yaml.safe_load(content)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                pass
             extracted = self._extract_json_block(content)
             if extracted is None:
                 raise
