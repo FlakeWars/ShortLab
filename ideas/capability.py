@@ -222,16 +222,19 @@ def _parse_capability_lenient(raw: str) -> dict[str, Any] | None:
         stripped = line.strip().lstrip("-").strip()
         if not stripped:
             continue
-        lower = stripped.lower()
-        if lower.startswith("feature"):
+        key_match = re.match(r"^[\"']?([a-zA-Z_]+)[\"']?\\s*:", stripped)
+        if not key_match:
+            continue
+        key = key_match.group(1).lower()
+        value = stripped.split(":", 1)[-1].strip().strip(",").strip()
+        if key == "feature":
             if current:
                 gaps.append(current)
-            current = {}
-            current["feature"] = stripped.split(":", 1)[-1].strip()
-        elif lower.startswith("reason"):
-            current["reason"] = stripped.split(":", 1)[-1].strip()
-        elif lower.startswith("impact"):
-            current["impact"] = stripped.split(":", 1)[-1].strip()
+            current = {"feature": value.strip('"\''),}
+        elif key == "reason":
+            current["reason"] = value.strip('"\'' )
+        elif key == "impact":
+            current["impact"] = value.strip('"\'' )
     if current:
         gaps.append(current)
     if feasible is None and not gaps:
