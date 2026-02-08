@@ -676,8 +676,8 @@ class LLMMediator:
         body: dict[str, Any] = {
             "model": route.model,
             "input": [
-                {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
-                {"role": "user", "content": [{"type": "text", "text": user_prompt}]},
+                {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+                {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]},
             ],
             "temperature": payload.get("temperature"),
             "max_output_tokens": payload.get("max_tokens"),
