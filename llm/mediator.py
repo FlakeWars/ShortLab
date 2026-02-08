@@ -4,10 +4,13 @@ from dataclasses import dataclass
 from datetime import date
 import json
 import re
+from typing import Any
+
 import os
 from pathlib import Path
 import time
-from typing import Any
+
+import yaml
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 
@@ -395,7 +398,13 @@ class LLMMediator:
                 return json.loads(extracted)
             except json.JSONDecodeError:
                 coerced = self._coerce_json_like(extracted)
-                return json.loads(coerced)
+                try:
+                    return json.loads(coerced)
+                except json.JSONDecodeError:
+                    parsed = yaml.safe_load(coerced)
+                    if isinstance(parsed, dict):
+                        return parsed
+                    raise
 
     def _extract_json_block(self, content: str) -> str | None:
         start = min(
