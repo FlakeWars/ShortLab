@@ -75,6 +75,17 @@ def _openai_responses_models() -> set[str]:
     return {item.strip() for item in raw.split(",") if item.strip()}
 
 
+def _openai_json_schema_models() -> set[str]:
+    raw = os.getenv("LLM_OPENAI_JSON_SCHEMA_MODELS", "").strip()
+    if raw:
+        return {item.strip() for item in raw.split(",") if item.strip()}
+    return {
+        "gpt-4o-mini",
+        "gpt-4o-mini-2024-07-18",
+        "gpt-4o-2024-08-06",
+    }
+
+
 def _sanitize_gemini_schema(schema: Any) -> Any:
     if isinstance(schema, dict):
         cleaned: dict[str, Any] = {}
@@ -738,15 +749,20 @@ class LLMMediator:
         response_format = payload.get("response_format")
         if response_format:
             if isinstance(response_format, dict) and response_format.get("type") == "json_schema":
-                json_schema = response_format.get("json_schema", {}) if isinstance(response_format, dict) else {}
-                body["text"] = {
-                    "format": {
-                        "type": "json_schema",
-                        "name": json_schema.get("name", "schema"),
-                        "schema": _sanitize_openai_schema(json_schema.get("schema", {})),
-                        "strict": bool(json_schema.get("strict", True)),
+                if route.model not in _openai_json_schema_models():
+                    body["text"] = {"format": {"type": "json_object"}}
+                else:
+                    json_schema = (
+                        response_format.get("json_schema", {}) if isinstance(response_format, dict) else {}
+                    )
+                    body["text"] = {
+                        "format": {
+                            "type": "json_schema",
+                            "name": json_schema.get("name", "schema"),
+                            "schema": _sanitize_openai_schema(json_schema.get("schema", {})),
+                            "strict": bool(json_schema.get("strict", True)),
+                        }
                     }
-                }
             else:
                 body["text"] = {"format": response_format}
 
@@ -791,9 +807,22 @@ class LLMMediator:
                 if output_text:
                     break
         if not output_text:
+            raw_preview = ""
+            try:
+                raw_preview = json.dumps(
+                    {
+                        "id": response.get("id"),
+                        "output": response.get("output"),
+                        "output_text": response.get("output_text"),
+                        "status": response.get("status"),
+                    },
+                    ensure_ascii=False,
+                )
+            except Exception:
+                raw_preview = str(response)[:500]
             raise LLMError(
                 code="invalid_response",
-                message="OpenAI responses output is empty",
+                message=f"OpenAI responses output is empty; response={raw_preview[:500]}",
                 provider=route.provider,
                 task_type=task_type,
             )
