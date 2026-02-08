@@ -1,3 +1,3 @@
-from .mediator import LLMMediator, get_mediator
+from .mediator import LLMError, LLMMediator, get_mediator
 
-__all__ = ["LLMMediator", "get_mediator"]
+__all__ = ["LLMError", "LLMMediator", "get_mediator"]
