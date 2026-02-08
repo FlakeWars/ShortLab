@@ -8,10 +8,9 @@
   - [x] Testy walidacji `collision_emitters`
   - [ ] Oznaczyć GAP jako implemented + reverify kandydatów/idei
   - [ ] Ops: uruchomić `DSL_GAP_ID=... DSL_GAP_STATUS=implemented DSL_GAP_IMPLEMENTED_IN=1.4 make dsl-gap-status`
-- [ ] Compiler: pętla naprawcza + prompty + doprecyzowanie DSL (branch: main)
-  - [x] Pętla naprawcza z kontekstem (poprzedni DSL + błędy walidacji w prompt)
-  - [x] Prompt kompilatora: pełne przykłady idea -> DSL (proste i złożone)
-  - [x] Specyfikacja DSL: przykłady użycia dla kluczowych sekcji
+- [ ] Manual Flow: Render z istniejącego DSL + UI akcja (branch: feat/dev-manual-flow-v1-1)
+  - [ ] Render-only bez ponownej kompilacji
+  - [ ] UI: przycisk „Render from DSL” w manualnym panelu
 ## Next (Kolejne)
 - [ ] LLM: ryzyko kosztów po wydłużeniu promptów (branch: chore/llm-prompt-costs)
   - [ ] Zmierz średni koszt tokenów dla verify/compile po zmianach
@@ -191,6 +190,10 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] Compiler: pętla naprawcza + prompty + doprecyzowanie DSL (branch: main) (2026-02-08)
+  - [x] Pętla naprawcza z kontekstem (poprzedni DSL + błędy walidacji w prompt)
+  - [x] Prompt kompilatora: pełne przykłady idea -> DSL (proste i złożone)
+  - [x] Specyfikacja DSL: przykłady użycia dla kluczowych sekcji
 - [x] DSL GAP: parametric_spiral_motion (branch: feat/dsl-gap-parametric-spiral) (2026-02-08)
   - [x] Spec DSL v1.2: dodana reguła `parametric_spiral_motion` + bump wersji w przykładach
   - [x] Walidator: wymagane `center/angular_speed/radial_speed` + walidacja radius_min/max
