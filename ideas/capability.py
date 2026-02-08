@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
+from typing import Any
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
 from uuid import UUID
 
 from db.models import DslGap, Idea, IdeaCandidate, IdeaCandidateGapLink, IdeaGapLink
-from llm import get_mediator
+import yaml
+
+from llm import LLMError, get_mediator
 from .prompting import build_idea_context, read_dsl_spec
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -192,6 +196,44 @@ def _llm_capability_check(
         temperature=float(os.getenv("IDEA_DSL_CAPABILITY_TEMPERATURE", "0.1")),
     )
     return payload, route_meta
+
+
+def _parse_capability_lenient(raw: str) -> dict[str, Any] | None:
+    text = raw.strip()
+    if not text:
+        return None
+    text = text.replace("```json", "```").replace("```", "")
+    try:
+        parsed = yaml.safe_load(text)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+    feasible = None
+    match = re.search(r"feasible\\s*[:=]\\s*(true|false)", text, re.IGNORECASE)
+    if match:
+        feasible = match.group(1).lower() == "true"
+    gaps: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+    for line in text.splitlines():
+        stripped = line.strip().lstrip("-").strip()
+        if not stripped:
+            continue
+        lower = stripped.lower()
+        if lower.startswith("feature"):
+            if current:
+                gaps.append(current)
+            current = {}
+            current["feature"] = stripped.split(":", 1)[-1].strip()
+        elif lower.startswith("reason"):
+            current["reason"] = stripped.split(":", 1)[-1].strip()
+        elif lower.startswith("impact"):
+            current["impact"] = stripped.split(":", 1)[-1].strip()
+    if current:
+        gaps.append(current)
+    if feasible is None and not gaps:
+        return None
+    return {"feasible": feasible if feasible is not None else False, "gaps": gaps}
 
 
 def _ensure_gap(
@@ -415,13 +457,61 @@ def verify_candidate_capability(
                     )
                 )
         except Exception as exc:
-            llm_errors.append(str(exc))
-            llm_meta = {
-                "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
-                "llm_feasible": llm_feasible,
-                "fallback_used": True,
-            }
-            signals = _extract_signals((candidate.title, candidate.summary, candidate.what_to_expect, candidate.preview))
+            if isinstance(exc, LLMError) and exc.code == "invalid_json" and exc.raw_content:
+                parsed = _parse_capability_lenient(exc.raw_content)
+                if parsed:
+                    llm_feasible = bool(parsed.get("feasible", True))
+                    gaps = parsed.get("gaps", []) if isinstance(parsed.get("gaps"), list) else []
+                    for gap in gaps:
+                        feature = str(gap.get("feature", "")).strip()
+                        reason = str(gap.get("reason", "")).strip()
+                        if not feature or not reason:
+                            continue
+                        signals.append(
+                            GapSignal(
+                                feature=feature,
+                                reason=reason,
+                                impact=str(gap.get("impact", "")).strip(),
+                                keywords=(),
+                            )
+                        )
+                    llm_meta = {
+                        "provider": exc.provider,
+                        "model": None,
+                        "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
+                        "llm_feasible": llm_feasible,
+                        "fallback_used": False,
+                        "parse_mode": "lenient",
+                    }
+                    if llm_feasible is False and not signals:
+                        signals.append(
+                            GapSignal(
+                                feature="dsl_gap_unknown",
+                                reason="LLM output parsed leniently but no explicit gaps returned.",
+                                impact="Manual review required to define missing DSL capability.",
+                                keywords=(),
+                            )
+                        )
+                else:
+                    llm_errors.append(str(exc))
+                    llm_meta = {
+                        "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
+                        "llm_feasible": llm_feasible,
+                        "fallback_used": True,
+                    }
+                    signals = _extract_signals(
+                        (candidate.title, candidate.summary, candidate.what_to_expect, candidate.preview)
+                    )
+            else:
+                llm_errors.append(str(exc))
+                llm_meta = {
+                    "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
+                    "llm_feasible": llm_feasible,
+                    "fallback_used": True,
+                }
+                signals = _extract_signals(
+                    (candidate.title, candidate.summary, candidate.what_to_expect, candidate.preview)
+                )
     else:
         signals = _extract_signals((candidate.title, candidate.summary, candidate.what_to_expect, candidate.preview))
     now = datetime.now(timezone.utc)

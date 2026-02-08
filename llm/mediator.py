@@ -41,6 +41,7 @@ class LLMError(Exception):
     provider: str
     task_type: str
     retryable: bool = False
+    raw_content: str | None = None
 
     def __str__(self) -> str:
         return f"{self.code}({self.provider}/{self.task_type}): {self.message}"
@@ -298,6 +299,7 @@ class LLMMediator:
                         message=f"Failed to parse LLM JSON response: {exc}",
                         provider=route.provider,
                         task_type=task_type,
+                        raw_content=raw_content,
                     ) from exc
                 parsed, response = self._repair_json_response(
                     task_type=task_type,
@@ -486,6 +488,7 @@ class LLMMediator:
                 message=f"Failed to parse LLM JSON response: {exc}",
                 provider=route.provider,
                 task_type=task_type,
+                raw_content=content,
             ) from exc
 
     def _call_chat_completion(
