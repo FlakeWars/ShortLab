@@ -92,46 +92,45 @@ def _first_non_empty(*values: str | None) -> str | None:
     return None
 
 
-def _load_route(task_type: str) -> TaskRoute:
+def _split_env_list(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _load_routes(task_type: str) -> list[TaskRoute]:
     key = task_type.upper()
     profile = _task_profile(task_type)
     profile_key = f"LLM_PROFILE_{profile.upper()}_" if profile else None
 
-    provider = _first_non_empty(
-        os.getenv(f"LLM_ROUTE_{key}_PROVIDER"),
-        os.getenv(f"{profile_key}PROVIDER") if profile_key else None,
-        "openai",
-    )
-    assert provider is not None
-    provider = provider.lower()
-    default_base, default_key_env = _provider_defaults(provider)
-    base_url = (
-        _first_non_empty(
-            os.getenv(f"LLM_ROUTE_{key}_BASE_URL"),
-            os.getenv(f"{profile_key}BASE_URL") if profile_key else None,
-            default_base,
+    providers = _split_env_list(os.getenv(f"LLM_ROUTE_{key}_PROVIDERS"))
+    models = _split_env_list(os.getenv(f"LLM_ROUTE_{key}_MODELS"))
+    base_urls = _split_env_list(os.getenv(f"LLM_ROUTE_{key}_BASE_URLS"))
+    key_envs = _split_env_list(os.getenv(f"LLM_ROUTE_{key}_API_KEY_ENVS"))
+    key_headers = _split_env_list(os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADERS"))
+
+    if providers or models:
+        if not providers or not models:
+            raise RuntimeError(f"Both PROVIDERS and MODELS must be set for task '{task_type}'")
+        if len(providers) != len(models):
+            raise RuntimeError(f"PROVIDERS and MODELS length mismatch for task '{task_type}'")
+    else:
+        provider = _first_non_empty(
+            os.getenv(f"LLM_ROUTE_{key}_PROVIDER"),
+            os.getenv(f"{profile_key}PROVIDER") if profile_key else None,
+            "openai",
         )
-        or default_base
-    ).rstrip("/")
-    model = _first_non_empty(
-        os.getenv(f"LLM_ROUTE_{key}_MODEL"),
-        os.getenv(f"{profile_key}MODEL") if profile_key else None,
-        os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-    )
-    key_env = _first_non_empty(
-        os.getenv(f"LLM_ROUTE_{key}_API_KEY_ENV"),
-        os.getenv(f"{profile_key}API_KEY_ENV") if profile_key else None,
-        default_key_env,
-    )
-    assert model is not None and key_env is not None
-    api_key = os.getenv(key_env, "").strip()
-    if provider != "codex_cli" and not api_key:
-        raise RuntimeError(f"Missing API key for task '{task_type}' (env: {key_env})")
-    api_key_header = _first_non_empty(
-        os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADER"),
-        os.getenv(f"{profile_key}API_KEY_HEADER") if profile_key else None,
-        _default_api_key_header(provider),
-    )
+        assert provider is not None
+        providers = [provider]
+        models = [
+            _first_non_empty(
+                os.getenv(f"LLM_ROUTE_{key}_MODEL"),
+                os.getenv(f"{profile_key}MODEL") if profile_key else None,
+                os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            )
+            or "gpt-4o-mini"
+        ]
+
     timeout_s = int(
         _first_non_empty(
             os.getenv(f"LLM_ROUTE_{key}_TIMEOUT_S"),
@@ -180,19 +179,64 @@ def _load_route(task_type: str) -> TaskRoute:
         )
         or "0"
     )
-    return TaskRoute(
-        provider=provider,
-        model=model,
-        base_url=base_url,
-        api_key=api_key,
-        api_key_header=api_key_header or "Authorization",
-        timeout_s=timeout_s,
-        retries=retries,
-        breaker_threshold=breaker_threshold,
-        breaker_cooldown_s=breaker_cooldown_s,
-        max_tokens=max_tokens,
-        max_cost_usd=max_cost_usd,
-    )
+
+    routes: list[TaskRoute] = []
+    for idx, provider_value in enumerate(providers):
+        provider = provider_value.lower()
+        default_base, default_key_env = _provider_defaults(provider)
+        base_url = (
+            (base_urls[idx] if idx < len(base_urls) else None)
+            or _first_non_empty(
+                os.getenv(f"LLM_ROUTE_{key}_BASE_URL"),
+                os.getenv(f"{profile_key}BASE_URL") if profile_key else None,
+                default_base,
+            )
+            or default_base
+        ).rstrip("/")
+        key_env = (
+            (key_envs[idx] if idx < len(key_envs) else None)
+            or _first_non_empty(
+                os.getenv(f"LLM_ROUTE_{key}_API_KEY_ENV"),
+                os.getenv(f"{profile_key}API_KEY_ENV") if profile_key else None,
+                default_key_env,
+            )
+        )
+        model = models[idx] if idx < len(models) else models[0]
+        assert model is not None and key_env is not None
+        api_key = os.getenv(key_env, "").strip()
+        if provider != "codex_cli" and not api_key:
+            continue
+        api_key_header = (
+            (key_headers[idx] if idx < len(key_headers) else None)
+            or _first_non_empty(
+                os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADER"),
+                os.getenv(f"{profile_key}API_KEY_HEADER") if profile_key else None,
+                _default_api_key_header(provider),
+            )
+        )
+        routes.append(
+            TaskRoute(
+                provider=provider,
+                model=model,
+                base_url=base_url,
+                api_key=api_key,
+                api_key_header=api_key_header or "Authorization",
+                timeout_s=timeout_s,
+                retries=retries,
+                breaker_threshold=breaker_threshold,
+                breaker_cooldown_s=breaker_cooldown_s,
+                max_tokens=max_tokens,
+                max_cost_usd=max_cost_usd,
+            )
+        )
+
+    if not routes:
+        raise RuntimeError(f"Missing API key for task '{task_type}'")
+    return routes
+
+
+def _load_route(task_type: str) -> TaskRoute:
+    return _load_routes(task_type)[0]
 
 
 class LLMMediator:
@@ -230,114 +274,125 @@ class LLMMediator:
         temperature: float = 0.7,
         seed: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        route = _load_route(task_type)
+        routes = _load_routes(task_type)
         self._roll_budget_day_if_needed()
         if self._daily_budget_usd > 0 and self._spent_usd_total >= self._daily_budget_usd:
             raise LLMError(
                 code="budget_exceeded",
                 message="Daily LLM budget exhausted",
-                provider=route.provider,
+                provider=routes[0].provider,
                 task_type=task_type,
             )
-        breaker_key = f"{task_type}:{route.provider}"
         now_ts = time.time()
-        if self._breaker_until.get(breaker_key, 0) > now_ts:
-            raise LLMError(
-                code="circuit_open",
-                message="Circuit breaker active for task/provider route",
-                provider=route.provider,
-                task_type=task_type,
-                retryable=True,
+        last_error: LLMError | None = None
+        for route in routes:
+            breaker_key = f"{task_type}:{route.provider}:{route.model}"
+            if self._breaker_until.get(breaker_key, 0) > now_ts:
+                continue
+            payload = self._build_chat_payload(
+                route=route,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                json_schema=json_schema,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                seed=seed,
             )
-        payload = self._build_chat_payload(
-            route=route,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            json_schema=json_schema,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            seed=seed,
-        )
-        start = time.perf_counter()
-        response = self._call_with_retries(task_type, route, payload)
-        try:
+            start = time.perf_counter()
             try:
-                content = response["choices"][0]["message"]["content"]
-                if not isinstance(content, str):
+                response = self._call_with_retries(task_type, route, payload)
+                try:
+                    content = response["choices"][0]["message"]["content"]
+                    if not isinstance(content, str):
+                        raise LLMError(
+                            code="invalid_response",
+                            message="LLM response content is not text",
+                            provider=route.provider,
+                            task_type=task_type,
+                        )
+                    parsed = self._parse_json_content(content)
+                except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError) as exc:
+                    fail_count = self._failures.get(breaker_key, 0) + 1
+                    self._failures[breaker_key] = fail_count
+                    self._track_metrics(
+                        task_type=task_type,
+                        provider=route.provider,
+                        model=route.model,
+                        success=False,
+                        latency_ms=0.0,
+                        prompt_tokens=0.0,
+                        completion_tokens=0.0,
+                        estimated_cost_usd=0.0,
+                    )
+                    if fail_count >= route.breaker_threshold:
+                        self._breaker_until[breaker_key] = now_ts + route.breaker_cooldown_s
+                    raw_content = ""
+                    try:
+                        raw_content = response["choices"][0]["message"]["content"]
+                    except Exception:
+                        raw_content = ""
+                    if route.provider == "gemini" and os.getenv("LLM_GEMINI_DISABLE_REPAIR", "1") == "1":
+                        exc = LLMError(
+                            code="invalid_json",
+                            message=f"Failed to parse LLM JSON response: {exc}",
+                            provider=route.provider,
+                            task_type=task_type,
+                            raw_content=raw_content,
+                            retryable=True,
+                        )
+                        raise exc
+                    parsed, response = self._repair_json_response(
+                        task_type=task_type,
+                        route=route,
+                        payload=payload,
+                        content=raw_content,
+                    )
+                self._failures[breaker_key] = 0
+                latency_ms = (time.perf_counter() - start) * 1000.0
+                usage = response.get("usage", {}) if isinstance(response, dict) else {}
+                prompt_tokens = float(usage.get("prompt_tokens", 0) or 0)
+                completion_tokens = float(usage.get("completion_tokens", 0) or 0)
+                estimated_cost = self._estimate_cost_usd(prompt_tokens, completion_tokens)
+                if route.max_cost_usd > 0 and estimated_cost > route.max_cost_usd:
                     raise LLMError(
-                        code="invalid_response",
-                        message="LLM response content is not text",
+                        code="request_cost_exceeded",
+                        message="Estimated request cost exceeds route cap",
                         provider=route.provider,
                         task_type=task_type,
                     )
-                parsed = self._parse_json_content(content)
-            except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError) as exc:
-                fail_count = self._failures.get(breaker_key, 0) + 1
-                self._failures[breaker_key] = fail_count
+                self._spent_usd_total += estimated_cost
                 self._track_metrics(
                     task_type=task_type,
                     provider=route.provider,
                     model=route.model,
-                    success=False,
-                    latency_ms=0.0,
-                    prompt_tokens=0.0,
-                    completion_tokens=0.0,
-                    estimated_cost_usd=0.0,
+                    success=True,
+                    latency_ms=latency_ms,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    estimated_cost_usd=estimated_cost,
                 )
-                if fail_count >= route.breaker_threshold:
-                    self._breaker_until[breaker_key] = now_ts + route.breaker_cooldown_s
-                if isinstance(exc, LLMError):
-                    raise exc
-                raw_content = ""
-                try:
-                    raw_content = response["choices"][0]["message"]["content"]
-                except Exception:
-                    raw_content = ""
-                if route.provider == "gemini" and os.getenv("LLM_GEMINI_DISABLE_REPAIR", "1") == "1":
-                    raise LLMError(
-                        code="invalid_json",
-                        message=f"Failed to parse LLM JSON response: {exc}",
-                        provider=route.provider,
-                        task_type=task_type,
-                        raw_content=raw_content,
-                    ) from exc
-                parsed, response = self._repair_json_response(
-                    task_type=task_type,
-                    route=route,
-                    payload=payload,
-                    content=raw_content,
-                )
-            self._failures[breaker_key] = 0
-            latency_ms = (time.perf_counter() - start) * 1000.0
-            usage = response.get("usage", {}) if isinstance(response, dict) else {}
-            prompt_tokens = float(usage.get("prompt_tokens", 0) or 0)
-            completion_tokens = float(usage.get("completion_tokens", 0) or 0)
-            estimated_cost = self._estimate_cost_usd(prompt_tokens, completion_tokens)
-            if route.max_cost_usd > 0 and estimated_cost > route.max_cost_usd:
-                raise LLMError(
-                    code="request_cost_exceeded",
-                    message="Estimated request cost exceeds route cap",
-                    provider=route.provider,
-                    task_type=task_type,
-                )
-            self._spent_usd_total += estimated_cost
-            self._track_metrics(
-                task_type=task_type,
-                provider=route.provider,
-                model=route.model,
-                success=True,
-                latency_ms=latency_ms,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                estimated_cost_usd=estimated_cost,
-            )
-            return parsed, {
-                "provider": route.provider,
-                "model": route.model,
-                "id": response.get("id"),
-            }
-        finally:
-            self._persist_state()
+                return parsed, {
+                    "provider": route.provider,
+                    "model": route.model,
+                    "id": response.get("id"),
+                }
+            except LLMError as exc:
+                last_error = exc
+                if exc.code == "invalid_json" and route.provider == "gemini":
+                    continue
+                if exc.retryable:
+                    continue
+                raise
+            finally:
+                self._persist_state()
+        if last_error is not None:
+            raise last_error
+        raise LLMError(
+            code="no_routes",
+            message="No LLM routes available",
+            provider=routes[0].provider,
+            task_type=task_type,
+        )
 
     def _call_with_retries(
         self,
@@ -556,7 +611,7 @@ class LLMMediator:
                 message=self._sanitize_error_message(detail),
                 provider=route.provider,
                 task_type=task_type,
-                retryable=exc.code >= 500 or exc.code == 429,
+                retryable=exc.code >= 500 or exc.code in {401, 403, 429},
             ) from exc
         except URLError as exc:
             raise LLMError(
@@ -625,7 +680,7 @@ class LLMMediator:
                 message=self._sanitize_error_message(detail),
                 provider=route.provider,
                 task_type=task_type,
-                retryable=exc.code >= 500 or exc.code == 429,
+                retryable=exc.code >= 500 or exc.code in {401, 403, 429},
             ) from exc
         except URLError as exc:
             raise LLMError(

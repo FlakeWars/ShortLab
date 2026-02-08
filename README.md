@@ -144,6 +144,8 @@ curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
 - `OPERATOR_TOKEN` – prosty token operatora dla endpointów `/ops/*` (nagłówek `X-Operator-Token`).
 - `ALLOW_OPS_WITHOUT_TOKEN` – jeśli `1`, pozwala na `/ops/*` bez tokena (domyślnie `0`).
 - `CLEANUP_OLDER_MIN` – próg minut dla auto-cleanup `running` przy starcie `make run-dev` (domyślnie 30).
+- `LLM_ROUTE_<TASK>_PROVIDERS` / `LLM_ROUTE_<TASK>_MODELS` – lista providerów/modeli w kolejności fallbacku (np. `gemini,openai` / `gemini-2.5-pro,gpt-5.2-codex`).
+- `LLM_ROUTE_<TASK>_API_KEY_ENVS` / `LLM_ROUTE_<TASK>_API_KEY_HEADERS` – opcjonalne listy kluczy/nagłówków dla powyższych providerów.
 
 ## Makefile
 Dostępne cele:

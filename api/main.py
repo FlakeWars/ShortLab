@@ -43,7 +43,7 @@ from ideas.compiler import compile_idea_to_dsl
 from ideas.generator import IdeaDraft, generate_ideas, save_ideas
 from ideas.parser import parse_ideas_text
 from llm import get_mediator
-from llm.mediator import _load_route
+from llm.mediator import _load_route, _load_routes
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
 
@@ -366,13 +366,20 @@ def debug_llm_routes(_guard: None = Depends(_require_operator)) -> dict:
     routes: dict[str, dict[str, str | bool]] = {}
     for task in tasks:
         try:
-            route = _load_route(task)
+            candidates = []
+            for route in _load_routes(task):
+                candidates.append(
+                    {
+                        "provider": route.provider,
+                        "model": route.model,
+                        "base_url": route.base_url,
+                        "api_key_header": route.api_key_header,
+                        "api_key_present": bool(route.api_key),
+                    }
+                )
             routes[task] = {
-                "provider": route.provider,
-                "model": route.model,
-                "base_url": route.base_url,
-                "api_key_header": route.api_key_header,
-                "api_key_present": bool(route.api_key),
+                "primary": candidates[0] if candidates else {},
+                "candidates": candidates,
             }
         except Exception as exc:
             routes[task] = {"error": str(exc)}
