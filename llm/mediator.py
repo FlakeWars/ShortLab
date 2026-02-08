@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 import json
+import re
 import os
 from pathlib import Path
 import time
@@ -390,7 +391,11 @@ class LLMMediator:
             extracted = self._extract_json_block(content)
             if extracted is None:
                 raise
-            return json.loads(extracted)
+            try:
+                return json.loads(extracted)
+            except json.JSONDecodeError:
+                coerced = self._coerce_json_like(extracted)
+                return json.loads(coerced)
 
     def _extract_json_block(self, content: str) -> str | None:
         start = min(
@@ -405,6 +410,14 @@ class LLMMediator:
         if end == -1 or end <= start:
             return None
         return content[start : end + 1]
+
+    def _coerce_json_like(self, content: str) -> str:
+        # Best-effort fix for JSON-like responses (single quotes, trailing commas).
+        text = content.strip()
+        text = re.sub(r"(?<=\\{|,|\\s)'([^']+?)'\\s*:", r'\"\\1\":', text)
+        text = re.sub(r":\\s*'([^']*?)'", lambda m: ': "' + m.group(1) + '"', text)
+        text = re.sub(r",\\s*([}\\]])", r"\\1", text)
+        return text
 
     def _repair_json_response(
         self,
