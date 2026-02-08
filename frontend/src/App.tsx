@@ -189,6 +189,28 @@ const fallbackApiBase = (() => {
   return '/api'
 })()
 const API_BASE = (explicitApiBase || fallbackApiBase).replace(/\/$/, '')
+const TOKEN_BUDGET_ALERT_THRESHOLD = 0.8
+
+type TokenBudgetGroup = {
+  limit?: number
+  members?: string[]
+}
+
+type TokenBudgetConfig = {
+  models?: Record<string, number>
+  groups?: Record<string, TokenBudgetGroup | number>
+}
+
+function parseTokenBudgets(raw?: string | null): TokenBudgetConfig | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    return parsed as TokenBudgetConfig
+  } catch {
+    return null
+  }
+}
 
 type SettingsResponse = {
   database_url?: string
@@ -207,6 +229,7 @@ type SettingsResponse = {
   openai_base_url?: string
   openai_temperature?: string
   openai_max_output_tokens?: string
+  llm_token_budgets?: string
 }
 
 type LLMRouteMetrics = {
@@ -1263,6 +1286,38 @@ function App() {
       },
     )
   }, [llmRouteRows])
+  const tokenBudgetAlerts = useMemo(() => {
+    const config = parseTokenBudgets(settings?.llm_token_budgets)
+    if (!config) return []
+    const usageByModel = new Map<string, number>()
+    llmRouteRows.forEach((row) => {
+      const key = `${row.provider}:${row.model}`
+      usageByModel.set(key, (usageByModel.get(key) ?? 0) + row.tokensTotal)
+    })
+    const alerts: Array<{ label: string; used: number; limit: number }> = []
+    if (config.models) {
+      Object.entries(config.models).forEach(([modelKey, limit]) => {
+        const used = usageByModel.get(modelKey) ?? 0
+        if (limit > 0 && used / limit >= TOKEN_BUDGET_ALERT_THRESHOLD) {
+          alerts.push({ label: modelKey, used, limit })
+        }
+      })
+    }
+    if (config.groups) {
+      Object.entries(config.groups).forEach(([groupName, payload]) => {
+        const group =
+          typeof payload === 'number' ? { limit: payload, members: [] } : payload || {}
+        const limit = Number(group.limit ?? 0)
+        const members = Array.isArray(group.members) ? group.members : []
+        if (!limit || members.length === 0) return
+        const used = members.reduce((acc, key) => acc + (usageByModel.get(key) ?? 0), 0)
+        if (used / limit >= TOKEN_BUDGET_ALERT_THRESHOLD) {
+          alerts.push({ label: `group:${groupName}`, used, limit })
+        }
+      })
+    }
+    return alerts
+  }, [llmRouteRows, settings?.llm_token_budgets])
   const ideaStatusSummary = useMemo(() => {
     return systemStatus?.repo_counts?.ideas?.by_status ?? {}
   }, [systemStatus])
@@ -3138,6 +3193,25 @@ function App() {
           </Button>
           {llmMetricsError ? <span className="text-xs text-rose-600">{llmMetricsError}</span> : null}
         </div>
+
+        {tokenBudgetAlerts.length > 0 ? (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
+            <div className="font-semibold">Token budget warning</div>
+            <div className="mt-1 text-xs text-amber-700">
+              Usage is above {Math.round(TOKEN_BUDGET_ALERT_THRESHOLD * 100)}% of the configured limit.
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {tokenBudgetAlerts.map((alert) => (
+                <span
+                  key={alert.label}
+                  className="rounded-full border border-amber-200 bg-white/80 px-3 py-1 text-xs text-amber-900"
+                >
+                  {alert.label}: {alert.used.toLocaleString()} / {alert.limit.toLocaleString()}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">

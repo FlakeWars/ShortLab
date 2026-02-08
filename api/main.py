@@ -352,6 +352,7 @@ def get_settings() -> dict:
         "openai_base_url": flag("OPENAI_BASE_URL", ""),
         "openai_temperature": flag("OPENAI_TEMPERATURE", "0.7"),
         "openai_max_output_tokens": flag("OPENAI_MAX_OUTPUT_TOKENS", "800"),
+        "llm_token_budgets": flag("LLM_TOKEN_BUDGETS", ""),
     }
 
 
