@@ -44,12 +44,14 @@ def compile_idea_to_dsl(
     repair_version = os.getenv("IDEA_DSL_REPAIR_PROMPT_VERSION", "idea-to-dsl-repair-v5")
     errors: list[str] = []
     repairs = 0
+    last_dsl_yaml: str | None = None
 
     for attempt in range(1, max_attempts + 1):
         current_task = "dsl_repair" if errors else "idea_compile_dsl"
         user_prompt = _build_compile_prompt(
             idea=idea,
             previous_errors=errors,
+            previous_dsl=last_dsl_yaml,
             is_repair=bool(errors),
         )
         try:
@@ -72,6 +74,7 @@ def compile_idea_to_dsl(
             dsl_yaml = str(payload["dsl_yaml"]).strip()
             if not dsl_yaml:
                 raise RuntimeError("empty_dsl_yaml")
+            last_dsl_yaml = dsl_yaml
             target_path.write_text(dsl_yaml)
             _ensure_background_in_palette(target_path)
             _ensure_duration_range(target_path)
@@ -141,16 +144,27 @@ def _build_compile_prompt(
     *,
     idea: Idea,
     previous_errors: list[str],
+    previous_dsl: str | None,
     is_repair: bool,
 ) -> str:
     mode = "repair" if is_repair else "compile"
+    previous_block = ""
+    if previous_dsl:
+        previous_block = (
+            "PREVIOUS DSL (BEGIN):\n"
+            "<<<PREVIOUS_DSL_BEGIN>>>\n"
+            f"{previous_dsl}\n"
+            "<<<PREVIOUS_DSL_END>>>\n\n"
+        )
     return (
         f"MODE: {mode}\n\n"
         "IDEA (BEGIN):\n"
         "<<<IDEA_BEGIN>>>\n"
         f"{build_idea_context(title=idea.title, summary=idea.summary, what_to_expect=idea.what_to_expect, preview=idea.preview)}"
         "<<<IDEA_END>>>\n\n"
+        f"{previous_block}"
         f"Previous validation errors: {previous_errors}\n\n"
+        "If MODE=repair, fix the previous DSL with minimal changes and return the full corrected DSL.\n"
         "Return JSON only. Do not wrap YAML in markdown or backticks."
     )
 
@@ -167,6 +181,106 @@ def _build_compiler_system_prompt(*, dsl_spec: str) -> str:
         "<<<DSL_SPEC_BEGIN>>>\n"
         f"{dsl_spec}\n"
         "<<<DSL_SPEC_END>>>\n\n"
+        "EXAMPLES (BEGIN):\n"
+        "<<<EXAMPLE_SIMPLE_BEGIN>>>\n"
+        "Idea:\n"
+        "- title: Orbitujące iskry\n"
+        "- summary: Kilkanaście punktów krąży wokół centrum, tworząc hipnotyczny pierścień.\n"
+        "- what_to_expect: Stałe tempo, łagodna pulsacja kolorów, brak kolizji.\n"
+        "- preview: Pierścień punktów obraca się, a kolory przechodzą między ciepłymi barwami.\n"
+        "DSL:\n"
+        "dsl_version: \"1.4\"\n"
+        "meta:\n"
+        "  id: \"idea-001\"\n"
+        "  title: \"Orbitujące iskry\"\n"
+        "  seed: 1234\n"
+        "  tags: [\"orbit\", \"circle\"]\n"
+        "scene:\n"
+        "  canvas:\n"
+        "    width: 1080\n"
+        "    height: 1920\n"
+        "    fps: 30\n"
+        "    duration_s: 20\n"
+        "  palette: [\"#0b0d17\", \"#f7d046\", \"#ff6b6b\"]\n"
+        "  background: \"#0b0d17\"\n"
+        "systems:\n"
+        "  entities:\n"
+        "    - id: spark\n"
+        "      shape: circle\n"
+        "      size: { min: 10, max: 18, distribution: uniform }\n"
+        "      color: \"#f7d046\"\n"
+        "      render: { opacity: 0.9 }\n"
+        "  spawns:\n"
+        "    - entity_id: spark\n"
+        "      count: 24\n"
+        "      distribution:\n"
+        "        type: orbit\n"
+        "        params: { radius: 260, speed: 18 }\n"
+        "  rules:\n"
+        "    - id: orbit_core\n"
+        "      type: orbit\n"
+        "      applies_to: spark\n"
+        "      params: { center: { x: 540, y: 960 }, speed: 18, radius: 260 }\n"
+        "termination:\n"
+        "  time: { at_s: 20 }\n"
+        "output:\n"
+        "  format: mp4\n"
+        "  resolution: \"1080x1920\"\n"
+        "  codec: h264\n"
+        "  bitrate: \"8M\"\n"
+        "<<<EXAMPLE_SIMPLE_END>>>\n\n"
+        "<<<EXAMPLE_COMPLEX_BEGIN>>>\n"
+        "Idea:\n"
+        "- title: Fale w siatce\n"
+        "- summary: Siatka punktów pulsuje i falowo rozchodzi się od środka.\n"
+        "- what_to_expect: Rytmiczne fale, lekkie przyciąganie do centrum.\n"
+        "- preview: Kolor punktów zmienia się wraz z ruchem, tworząc efekt pulsacji.\n"
+        "DSL:\n"
+        "dsl_version: \"1.4\"\n"
+        "meta:\n"
+        "  id: \"idea-002\"\n"
+        "  title: \"Fale w siatce\"\n"
+        "  seed: 2307\n"
+        "  tags: [\"grid\", \"wave\"]\n"
+        "scene:\n"
+        "  canvas:\n"
+        "    width: 1080\n"
+        "    height: 1920\n"
+        "    fps: 30\n"
+        "    duration_s: 28\n"
+        "  palette: [\"#0f172a\", \"#38bdf8\", \"#f97316\", \"#e2e8f0\"]\n"
+        "  background: \"#0f172a\"\n"
+        "systems:\n"
+        "  entities:\n"
+        "    - id: node\n"
+        "      shape: circle\n"
+        "      size: { min: 8, max: 14, distribution: uniform }\n"
+        "      color: \"#38bdf8\"\n"
+        "      render: { opacity: 0.85 }\n"
+        "  spawns:\n"
+        "    - entity_id: node\n"
+        "      count: 96\n"
+        "      distribution:\n"
+        "        type: grid\n"
+        "        params: { cols: 12, rows: 8 }\n"
+        "  rules:\n"
+        "    - id: slow_orbit\n"
+        "      type: orbit\n"
+        "      applies_to: node\n"
+        "      params: { center: { x: 540, y: 960 }, speed: 6, radius: 320 }\n"
+        "    - id: center_pull\n"
+        "      type: attract\n"
+        "      applies_to: node\n"
+        "      params: { target: { x: 540, y: 960 }, strength: 0.4, radius: 520 }\n"
+        "termination:\n"
+        "  time: { at_s: 28 }\n"
+        "output:\n"
+        "  format: mp4\n"
+        "  resolution: \"1080x1920\"\n"
+        "  codec: h264\n"
+        "  bitrate: \"8M\"\n"
+        "<<<EXAMPLE_COMPLEX_END>>>\n\n"
+        "EXAMPLES (END)\n\n"
         "CREATIVE FRAME:\n"
         "- Use simple geometric primitives.\n"
         "- Motion is deterministic (physics-like forces, parametric paths, or rule-based behaviors).\n"

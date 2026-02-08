@@ -6,7 +6,7 @@ from pathlib import Path
 DSL_SPEC_PATH = Path(".ai/dsl-v1.md")
 
 
-def read_dsl_spec(max_chars: int = 8000) -> str:
+def read_dsl_spec(max_chars: int = 16000) -> str:
     try:
         text = DSL_SPEC_PATH.read_text()
     except Exception:

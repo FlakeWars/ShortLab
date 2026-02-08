@@ -8,7 +8,14 @@
   - [x] Testy walidacji `collision_emitters`
   - [ ] Oznaczyć GAP jako implemented + reverify kandydatów/idei
   - [ ] Ops: uruchomić `DSL_GAP_ID=... DSL_GAP_STATUS=implemented DSL_GAP_IMPLEMENTED_IN=1.4 make dsl-gap-status`
+- [ ] Compiler: pętla naprawcza + prompty + doprecyzowanie DSL (branch: main)
+  - [x] Pętla naprawcza z kontekstem (poprzedni DSL + błędy walidacji w prompt)
+  - [x] Prompt kompilatora: pełne przykłady idea -> DSL (proste i złożone)
+  - [x] Specyfikacja DSL: przykłady użycia dla kluczowych sekcji
 ## Next (Kolejne)
+- [ ] LLM: ryzyko kosztów po wydłużeniu promptów (branch: chore/llm-prompt-costs)
+  - [ ] Zmierz średni koszt tokenów dla verify/compile po zmianach
+  - [ ] Rozważyć caching system promptów / skrócenie specyfikacji
 - [ ] DSL GAP: color_animation_rule (branch: feat/dsl-gap-color-animation)
   - [x] Spec DSL v1.3: dodać regułę `color_animation` + bump wersji w przykładach
   - [x] Walidator: wymagane `colors/rate_per_s` + walidacja palette/mode

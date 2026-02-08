@@ -43,10 +43,18 @@ class Meta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class SizeRange(BaseModel):
+    min: float
+    max: float
+    distribution: Optional[Literal["uniform", "normal"]] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class Entity(BaseModel):
     id: str
     shape: Literal["circle", "square", "line", "triangle", "custom"]
-    size: float | Dict[str, float]
+    size: float | SizeRange
     color: str
     mass: Optional[float] = 1.0
     render: Optional[Dict[str, object]] = None
@@ -56,16 +64,11 @@ class Entity(BaseModel):
 
     @model_validator(mode="after")
     def _validate_size_and_render(self) -> "Entity":
-        if isinstance(self.size, dict):
-            if "min" not in self.size or "max" not in self.size:
-                raise ValueError("entities.size object requires min and max")
-            min_v = float(self.size["min"])
-            max_v = float(self.size["max"])
+        if isinstance(self.size, SizeRange):
+            min_v = float(self.size.min)
+            max_v = float(self.size.max)
             if min_v < 0 or max_v < 0 or max_v < min_v:
                 raise ValueError("entities.size min/max must be >=0 and max>=min")
-            dist = self.size.get("distribution")
-            if dist is not None and dist not in {"uniform", "normal"}:
-                raise ValueError("entities.size.distribution must be uniform or normal")
 
         if self.render is not None:
             opacity = self.render.get("opacity")

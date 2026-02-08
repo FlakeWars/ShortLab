@@ -30,6 +30,15 @@ root
   - `seed` (integer, deterministyczne RNG)
   - `tags` (array of string, min. 0)
 
+Przykład:
+```yaml
+meta:
+  id: "idea-2026-01"
+  title: "Orbitujące iskry"
+  seed: 12345
+  tags: ["orbit", "circle"]
+```
+
 ### 2.3. scene
 - Typ: object
 - Wymagane pola:
@@ -40,6 +49,18 @@ root
     - `duration_s` (number)
 - `palette` (array of color tokens, np. hex "#RRGGBB")
 - `background` (color token, **musi być elementem `palette`**)
+
+Przykład:
+```yaml
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 24
+  palette: ["#0b0d17", "#f7d046", "#ff6b6b"]
+  background: "#0b0d17"
+```
 
 ### 2.4. systems
 Minimalny zestaw systemów, które opisują reguły animacji.
@@ -63,6 +84,13 @@ Minimalny zestaw systemów, które opisują reguły animacji.
     - `type` (string: "metric")
     - `params` (object)
 
+Przykład:
+```yaml
+termination:
+  time:
+    at_s: 20
+```
+
 ### 2.6. output
 - Typ: object
 - Wymagane pola:
@@ -70,6 +98,15 @@ Minimalny zestaw systemów, które opisują reguły animacji.
   - `resolution` (string, np. "1080x1920")
   - `codec` (string, v1.1: "h264")
   - `bitrate` (string, np. "8M")
+
+Przykład:
+```yaml
+output:
+  format: mp4
+  resolution: "1080x1920"
+  codec: h264
+  bitrate: "8M"
+```
 
 ## 3. Elementy systemu (wymagane typy)
 
@@ -82,6 +119,17 @@ Minimalne pola:
 - `color` (token z palette)
 - `mass` (number, opcjonalne, default=1)
 - `render` (object, opcjonalne: np. stroke, opacity)
+
+Przykład:
+```yaml
+entities:
+  - id: spark
+    shape: circle
+    size: { min: 10, max: 18, distribution: uniform }
+    color: "#f7d046"
+    render:
+      opacity: 0.9
+```
 
 #### 3.1.1. entities.tags (v1.1)
 Opcjonalne pole `tags` pozwala grupować encje.
@@ -111,6 +159,16 @@ Minimalne pola:
 - `entity_id` (string)
 - `count` (integer)
 - `distribution` (object: `type` + opcjonalne `params`)
+
+Przykład:
+```yaml
+spawns:
+  - entity_id: spark
+    count: 24
+    distribution:
+      type: orbit
+      params: { radius: 260, speed: 18 }
+```
 
 #### 3.2.2. Słownik dystrybucji spawnu/emiterów (v1.1)
 `distribution.type`:
@@ -168,6 +226,15 @@ Minimalne pola:
 - `applies_to` (selector: entity_id lub tag)
 - `params` (object)
 - `probability` (number 0..1, optional)
+
+Przykład:
+```yaml
+rules:
+  - id: orbit_core
+    type: orbit
+    applies_to: spark
+    params: { center: { x: 540, y: 960 }, speed: 18, radius: 260 }
+```
 
 #### 3.3.1. Słownik reguł `rules.type` + wymagane `params` (v1.3)
 Poniższa lista definiuje **minimalne, wymagane parametry** dla każdej reguły.

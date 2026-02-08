@@ -274,6 +274,31 @@ def _load_routes(task_type: str) -> list[TaskRoute]:
             )
         )
 
+    if task_type == "dsl_repair" and len(routes) == 1:
+        primary = routes[0]
+        fallback_model = os.getenv("LLM_DSL_REPAIR_FALLBACK_MODEL", "gpt-4o-mini").strip()
+        if (
+            fallback_model
+            and primary.provider == "openai"
+            and primary.model in _openai_responses_models()
+            and fallback_model != primary.model
+        ):
+            routes.append(
+                TaskRoute(
+                    provider=primary.provider,
+                    model=fallback_model,
+                    base_url=primary.base_url,
+                    api_key=primary.api_key,
+                    api_key_header=primary.api_key_header,
+                    timeout_s=primary.timeout_s,
+                    retries=primary.retries,
+                    breaker_threshold=primary.breaker_threshold,
+                    breaker_cooldown_s=primary.breaker_cooldown_s,
+                    max_tokens=primary.max_tokens,
+                    max_cost_usd=primary.max_cost_usd,
+                )
+            )
+
     if not routes:
         raise RuntimeError(f"Missing API key for task '{task_type}'")
     return routes
@@ -749,9 +774,7 @@ class LLMMediator:
         response_format = payload.get("response_format")
         if response_format:
             if isinstance(response_format, dict) and response_format.get("type") == "json_schema":
-                if route.model not in _openai_json_schema_models():
-                    body["text"] = {"format": {"type": "json_object"}}
-                else:
+                if route.model in _openai_json_schema_models():
                     json_schema = (
                         response_format.get("json_schema", {}) if isinstance(response_format, dict) else {}
                     )
@@ -825,6 +848,7 @@ class LLMMediator:
                 message=f"OpenAI responses output is empty; response={raw_preview[:500]}",
                 provider=route.provider,
                 task_type=task_type,
+                retryable=response.get("status") == "incomplete",
             )
         usage = response.get("usage", {}) if isinstance(response, dict) else {}
         prompt_tokens = usage.get("input_tokens", 0) or 0
