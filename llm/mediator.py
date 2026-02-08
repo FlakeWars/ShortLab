@@ -88,6 +88,20 @@ def _sanitize_gemini_schema(schema: Any) -> Any:
     return schema
 
 
+def _sanitize_openai_schema(schema: Any) -> Any:
+    if isinstance(schema, dict):
+        cleaned: dict[str, Any] = {}
+        for key, value in schema.items():
+            cleaned[key] = _sanitize_openai_schema(value)
+        if "properties" in cleaned and isinstance(cleaned.get("properties"), dict):
+            prop_keys = list(cleaned["properties"].keys())
+            cleaned["required"] = prop_keys
+        return cleaned
+    if isinstance(schema, list):
+        return [_sanitize_openai_schema(item) for item in schema]
+    return schema
+
+
 DEFAULT_TASK_PROFILES: dict[str, str] = {
     "idea_generate": "creative",
     "idea_verify_capability": "analytical",
@@ -692,7 +706,7 @@ class LLMMediator:
                     "format": {
                         "type": "json_schema",
                         "name": json_schema.get("name", "schema"),
-                        "schema": json_schema.get("schema", {}),
+                        "schema": _sanitize_openai_schema(json_schema.get("schema", {})),
                         "strict": bool(json_schema.get("strict", True)),
                     }
                 }
