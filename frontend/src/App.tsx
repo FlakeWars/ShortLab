@@ -652,6 +652,7 @@ function App() {
         setIdeaDecisionMessage('Wybrana idea przekazana do pipeline.')
         fetchSummary()
       }
+      fetchAuditEvents()
     } catch (err) {
       setIdeaDecisionError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -690,6 +691,7 @@ function App() {
       fetchSystemStatus()
       fetchCandidateList()
       fetchSummary()
+      fetchAuditEvents()
     } catch (err) {
       setIdeaDecisionError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -714,6 +716,7 @@ function App() {
       fetchCandidateList()
       fetchSystemStatus()
       fetchBlockedCandidates()
+      fetchAuditEvents()
     } finally {
       setCandidateAction(candidateId, false)
     }
@@ -731,6 +734,7 @@ function App() {
       }
       fetchCandidateList()
       fetchSystemStatus()
+      fetchAuditEvents()
     } finally {
       setCandidateAction(candidateId, false)
     }
@@ -748,6 +752,7 @@ function App() {
       }
       fetchCandidateList()
       fetchSystemStatus()
+      fetchAuditEvents()
     } finally {
       setCandidateAction(candidateId, false)
     }
@@ -827,6 +832,7 @@ function App() {
       const payload = (await response.json()) as Record<string, unknown>
       setManualCompileMessage(`Compiled: ${JSON.stringify(payload)}`)
       fetchSystemStatus()
+      fetchAuditEvents()
     } catch (err) {
       setManualCompileError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -858,6 +864,7 @@ function App() {
       const payload = (await response.json()) as Record<string, unknown>
       setManualPipelineMessage(`Pipeline started: ${JSON.stringify(payload)}`)
       fetchSummary()
+      fetchAuditEvents()
     } catch (err) {
       setManualPipelineError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -1028,6 +1035,13 @@ function App() {
       const reports = Array.isArray((payload as { reports?: unknown }).reports)
         ? ((payload as { reports: unknown[] }).reports as Array<Record<string, unknown>>)
         : []
+      const verifierErrors = reports
+        .map((report) => report.verifier_errors as string[] | undefined)
+        .filter(Boolean)
+        .flat()
+      if (verifierErrors.length > 0) {
+        setOpsError(verifierErrors[0])
+      }
       const metas = reports
         .map((report) => report.verifier_meta as Record<string, unknown> | undefined)
         .filter(Boolean) as Array<Record<string, unknown>>
@@ -1046,6 +1060,7 @@ function App() {
       fetchSystemStatus()
       fetchBlockedCandidates()
       fetchCandidateList()
+      fetchAuditEvents()
     } catch (err) {
       setOpsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -1717,6 +1732,76 @@ function App() {
         </div>
       </section>
 ) : null}
+
+<section id="flow-logs-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h3 className="text-xl font-semibold text-stone-900">Logi operacyjne</h3>
+            <p className="text-sm text-stone-600">Ostatnie zdarzenia z audit logu + błędy z operacji.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+            <span>Updated: {auditUpdatedAt ? auditUpdatedAt.toLocaleTimeString() : '—'}</span>
+            <Button variant="outline" className="rounded-full" onClick={fetchAuditEvents} disabled={auditLoading}>
+              {auditLoading ? 'Ładowanie…' : 'Odśwież'}
+            </Button>
+          </div>
+        </div>
+        {opsError ? (
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
+            {opsError}
+          </div>
+        ) : null}
+        {opsMessage ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-xs text-emerald-800">
+            {opsMessage}
+          </div>
+        ) : null}
+        <div className="mt-4 overflow-x-auto">
+          {auditLoading ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading events…
+            </div>
+          ) : auditError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
+              <div className="font-semibold">Failed to load</div>
+              <div>{auditError}</div>
+            </div>
+          ) : (
+            <table className="min-w-[900px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr>
+                  <th className="px-2 py-3">Time</th>
+                  <th className="px-2 py-3">Type</th>
+                  <th className="px-2 py-3">Source</th>
+                  <th className="px-2 py-3">Payload</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-2 py-6 text-center text-stone-500">
+                      Brak zdarzeń.
+                    </td>
+                  </tr>
+                ) : (
+                  auditEvents.map((event) => (
+                    <tr key={event.id} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4 text-xs text-stone-600">{formatDate(event.occurred_at)}</td>
+                      <td className="px-2 py-4 text-stone-800">{event.event_type ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-600">{event.source ?? '—'}</td>
+                      <td className="px-2 py-4 text-xs text-stone-600">
+                        <pre className="max-w-[420px] whitespace-pre-wrap break-words rounded-xl bg-stone-50 p-2">
+                          {event.payload ? JSON.stringify(event.payload) : '—'}
+                        </pre>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
 
 <section id="idea-generator-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
