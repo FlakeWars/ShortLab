@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 import json
 import re
 from typing import Any
@@ -14,7 +14,7 @@ import yaml
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 
-from db.models import LLMMediatorBudgetDaily, LLMMediatorRouteMetric
+from db.models import AuditEvent, LLMMediatorBudgetDaily, LLMMediatorRouteMetric
 from db.session import SessionLocal
 from llm.codex_cli import CodexCliError, run_codex_cli
 
@@ -253,6 +253,22 @@ class LLMMediator:
         self._state_file = Path(os.getenv("LLM_MEDIATOR_STATE_FILE", ".state/llm-mediator-state.json"))
         self._load_token_budgets()
         self._load_state()
+
+    @staticmethod
+    def log_event(message: str, *, payload: dict[str, Any] | None = None) -> None:
+        try:
+            with SessionLocal() as session:
+                session.add(
+                    AuditEvent(
+                        event_type="llm_token_budget",
+                        source="system",
+                        occurred_at=datetime.now(timezone.utc),
+                        payload={"message": message, **(payload or {})},
+                    )
+                )
+                session.commit()
+        except Exception:
+            return
 
     def get_metrics_snapshot(self) -> dict[str, Any]:
         return {
@@ -853,6 +869,16 @@ class LLMMediator:
         if limit is not None:
             used = self._tokens_used_for_model(provider=provider, model=model)
             if used >= limit:
+                self.log_event(
+                    "model_token_budget_exceeded",
+                    payload={
+                        "task_type": task_type,
+                        "provider": provider,
+                        "model": model,
+                        "limit": limit,
+                        "used": int(used),
+                    },
+                )
                 raise LLMError(
                     code="token_budget_exceeded",
                     message=f"Token budget exceeded for model {model_key}",
@@ -868,6 +894,15 @@ class LLMMediator:
                 continue
             used = self._tokens_used_for_group(members=members)
             if used >= group_limit:
+                self.log_event(
+                    "group_token_budget_exceeded",
+                    payload={
+                        "task_type": task_type,
+                        "group": group_name,
+                        "limit": group_limit,
+                        "used": int(used),
+                    },
+                )
                 raise LLMError(
                     code="token_budget_exceeded",
                     message=f"Token budget exceeded for group {group_name}",
