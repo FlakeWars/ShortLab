@@ -274,31 +274,6 @@ def _load_routes(task_type: str) -> list[TaskRoute]:
             )
         )
 
-    if task_type == "dsl_repair" and len(routes) == 1:
-        primary = routes[0]
-        fallback_model = os.getenv("LLM_DSL_REPAIR_FALLBACK_MODEL", "gpt-4o-mini").strip()
-        if (
-            fallback_model
-            and primary.provider == "openai"
-            and primary.model in _openai_responses_models()
-            and fallback_model != primary.model
-        ):
-            routes.append(
-                TaskRoute(
-                    provider=primary.provider,
-                    model=fallback_model,
-                    base_url=primary.base_url,
-                    api_key=primary.api_key,
-                    api_key_header=primary.api_key_header,
-                    timeout_s=primary.timeout_s,
-                    retries=primary.retries,
-                    breaker_threshold=primary.breaker_threshold,
-                    breaker_cooldown_s=primary.breaker_cooldown_s,
-                    max_tokens=primary.max_tokens,
-                    max_cost_usd=primary.max_cost_usd,
-                )
-            )
-
     if not routes:
         raise RuntimeError(f"Missing API key for task '{task_type}'")
     return routes
