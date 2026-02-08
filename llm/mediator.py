@@ -69,6 +69,19 @@ def _default_api_key_header(provider: str) -> str:
     return "Authorization"
 
 
+def _sanitize_gemini_schema(schema: Any) -> Any:
+    if isinstance(schema, dict):
+        cleaned: dict[str, Any] = {}
+        for key, value in schema.items():
+            if key == "additionalProperties":
+                continue
+            cleaned[key] = _sanitize_gemini_schema(value)
+        return cleaned
+    if isinstance(schema, list):
+        return [_sanitize_gemini_schema(item) for item in schema]
+    return schema
+
+
 DEFAULT_TASK_PROFILES: dict[str, str] = {
     "idea_generate": "creative",
     "idea_verify_capability": "analytical",
@@ -666,8 +679,16 @@ class LLMMediator:
             "temperature": payload.get("temperature"),
             "maxOutputTokens": payload.get("max_tokens"),
         }
-        if payload.get("response_format"):
+        response_format = payload.get("response_format")
+        if response_format:
             generation_config["responseMimeType"] = "application/json"
+            schema = (
+                response_format.get("json_schema", {}).get("schema")
+                if isinstance(response_format, dict)
+                else None
+            )
+            if schema:
+                generation_config["responseSchema"] = _sanitize_gemini_schema(schema)
 
         body = {
             "contents": [
