@@ -57,6 +57,13 @@ class DslVersion(Base):
     )
     version: Mapped[str] = mapped_column(Text, unique=True)
     schema_json: Mapped[dict] = mapped_column(JSONB)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("user_account.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
@@ -208,6 +215,13 @@ class DslGap(Base):
     reason: Mapped[str] = mapped_column(Text)
     impact: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="new")
+    implemented_in_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("user_account.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+import sqlalchemy as sa
 from sqlalchemy import and_, delete, desc, func, select, text
 
 from embeddings import EmbeddingConfig, EmbeddingService
@@ -21,6 +22,7 @@ from db.models import (
     AuditEvent,
     Artifact,
     DslGap,
+    DslVersion,
     Idea,
     IdeaCandidate,
     IdeaCandidateGapLink,
@@ -127,6 +129,22 @@ def _repo_counts(session, model, status_col=None) -> dict:
     return payload
 
 
+def _activate_dsl_version(session, *, version: str, notes: str | None = None) -> DslVersion:
+    row = session.execute(select(DslVersion).where(DslVersion.version == version)).scalar_one_or_none()
+    if row is None:
+        row = DslVersion(version=version, schema_json={}, is_active=True, notes=notes)
+        session.add(row)
+    else:
+        row.is_active = True
+        if notes:
+            row.notes = notes
+    session.execute(
+        sa.update(DslVersion).where(DslVersion.version != version).values(is_active=False)
+    )
+    session.flush()
+    return row
+
+
 def _dev_manual_flow_enabled() -> bool:
     return getenv("DEV_MANUAL_FLOW", "0").lower() in {"1", "true", "yes"}
 
@@ -214,6 +232,8 @@ class IdeaCandidateCapabilityOverrideRequest(BaseModel):
 
 class DslGapStatusRequest(BaseModel):
     status: Literal["new", "accepted", "in_progress", "implemented", "rejected"]
+    implemented_in_dsl_version: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class RerunRequest(BaseModel):
@@ -315,6 +335,14 @@ def system_status() -> dict:
             "total": int(artifacts_total),
             "by_status": {str(kind or "unknown"): int(count) for kind, count in artifacts_by_type},
         }
+        active_version = session.execute(
+            select(DslVersion).where(DslVersion.is_active.is_(True)).limit(1)
+        ).scalar_one_or_none()
+        if active_version is None:
+            active_version = _activate_dsl_version(
+                session, version=getenv("DSL_CURRENT_VERSION", "v1")
+            )
+        current_dsl_version = active_version.version
     except Exception as exc:
         services.append(_service_status("postgres", False, "query_failed"))
         partial_failures.append(f"postgres_unavailable:{type(exc).__name__}")
@@ -325,6 +353,7 @@ def system_status() -> dict:
         "service_status": services,
         "repo_counts": repo_counts,
         "worker": worker,
+        "dsl_version_current": current_dsl_version if "current_dsl_version" in locals() else None,
         "updated_at": updated_at,
         "partial_failures": partial_failures,
     }
@@ -987,6 +1016,42 @@ def list_dsl_gaps(
         session.close()
 
 
+@app.get("/dsl/versions")
+def list_dsl_versions(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> List[dict]:
+    limit, offset = _paginate(limit, offset)
+    session = SessionLocal()
+    try:
+        stmt = select(DslVersion).order_by(desc(DslVersion.created_at)).limit(limit).offset(offset)
+        rows = session.execute(stmt).scalars().all()
+        versions: list[dict] = []
+        for row in rows:
+            introduced = session.execute(
+                select(func.count()).select_from(DslGap).where(DslGap.dsl_version == row.version)
+            ).scalar_one()
+            implemented = session.execute(
+                select(func.count())
+                .select_from(DslGap)
+                .where(DslGap.implemented_in_version == row.version)
+            ).scalar_one()
+            versions.append(
+                {
+                    "id": row.id,
+                    "version": row.version,
+                    "is_active": row.is_active,
+                    "notes": row.notes,
+                    "created_at": row.created_at,
+                    "introduced_gaps": int(introduced),
+                    "implemented_gaps": int(implemented),
+                }
+            )
+        return jsonable_encoder(versions)
+    finally:
+        session.close()
+
+
 @app.post("/dsl-gaps/{gap_id}/status")
 def update_dsl_gap_status(
     gap_id: UUID,
@@ -999,12 +1064,33 @@ def update_dsl_gap_status(
         if gap is None:
             raise HTTPException(status_code=404, detail="dsl_gap_not_found")
 
+        now = datetime.now(timezone.utc)
         gap.status = request.status
-        gap.updated_at = datetime.now(timezone.utc)
+        gap.updated_at = now
+        if request.status == "implemented":
+            if not request.implemented_in_dsl_version:
+                raise HTTPException(status_code=400, detail="implemented_in_dsl_version_required")
+            gap.implemented_in_version = request.implemented_in_dsl_version
+            gap.resolved_at = now
+            gap.resolved_by = None
+            _activate_dsl_version(
+                session,
+                version=request.implemented_in_dsl_version,
+                notes=request.notes,
+            )
         session.add(gap)
 
-        reverify_candidates = reverify_candidates_for_gap(session, dsl_gap_id=gap.id)
-        reverify_ideas = reverify_ideas_for_gap(session, dsl_gap_id=gap.id)
+        dsl_version = request.implemented_in_dsl_version or gap.dsl_version
+        reverify_candidates = reverify_candidates_for_gap(
+            session,
+            dsl_gap_id=gap.id,
+            dsl_version=dsl_version,
+        )
+        reverify_ideas = reverify_ideas_for_gap(
+            session,
+            dsl_gap_id=gap.id,
+            dsl_version=dsl_version,
+        )
 
         session.commit()
         return jsonable_encoder(

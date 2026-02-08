@@ -97,12 +97,24 @@ type DslGap = {
   id: string
   gap_key?: string | null
   dsl_version?: string | null
+  implemented_in_version?: string | null
+  resolved_at?: string | null
   feature?: string | null
   reason?: string | null
   impact?: string | null
   status?: 'new' | 'accepted' | 'in_progress' | 'implemented' | 'rejected' | null
   created_at?: string | null
   updated_at?: string | null
+}
+
+type DslVersionRow = {
+  id: string
+  version: string
+  is_active?: boolean
+  notes?: string | null
+  created_at?: string | null
+  introduced_gaps?: number
+  implemented_gaps?: number
 }
 
 type BlockedIdeaCandidate = {
@@ -270,6 +282,7 @@ type SystemStatusResponse = {
     worker_count?: number
     queue_depth?: number | null
   }
+  dsl_version_current?: string | null
   updated_at?: string
   partial_failures?: string[]
 }
@@ -422,6 +435,10 @@ function App() {
   const [dslGapsLoading, setDslGapsLoading] = useState(false)
   const [dslGapsError, setDslGapsError] = useState<string | null>(null)
   const [dslGapsUpdatedAt, setDslGapsUpdatedAt] = useState<Date | null>(null)
+  const [dslVersions, setDslVersions] = useState<DslVersionRow[]>([])
+  const [dslVersionsLoading, setDslVersionsLoading] = useState(false)
+  const [dslVersionsError, setDslVersionsError] = useState<string | null>(null)
+  const [dslVersionsUpdatedAt, setDslVersionsUpdatedAt] = useState<Date | null>(null)
   const [verifyLimit, setVerifyLimit] = useState('20')
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [gapActionLoading, setGapActionLoading] = useState<Record<string, boolean>>({})
@@ -1025,6 +1042,24 @@ function App() {
     }
   }
 
+  const fetchDslVersions = async () => {
+    setDslVersionsLoading(true)
+    setDslVersionsError(null)
+    try {
+      const response = await fetch(`${API_BASE}/dsl/versions?limit=20`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as DslVersionRow[]
+      setDslVersions(payload)
+      setDslVersionsUpdatedAt(new Date())
+    } catch (err) {
+      setDslVersionsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setDslVersionsLoading(false)
+    }
+  }
+
   const fetchBlockedCandidates = async () => {
     try {
       const response = await fetch(`${API_BASE}/idea-candidates/blocked?limit=6`)
@@ -1121,10 +1156,23 @@ function App() {
     setOpsError(null)
     setOpsMessage(null)
     try {
+      let implementedInVersion: string | null = null
+      let notes: string | null = null
+      if (status === 'implemented') {
+        implementedInVersion = window.prompt('Wersja DSL dla implementacji (np. 1.1)?')
+        if (!implementedInVersion) {
+          throw new Error('implemented_in_dsl_version_required')
+        }
+        notes = window.prompt('Opcjonalne notatki do wersji DSL (opcjonalnie)') ?? null
+      }
       const response = await fetch(`${API_BASE}/dsl-gaps/${gapId}/status`, {
         method: 'POST',
         headers: opsHeaders(),
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          implemented_in_dsl_version: implementedInVersion,
+          notes,
+        }),
       })
       if (!response.ok) {
         throw new Error(`API error ${response.status}`)
@@ -1132,6 +1180,7 @@ function App() {
       const payload = (await response.json()) as Record<string, unknown>
       setOpsMessage(`Gap updated: ${JSON.stringify(payload)}`)
       fetchDslGaps()
+      fetchDslVersions()
       fetchIdeaCandidates()
       fetchSystemStatus()
       fetchBlockedCandidates()
@@ -1210,6 +1259,10 @@ function App() {
 
   useEffect(() => {
     fetchDslGaps()
+  }, [])
+
+  useEffect(() => {
+    fetchDslVersions()
   }, [])
 
   useEffect(() => {
@@ -1487,6 +1540,13 @@ function App() {
               </Card>
             ))
           )}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
+          <div className="text-xs uppercase tracking-[0.18em] text-stone-500">DSL Version</div>
+          <div className="mt-1 text-lg font-semibold text-stone-900">
+            {systemStatus?.dsl_version_current ?? '—'}
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -2136,7 +2196,8 @@ function App() {
                 <tr>
                   <th className="px-2 py-3">Feature</th>
                   <th className="px-2 py-3">Status</th>
-                  <th className="px-2 py-3">Version</th>
+                  <th className="px-2 py-3">Introduced</th>
+                  <th className="px-2 py-3">Implemented</th>
                   <th className="px-2 py-3">Reason</th>
                   <th className="px-2 py-3">Actions</th>
                 </tr>
@@ -2144,7 +2205,7 @@ function App() {
               <tbody>
                 {dslGaps.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
+                    <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
                       No DSL gaps yet.
                     </td>
                   </tr>
@@ -2158,6 +2219,7 @@ function App() {
                         </Badge>
                       </td>
                       <td className="px-2 py-4 text-stone-600">{gap.dsl_version ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-600">{gap.implemented_in_version ?? '—'}</td>
                       <td className="px-2 py-4 text-stone-600">{gap.reason ?? '—'}</td>
                       <td className="px-2 py-4">
                         <div className="flex flex-wrap gap-2">
@@ -2186,6 +2248,68 @@ function App() {
                           </Button>
                         </div>
                       </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
+        <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-stone-900">DSL Versions</h2>
+            <p className="text-sm text-stone-600">Historia wersji DSL oraz gapy wprowadzone w wersjach.</p>
+          </div>
+          <div className="text-xs text-stone-500">
+            <div>Updated: {dslVersionsUpdatedAt ? dslVersionsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-full" onClick={fetchDslVersions} disabled={dslVersionsLoading}>
+            {dslVersionsLoading ? 'Refreshing…' : 'Refresh versions'}
+          </Button>
+          {dslVersionsError ? <span className="text-xs text-rose-600">{dslVersionsError}</span> : null}
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          {dslVersionsLoading ? (
+            <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
+              Loading DSL versions…
+            </div>
+          ) : (
+            <table className="min-w-[820px] w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
+                <tr>
+                  <th className="px-2 py-3">Version</th>
+                  <th className="px-2 py-3">Active</th>
+                  <th className="px-2 py-3">Introduced gaps</th>
+                  <th className="px-2 py-3">Implemented gaps</th>
+                  <th className="px-2 py-3">Notes</th>
+                  <th className="px-2 py-3">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dslVersions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
+                      No DSL versions yet.
+                    </td>
+                  </tr>
+                ) : (
+                  dslVersions.map((row) => (
+                    <tr key={row.id} className="border-t border-stone-200/70">
+                      <td className="px-2 py-4 text-stone-800">{row.version}</td>
+                      <td className="px-2 py-4 text-stone-600">
+                        {row.is_active ? 'yes' : 'no'}
+                      </td>
+                      <td className="px-2 py-4 text-stone-600">{row.introduced_gaps ?? 0}</td>
+                      <td className="px-2 py-4 text-stone-600">{row.implemented_gaps ?? 0}</td>
+                      <td className="px-2 py-4 text-stone-600">{row.notes ?? '—'}</td>
+                      <td className="px-2 py-4 text-stone-600">{formatDate(row.created_at)}</td>
                     </tr>
                   ))
                 )}

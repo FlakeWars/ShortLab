@@ -65,6 +65,23 @@ def _extract_signals(text_parts: Iterable[str | None]) -> list[GapSignal]:
     return matched
 
 
+def _active_gap_context(session: Session, *, dsl_version: str) -> str:
+    rows = session.execute(
+        select(DslGap)
+        .where(DslGap.dsl_version == dsl_version)
+        .where(DslGap.status.in_(("new", "accepted", "in_progress")))
+        .order_by(DslGap.created_at.desc())
+        .limit(50)
+    ).scalars().all()
+    if not rows:
+        return ""
+    lines = []
+    for gap in rows:
+        reason = (gap.reason or "").strip()
+        lines.append(f"- {gap.feature}: {reason}")
+    return "\n".join(lines)
+
+
 def _llm_capability_check(
     *,
     title: str,
@@ -72,6 +89,7 @@ def _llm_capability_check(
     what_to_expect: str | None,
     preview: str | None,
     dsl_spec: str,
+    active_gaps: str,
     language: str,
 ) -> tuple[dict, dict]:
     language_code = (language or "pl").lower()
@@ -128,6 +146,8 @@ def _llm_capability_check(
         "<<<DSL_SPEC_BEGIN>>>\n"
         f"{dsl_spec}\n"
         "<<<DSL_SPEC_END>>>\n\n"
+        "EXISTING ACTIVE GAPS (do not repeat unless truly new):\n"
+        f"{active_gaps or 'none'}\n\n"
         "EVALUATION FRAME (same as generator):\n"
         "- Use simple geometric primitives.\n"
         "- Motion is deterministic: physics-like forces, parametric paths, or rule-based behaviors.\n"
@@ -288,12 +308,14 @@ def verify_idea_capability(
     llm_feasible: bool | None = None
     if use_llm:
         try:
+            active_gaps = _active_gap_context(session, dsl_version=dsl_version)
             payload, route_meta = _llm_capability_check(
                 title=idea.title,
                 summary=idea.summary,
                 what_to_expect=idea.what_to_expect,
                 preview=idea.preview,
                 dsl_spec=dsl_spec,
+                active_gaps=active_gaps,
                 language=language,
             )
             llm_feasible = bool(payload.get("feasible", True))
@@ -423,12 +445,14 @@ def verify_candidate_capability(
     llm_feasible: bool | None = None
     if use_llm:
         try:
+            active_gaps = _active_gap_context(session, dsl_version=dsl_version)
             payload, route_meta = _llm_capability_check(
                 title=candidate.title,
                 summary=candidate.summary,
                 what_to_expect=candidate.what_to_expect,
                 preview=candidate.preview,
                 dsl_spec=dsl_spec,
+                active_gaps=active_gaps,
                 language=language,
             )
             llm_feasible = bool(payload.get("feasible", True))
@@ -589,6 +613,7 @@ def reverify_ideas_for_gap(
     session: Session,
     *,
     dsl_gap_id: UUID,
+    dsl_version: str,
     policy_version: str = "capability-v1",
 ) -> dict:
     gap = session.get(DslGap, dsl_gap_id)
@@ -598,15 +623,20 @@ def reverify_ideas_for_gap(
     rows = session.execute(
         select(IdeaGapLink.idea_id).where(IdeaGapLink.dsl_gap_id == dsl_gap_id)
     ).all()
-    reports = [
-        verify_idea_capability(
-            session,
-            idea_id=idea_id,
-            dsl_version=gap.dsl_version,
-            policy_version=policy_version,
+    reports = []
+    for (idea_id,) in rows:
+        idea = session.get(Idea, idea_id)
+        if idea and idea.status != "compiled":
+            idea.status = "unverified"
+            session.add(idea)
+        reports.append(
+            verify_idea_capability(
+                session,
+                idea_id=idea_id,
+                dsl_version=dsl_version,
+                policy_version=policy_version,
+            )
         )
-        for (idea_id,) in rows
-    ]
     feasible_count = sum(1 for report in reports if report["feasible"])
     blocked_count = len(reports) - feasible_count
     return {
@@ -621,6 +651,7 @@ def reverify_candidates_for_gap(
     session: Session,
     *,
     dsl_gap_id: UUID,
+    dsl_version: str,
     policy_version: str = "capability-v1",
 ) -> dict:
     gap = session.get(DslGap, dsl_gap_id)
@@ -632,15 +663,20 @@ def reverify_candidates_for_gap(
             IdeaCandidateGapLink.dsl_gap_id == dsl_gap_id
         )
     ).all()
-    reports = [
-        verify_candidate_capability(
-            session,
-            idea_candidate_id=idea_candidate_id,
-            dsl_version=gap.dsl_version,
-            policy_version=policy_version,
+    reports = []
+    for (idea_candidate_id,) in rows:
+        candidate = session.get(IdeaCandidate, idea_candidate_id)
+        if candidate:
+            candidate.capability_status = "unverified"
+            session.add(candidate)
+        reports.append(
+            verify_candidate_capability(
+                session,
+                idea_candidate_id=idea_candidate_id,
+                dsl_version=dsl_version,
+                policy_version=policy_version,
+            )
         )
-        for (idea_candidate_id,) in rows
-    ]
     feasible_count = sum(1 for report in reports if report["feasible"])
     blocked_count = len(reports) - feasible_count
     return {

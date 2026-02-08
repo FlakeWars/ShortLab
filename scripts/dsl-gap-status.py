@@ -8,7 +8,7 @@ from uuid import UUID
 
 from db.models import DslGap
 from db.session import SessionLocal
-from ideas.capability import reverify_ideas_for_gap
+from ideas.capability import reverify_candidates_for_gap, reverify_ideas_for_gap
 
 
 def main() -> None:
@@ -19,6 +19,7 @@ def main() -> None:
         required=True,
         choices=["new", "accepted", "in_progress", "implemented", "rejected"],
     )
+    parser.add_argument("--implemented-in", dest="implemented_in", default=None)
     args = parser.parse_args()
 
     session = SessionLocal()
@@ -29,11 +30,27 @@ def main() -> None:
 
         gap.status = args.status
         gap.updated_at = datetime.now(timezone.utc)
+        if args.status == "implemented":
+            if not args.implemented_in:
+                raise SystemExit("--implemented-in is required when status=implemented")
+            gap.implemented_in_version = args.implemented_in
         session.add(gap)
 
-        reverify = reverify_ideas_for_gap(session, dsl_gap_id=gap.id)
+        dsl_version = args.implemented_in or gap.dsl_version
+        reverify_candidates = reverify_candidates_for_gap(session, dsl_gap_id=gap.id, dsl_version=dsl_version)
+        reverify_ideas = reverify_ideas_for_gap(session, dsl_gap_id=gap.id, dsl_version=dsl_version)
         session.commit()
-        print(json.dumps({"gap_id": str(gap.id), "status": gap.status, "reverify": reverify}, ensure_ascii=True))
+        print(
+            json.dumps(
+                {
+                    "gap_id": str(gap.id),
+                    "status": gap.status,
+                    "reverify_candidates": reverify_candidates,
+                    "reverify_ideas": reverify_ideas,
+                },
+                ensure_ascii=True,
+            )
+        )
     finally:
         session.close()
 

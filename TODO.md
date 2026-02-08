@@ -10,6 +10,12 @@
   - [x] Idea Gate: wybór konkretnego kandydata (nie tylko losowanie)
   - [x] Manualne uruchamianie compile/render z UI (bez auto)
 - [ ] LLM: limity tokenów per model/grupa + hard-stop (branch: feat/dev-manual-flow)
+- [ ] DSL: workflow gapów + wersjonowanie spec (branch: feat/dev-manual-flow)
+  - [ ] Migracja: `implemented_in_version`, `resolved_at/by`, `dsl_version.is_active/notes`
+  - [ ] API: wersje DSL + aktywna wersja w system status
+  - [ ] Weryfikacja: dołącz listę aktywnych gapów do prompta
+  - [ ] Reverify: po implementacji gapu -> status `unverified` i ponowna weryfikacja
+  - [ ] UI: historia wersji DSL + status aktywnej wersji
 ## Next (Kolejne)
 - [ ] Manual Flow v1.1 (branch: feat/dev-manual-flow-v1-1)
   - [ ] Render-only z istniejącego DSL (bez ponownej kompilacji) + UI akcja
