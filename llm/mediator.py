@@ -686,7 +686,18 @@ class LLMMediator:
             body["seed"] = payload["seed"]
         response_format = payload.get("response_format")
         if response_format:
-            body["text"] = {"format": response_format}
+            if isinstance(response_format, dict) and response_format.get("type") == "json_schema":
+                json_schema = response_format.get("json_schema", {}) if isinstance(response_format, dict) else {}
+                body["text"] = {
+                    "format": {
+                        "type": "json_schema",
+                        "name": json_schema.get("name", "schema"),
+                        "schema": json_schema.get("schema", {}),
+                        "strict": bool(json_schema.get("strict", True)),
+                    }
+                }
+            else:
+                body["text"] = {"format": response_format}
 
         req = urlrequest.Request(
             url=f"{route.base_url}/responses",
