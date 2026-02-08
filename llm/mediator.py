@@ -686,7 +686,7 @@ class LLMMediator:
             body["seed"] = payload["seed"]
         response_format = payload.get("response_format")
         if response_format:
-            body["response_format"] = response_format
+            body["text"] = {"format": response_format}
 
         req = urlrequest.Request(
             url=f"{route.base_url}/responses",
