@@ -693,7 +693,6 @@ class LLMMediator:
                 {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
                 {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]},
             ],
-            "temperature": payload.get("temperature"),
             "max_output_tokens": payload.get("max_tokens"),
         }
         if payload.get("seed") is not None:
