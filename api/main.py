@@ -207,6 +207,11 @@ class IdeaCandidateCapabilityVerifyBatchRequest(BaseModel):
     language: Literal["pl", "en"] = Field(default="pl")
 
 
+class IdeaCandidateCapabilityOverrideRequest(BaseModel):
+    status: Literal["unverified", "feasible", "blocked_by_gaps"]
+    reason: str | None = None
+
+
 class DslGapStatusRequest(BaseModel):
     status: Literal["new", "accepted", "in_progress", "implemented", "rejected"]
 
@@ -829,6 +834,44 @@ def reset_candidate_capability(
                 source="ui",
                 occurred_at=datetime.now(timezone.utc),
                 payload={"idea_candidate_id": str(candidate.id), "action": "reset_capability"},
+            )
+        )
+        session.commit()
+        return jsonable_encoder({"id": candidate.id, "capability_status": candidate.capability_status})
+    finally:
+        session.close()
+
+
+@app.post("/idea-candidates/{candidate_id}/capability")
+def override_candidate_capability(
+    candidate_id: UUID,
+    request: IdeaCandidateCapabilityOverrideRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        candidate = session.get(IdeaCandidate, candidate_id)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="idea_candidate_not_found")
+
+        session.execute(
+            delete(IdeaCandidateGapLink).where(
+                IdeaCandidateGapLink.idea_candidate_id == candidate.id
+            )
+        )
+        candidate.capability_status = request.status
+        session.add(candidate)
+
+        session.add(
+            AuditEvent(
+                event_type="idea_candidate_capability_override",
+                source="ui",
+                occurred_at=datetime.now(timezone.utc),
+                payload={
+                    "idea_candidate_id": str(candidate.id),
+                    "status": request.status,
+                    "reason": request.reason,
+                },
             )
         )
         session.commit()

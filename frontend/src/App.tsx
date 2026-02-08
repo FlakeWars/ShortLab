@@ -722,6 +722,30 @@ function App() {
     }
   }
 
+  const handleOverrideCandidateCapability = async (
+    candidateId: string,
+    status: 'unverified' | 'feasible' | 'blocked_by_gaps',
+    reason?: string,
+  ) => {
+    setCandidateAction(candidateId, true)
+    try {
+      const response = await fetch(`${API_BASE}/idea-candidates/${candidateId}/capability`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({ status, reason }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      fetchCandidateList()
+      fetchSystemStatus()
+      fetchBlockedCandidates()
+      fetchAuditEvents()
+    } finally {
+      setCandidateAction(candidateId, false)
+    }
+  }
+
   const handleDeleteCandidate = async (candidateId: string) => {
     setCandidateAction(candidateId, true)
     try {
@@ -2691,6 +2715,22 @@ function App() {
                             disabled={candidateActionLoading[row.id]}
                           >
                             Reset verify
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => handleOverrideCandidateCapability(row.id, 'feasible', 'manual')}
+                            disabled={candidateActionLoading[row.id]}
+                          >
+                            Mark feasible
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => handleOverrideCandidateCapability(row.id, 'blocked_by_gaps', 'manual')}
+                            disabled={candidateActionLoading[row.id]}
+                          >
+                            Mark blocked
                           </Button>
                           <Button
                             variant="outline"

@@ -4,6 +4,7 @@
 - [ ] Dev Mode: manualny flow + cofanie kroków (branch: feat/dev-manual-flow)
   - [x] Tryb manualny: wyłącz automaty (verify/compile/render) w dev
   - [x] Cofnij weryfikację kandydata (status -> unverified) + UI akcja
+  - [x] Ręczne ustawienie capability (feasible/blocked) bez LLM
   - [x] Usuń kandydata (soft delete) + UI akcja
   - [x] Cofnij decyzję Idea Gate (picked/later/rejected -> new) + UI akcja
   - [x] Idea Gate: wybór konkretnego kandydata (nie tylko losowanie)
