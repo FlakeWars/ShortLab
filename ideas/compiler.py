@@ -74,6 +74,8 @@ def compile_idea_to_dsl(
                 raise RuntimeError("empty_dsl_yaml")
             target_path.write_text(dsl_yaml)
             _ensure_background_in_palette(target_path)
+            _ensure_duration_range(target_path)
+            _ensure_unique_rule_ids(target_path)
             model = validate_file(target_path)
             semantic_errors = _semantic_validate(model)
             if semantic_errors:
@@ -190,7 +192,7 @@ def _build_compiler_system_prompt(*, dsl_spec: str) -> str:
         "RESPONSE FORMAT EXAMPLE (BEGIN):\n"
         "<<<RESPONSE_EXAMPLE>>>\n"
         "{\n"
-        '  "dsl_yaml": "dsl_version: \'1.0\'\\nmeta:\\n  id: \'idea-001\'\\n  title: \'...\'\\n"\n'
+        '  "dsl_yaml": "dsl_version: \'1.3\'\\nmeta:\\n  id: \'idea-001\'\\n  title: \'...\'\\n"\n'
         "}\n"
         "<<<RESPONSE_FORMAT_END>>>\n\n"
         "Return JSON only. Do not wrap YAML in markdown or backticks."
@@ -224,11 +226,15 @@ def _semantic_validate(model) -> list[str]:
         errors.append("scene.canvas.duration_s must be in range 6..60")
 
     if model.termination.time is not None:
-        t = float(model.termination.time)
-        if t <= 0:
-            errors.append("termination.time must be > 0")
-        if t > duration:
-            errors.append("termination.time cannot exceed scene.canvas.duration_s")
+        try:
+            t = float(model.termination.time.at_s)
+        except (TypeError, ValueError) as exc:
+            errors.append(f"termination.time.at_s must be numeric ({exc})")
+        else:
+            if t <= 0:
+                errors.append("termination.time.at_s must be > 0")
+            if t > duration:
+                errors.append("termination.time.at_s cannot exceed scene.canvas.duration_s")
 
     return errors
 
@@ -256,3 +262,66 @@ def _ensure_background_in_palette(target_path: Path) -> None:
             palette.append(background)
             scene["palette"] = palette
             target_path.write_text(yaml.safe_dump(payload, sort_keys=False))
+
+
+def _ensure_duration_range(target_path: Path, *, min_s: float = 6.0, max_s: float = 60.0) -> None:
+    try:
+        payload = yaml.safe_load(target_path.read_text())
+    except (OSError, yaml.YAMLError):
+        return
+    if not isinstance(payload, dict):
+        return
+    scene = payload.get("scene")
+    if not isinstance(scene, dict):
+        return
+    canvas = scene.get("canvas")
+    if not isinstance(canvas, dict):
+        return
+    duration = canvas.get("duration_s")
+    try:
+        duration_value = float(duration)
+    except (TypeError, ValueError):
+        return
+    if duration_value < min_s:
+        canvas["duration_s"] = min_s
+    elif duration_value > max_s:
+        canvas["duration_s"] = max_s
+    else:
+        return
+    scene["canvas"] = canvas
+    payload["scene"] = scene
+    target_path.write_text(yaml.safe_dump(payload, sort_keys=False))
+
+
+def _ensure_unique_rule_ids(target_path: Path) -> None:
+    try:
+        payload = yaml.safe_load(target_path.read_text())
+    except (OSError, yaml.YAMLError):
+        return
+    if not isinstance(payload, dict):
+        return
+    systems = payload.get("systems")
+    if not isinstance(systems, dict):
+        return
+    rules = systems.get("rules")
+    if not isinstance(rules, list):
+        return
+    seen: set[str] = set()
+    changed = False
+    for idx, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            continue
+        base = str(rule.get("id") or f"rule_{idx+1}").strip() or f"rule_{idx+1}"
+        candidate = base
+        suffix = 2
+        while candidate in seen:
+            candidate = f"{base}_{suffix}"
+            suffix += 1
+        if candidate != rule.get("id"):
+            rule["id"] = candidate
+            changed = True
+        seen.add(candidate)
+    if changed:
+        systems["rules"] = rules
+        payload["systems"] = systems
+        target_path.write_text(yaml.safe_dump(payload, sort_keys=False))
