@@ -303,6 +303,30 @@ class LLMMediator:
         except Exception:
             return
 
+    def _log_llm_call(
+        self,
+        *,
+        task_type: str,
+        provider: str,
+        model: str,
+        success: bool,
+        latency_ms: float | None = None,
+        error: str | None = None,
+    ) -> None:
+        if os.getenv("LLM_AUDIT_LOG", "0") != "1":
+            return
+        payload: dict[str, Any] = {
+            "task_type": task_type,
+            "provider": provider,
+            "model": model,
+            "success": success,
+        }
+        if latency_ms is not None:
+            payload["latency_ms"] = int(latency_ms)
+        if error:
+            payload["error"] = error[:500]
+        self.log_event("llm_call", payload=payload)
+
     def get_metrics_snapshot(self) -> dict[str, Any]:
         return {
             "routes": self._metrics,
@@ -424,12 +448,26 @@ class LLMMediator:
                     completion_tokens=completion_tokens,
                     estimated_cost_usd=estimated_cost,
                 )
+                self._log_llm_call(
+                    task_type=task_type,
+                    provider=route.provider,
+                    model=route.model,
+                    success=True,
+                    latency_ms=latency_ms,
+                )
                 return parsed, {
                     "provider": route.provider,
                     "model": route.model,
                     "id": response.get("id"),
                 }
             except LLMError as exc:
+                self._log_llm_call(
+                    task_type=task_type,
+                    provider=route.provider,
+                    model=route.model,
+                    success=False,
+                    error=str(exc),
+                )
                 last_error = exc
                 if exc.code == "invalid_json" and route.provider == "gemini":
                     continue
