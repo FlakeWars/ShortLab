@@ -496,7 +496,8 @@ def verify_candidate_capability(
                             )
                         )
                 else:
-                    llm_errors.append(str(exc))
+                    raw_snippet = exc.raw_content.strip().replace("\n", " ")[:600]
+                    llm_errors.append(f"{exc} | raw={raw_snippet}")
                     llm_meta = {
                         "prompt_version": LLM_CAPABILITY_PROMPT_VERSION,
                         "llm_feasible": llm_feasible,
