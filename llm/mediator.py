@@ -68,6 +68,12 @@ def _default_api_key_header(provider: str) -> str:
         return "x-goog-api-key"
     return "Authorization"
 
+def _openai_responses_models() -> set[str]:
+    raw = os.getenv("LLM_OPENAI_RESPONSES_MODELS", "").strip()
+    if not raw:
+        return set()
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
 
 def _sanitize_gemini_schema(schema: Any) -> Any:
     if isinstance(schema, dict):
@@ -587,6 +593,8 @@ class LLMMediator:
     ) -> dict[str, Any]:
         if route.provider == "gemini":
             return self._call_gemini_generate_content(task_type, route, payload)
+        if route.provider == "openai" and route.model in _openai_responses_models():
+            return self._call_openai_responses(task_type, route, payload)
         if route.provider == "codex_cli":
             try:
                 content = run_codex_cli(
@@ -654,6 +662,83 @@ class LLMMediator:
                 task_type=task_type,
                 retryable=True,
             ) from exc
+
+    def _call_openai_responses(
+        self,
+        task_type: str,
+        route: TaskRoute,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {route.api_key}"}
+        messages = payload.get("messages", [])
+        system_prompt = str(messages[0].get("content", "")) if len(messages) >= 1 else ""
+        user_prompt = str(messages[1].get("content", "")) if len(messages) >= 2 else ""
+        body: dict[str, Any] = {
+            "model": route.model,
+            "input": [
+                {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
+                {"role": "user", "content": [{"type": "text", "text": user_prompt}]},
+            ],
+            "temperature": payload.get("temperature"),
+            "max_output_tokens": payload.get("max_tokens"),
+        }
+        if payload.get("seed") is not None:
+            body["seed"] = payload["seed"]
+        response_format = payload.get("response_format")
+        if response_format:
+            body["response_format"] = response_format
+
+        req = urlrequest.Request(
+            url=f"{route.base_url}/responses",
+            data=json.dumps(body).encode("utf-8"),
+            method="POST",
+            headers=headers,
+        )
+        try:
+            with urlrequest.urlopen(req, timeout=max(5, route.timeout_s)) as resp:
+                response = json.loads(resp.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8")
+            raise LLMError(
+                code=f"http_{exc.code}",
+                message=self._sanitize_error_message(detail),
+                provider=route.provider,
+                task_type=task_type,
+                retryable=exc.code >= 500 or exc.code in {401, 403, 429},
+            ) from exc
+        except URLError as exc:
+            raise LLMError(
+                code="network_error",
+                message=self._sanitize_error_message(str(exc)),
+                provider=route.provider,
+                task_type=task_type,
+                retryable=True,
+            ) from exc
+
+        output_text = response.get("output_text")
+        if not output_text:
+            output = response.get("output", [])
+            if output:
+                content = output[0].get("content", [])
+                for part in content:
+                    if part.get("type") == "output_text":
+                        output_text = part.get("text")
+                        break
+        if not output_text:
+            raise LLMError(
+                code="invalid_response",
+                message="OpenAI responses output is empty",
+                provider=route.provider,
+                task_type=task_type,
+            )
+        usage = response.get("usage", {}) if isinstance(response, dict) else {}
+        prompt_tokens = usage.get("input_tokens", 0) or 0
+        completion_tokens = usage.get("output_tokens", 0) or 0
+        return {
+            "id": response.get("id"),
+            "choices": [{"message": {"content": output_text}}],
+            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
+        }
 
     def _sanitize_error_message(self, message: str) -> str:
         text = (message or "").replace("\n", " ")

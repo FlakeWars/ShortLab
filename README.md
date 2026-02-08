@@ -78,6 +78,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - resiliency: `LLM_ROUTE_IDEA_GENERATE_TIMEOUT_S`, `..._RETRIES`, `..._BREAKER_*`
   - telemetria/cost estimate: `LLM_PRICE_DEFAULT_INPUT_PER_1K`, `LLM_PRICE_DEFAULT_OUTPUT_PER_1K`
   - safety caps: `LLM_ROUTE_IDEA_GENERATE_MAX_TOKENS`, `..._MAX_COST_USD`, `LLM_DAILY_BUDGET_USD`, `LLM_TOKEN_BUDGETS`
+  - OpenAI responses-only models: `LLM_OPENAI_RESPONSES_MODELS` (comma list)
   - persystencja metryk/budżetu: `LLM_MEDIATOR_PERSIST_BACKEND=db` (fallback: `LLM_MEDIATOR_STATE_FILE`)
   - retention: `LLM_MEDIATOR_METRICS_RETENTION_DAYS`, `LLM_MEDIATOR_BUDGET_RETENTION_DAYS`
   - metryki runtime: `GET /llm/metrics` (operator-only)
