@@ -232,7 +232,8 @@ idea-verify-capability: ## Verify idea candidates against DSL capability (suppor
 dsl-gap-status: ## Update DSL gap status and reverify linked ideas (DSL_GAP_ID required)
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/dsl-gap-status.py \
 		--gap-id "$(DSL_GAP_ID)" \
-		--status "$(DSL_GAP_STATUS)"
+		--status "$(DSL_GAP_STATUS)" \
+		$(if $(DSL_GAP_IMPLEMENTED_IN),--implemented-in "$(DSL_GAP_IMPLEMENTED_IN)",)
 
 .PHONY: qc-decide
 qc-decide: ## Create QC decision for an animation (ANIMATION_ID, QC_RESULT, QC_NOTES, QC_DECIDED_BY)

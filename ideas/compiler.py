@@ -192,7 +192,7 @@ def _build_compiler_system_prompt(*, dsl_spec: str) -> str:
         "RESPONSE FORMAT EXAMPLE (BEGIN):\n"
         "<<<RESPONSE_EXAMPLE>>>\n"
         "{\n"
-        '  "dsl_yaml": "dsl_version: \'1.3\'\\nmeta:\\n  id: \'idea-001\'\\n  title: \'...\'\\n"\n'
+        '  "dsl_yaml": "dsl_version: \'1.4\'\\nmeta:\\n  id: \'idea-001\'\\n  title: \'...\'\\n"\n'
         "}\n"
         "<<<RESPONSE_FORMAT_END>>>\n\n"
         "Return JSON only. Do not wrap YAML in markdown or backticks."

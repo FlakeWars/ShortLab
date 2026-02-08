@@ -469,6 +469,26 @@ function App() {
     return headers
   }
 
+  const readApiError = async (response: Response) => {
+    let detail = ''
+    try {
+      const payload = await response.json()
+      if (payload && typeof payload === 'object') {
+        detail =
+          (payload as { detail?: string; message?: string }).detail ||
+          (payload as { detail?: string; message?: string }).message ||
+          JSON.stringify(payload)
+      }
+    } catch {
+      try {
+        detail = await response.text()
+      } catch {
+        detail = ''
+      }
+    }
+    return `API error ${response.status}${detail ? `: ${detail}` : ''}`
+  }
+
   const fetchSummary = async () => {
     setSummaryLoading(true)
     try {
@@ -861,7 +881,7 @@ function App() {
         }),
       })
       if (!response.ok) {
-        throw new Error(`API error ${response.status}`)
+        throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
       setOpsMessage(`Enqueued: ${JSON.stringify(payload)}`)
@@ -892,7 +912,7 @@ function App() {
         }),
       })
       if (!response.ok) {
-        throw new Error(`API error ${response.status}`)
+        throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
       setManualCompileMessage(`Compiled: ${JSON.stringify(payload)}`)
@@ -924,7 +944,7 @@ function App() {
         }),
       })
       if (!response.ok) {
-        throw new Error(`API error ${response.status}`)
+        throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
       setManualPipelineMessage(`Pipeline started: ${JSON.stringify(payload)}`)

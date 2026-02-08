@@ -87,6 +87,22 @@ class EmitterState:
 
 
 @dataclass
+class CollisionEmitterState:
+    id: str
+    entity_id: str
+    a: str
+    b: str
+    count: int
+    distance_lte: Optional[float]
+    probability: Optional[float]
+    cooldown_s: float
+    scatter_radius: float
+    limit: Optional[int]
+    emitted: int = 0
+    last_emit_by_pair: Dict[tuple[int, int], float] = field(default_factory=dict)
+
+
+@dataclass
 class TerminationSpec:
     type: str
     params: Dict[str, object]
@@ -98,6 +114,23 @@ def _parse_color(hex_color: str) -> tuple[float, float, float]:
     g = int(hex_color[2:4], 16) / 255.0
     b = int(hex_color[4:6], 16) / 255.0
     return r, g, b
+
+
+def _rgb_to_hex(r: float, g: float, b: float) -> str:
+    def _clamp(value: float) -> int:
+        return max(0, min(255, int(round(value * 255.0))))
+
+    return f"#{_clamp(r):02X}{_clamp(g):02X}{_clamp(b):02X}"
+
+
+def _lerp_color(color_a: str, color_b: str, t: float) -> str:
+    ar, ag, ab = _parse_color(color_a)
+    br, bg, bb = _parse_color(color_b)
+    t = max(0.0, min(1.0, t))
+    r = ar + (br - ar) * t
+    g = ag + (bg - ag) * t
+    b = ab + (bb - ab) * t
+    return _rgb_to_hex(r, g, b)
 
 
 def _matches_selector(ent: EntityState, selector: str) -> bool:
@@ -229,6 +262,39 @@ def _apply_orbit(states: List[EntityState], model, dt: float, rule) -> None:
         ent.y = center_y + math.sin(ent.angle) * radius
         ent.vx = -math.sin(ent.angle) * speed * radius
         ent.vy = math.cos(ent.angle) * speed * radius
+
+
+def _apply_parametric_spiral(states: List[EntityState], model, dt: float, rule) -> None:
+    width = model.scene.canvas.width
+    height = model.scene.canvas.height
+    cx, cy = width / 2, height / 2
+    angular_speed = float(rule.params.get("angular_speed", 0.0))
+    radial_speed = float(rule.params.get("radial_speed", 0.0))
+    radius_min = rule.params.get("radius_min")
+    radius_max = rule.params.get("radius_max")
+    min_r = float(radius_min) if radius_min is not None else None
+    max_r = float(radius_max) if radius_max is not None else None
+    for ent in states:
+        if not _matches_selector(ent, rule.applies_to):
+            continue
+        center_param = rule.params.get("center")
+        center = _resolve_target_point(ent, states, center_param, (cx, cy))
+        if center is None:
+            continue
+        center_x, center_y = center
+        if ent.angle is None:
+            ent.angle = math.atan2(ent.y - center_y, ent.x - center_x)
+        radius = math.hypot(ent.x - center_x, ent.y - center_y)
+        radius += radial_speed * dt
+        if min_r is not None and radius < min_r:
+            radius = min_r
+        if max_r is not None and radius > max_r:
+            radius = max_r
+        ent.angle += angular_speed * dt
+        ent.x = center_x + math.cos(ent.angle) * radius
+        ent.y = center_y + math.sin(ent.angle) * radius
+        ent.vx = -math.sin(ent.angle) * angular_speed * radius
+        ent.vy = math.cos(ent.angle) * angular_speed * radius
 
 
 def _apply_attract_repel(states: List[EntityState], model, dt: float, rule) -> None:
@@ -373,6 +439,34 @@ def _apply_decay(states: List[EntityState], model, dt: float, rule) -> List[Enti
     return states
 
 
+def _apply_size_animation(
+    states: List[EntityState], model, dt: float, rule
+) -> List[EntityState]:
+    rate = float(rule.params.get("rate_per_s", 0.0))
+    min_param = rule.params.get("min")
+    max_param = rule.params.get("max")
+    min_size = float(min_param) if min_param is not None else None
+    max_size = float(max_param) if max_param is not None else None
+    remove_on_limit = bool(rule.params.get("remove_on_limit", False))
+    new_states: List[EntityState] = []
+    for ent in states:
+        if not _matches_selector(ent, rule.applies_to):
+            new_states.append(ent)
+            continue
+        next_size = ent.size + rate * dt
+        if max_size is not None and next_size >= max_size:
+            if remove_on_limit and rate >= 0:
+                continue
+            next_size = max_size
+        if min_size is not None and next_size <= min_size:
+            if remove_on_limit and rate <= 0:
+                continue
+            next_size = min_size
+        ent.size = max(0.0, next_size)
+        new_states.append(ent)
+    return new_states
+
+
 def _apply_memory(states: List[EntityState], model, dt: float, memory: MemoryGrid, rule) -> None:
     decay = float(rule.params.get("decay", 0.01))
     influence = float(rule.params.get("influence", 1.0))
@@ -392,6 +486,32 @@ def _apply_memory(states: List[EntityState], model, dt: float, memory: MemoryGri
         dx, dy = memory.sample_gradient(gx, gy)
         ent.vx += dx * influence * dt
         ent.vy += dy * influence * dt
+
+
+def _apply_color_animation(
+    states: List[EntityState],
+    model,
+    current_time_s: float,
+    rule,
+) -> None:
+    colors = rule.params.get("colors") or []
+    if not isinstance(colors, list) or len(colors) < 2:
+        return
+    rate = float(rule.params.get("rate_per_s", 0.0))
+    mode = str(rule.params.get("mode", "step"))
+    phase_offset = float(rule.params.get("phase_offset", 0.0))
+    palette_len = len(colors)
+    for ent in states:
+        if not _matches_selector(ent, rule.applies_to):
+            continue
+        phase = (current_time_s * rate + phase_offset) % palette_len
+        idx = int(math.floor(phase)) % palette_len
+        if mode == "lerp":
+            next_idx = (idx + 1) % palette_len
+            frac = phase - idx
+            ent.color = _lerp_color(colors[idx], colors[next_idx], frac)
+        else:
+            ent.color = colors[idx]
 
 
 def _apply_fsm(model, fsm_state: FSMState, current_time_s: float, states) -> FSMState:
@@ -469,6 +589,87 @@ def _apply_emitters(
             states[-1].__dict__["canvas_width"] = width
             states[-1].__dict__["canvas_height"] = height
             emitter.emitted += 1
+
+
+def _apply_collision_emitters(
+    states: List[EntityState],
+    emitters: List[CollisionEmitterState],
+    model,
+    current_time_s: float,
+    rng,
+) -> None:
+    if not emitters:
+        return
+    entities_by_id = {e.id: e for e in model.systems.entities}
+    base_states = list(states)
+    for emitter in emitters:
+        if emitter.limit is not None and emitter.emitted >= emitter.limit:
+            continue
+        processed_pairs: set[tuple[int, int]] = set()
+        for i, a in enumerate(base_states):
+            if not _matches_selector(a, emitter.a):
+                continue
+            for j, b in enumerate(base_states):
+                if i == j or not _matches_selector(b, emitter.b):
+                    continue
+                pair_key = (min(id(a), id(b)), max(id(a), id(b)))
+                if pair_key in processed_pairs:
+                    continue
+                if emitter.a == emitter.b and j <= i:
+                    continue
+                processed_pairs.add(pair_key)
+                distance = math.hypot(a.x - b.x, a.y - b.y)
+                threshold = emitter.distance_lte
+                if threshold is None:
+                    threshold = a.size + b.size
+                if distance > float(threshold):
+                    continue
+                if emitter.probability is not None:
+                    if rng.random() > float(emitter.probability):
+                        continue
+                if emitter.cooldown_s > 0:
+                    last_emit = emitter.last_emit_by_pair.get(pair_key)
+                    if last_emit is not None and (current_time_s - last_emit) < emitter.cooldown_s:
+                        continue
+                spawn_count = int(emitter.count)
+                if emitter.limit is not None:
+                    remaining = max(0, emitter.limit - emitter.emitted)
+                    spawn_count = min(spawn_count, remaining)
+                if spawn_count <= 0:
+                    continue
+                spec = entities_by_id[emitter.entity_id]
+                base_x = (a.x + b.x) / 2
+                base_y = (a.y + b.y) / 2
+                for _ in range(spawn_count):
+                    size = _pick_size(spec.size, rng)
+                    x = base_x
+                    y = base_y
+                    if emitter.scatter_radius > 0:
+                        angle = rng.random() * 2 * math.pi
+                        radius = rng.random() * emitter.scatter_radius
+                        x = base_x + math.cos(angle) * radius
+                        y = base_y + math.sin(angle) * radius
+                    states.append(
+                        EntityState(
+                            entity_id=spec.id,
+                            shape=spec.shape,
+                            size=size,
+                            color=spec.color,
+                            x=x,
+                            y=y,
+                            tags=list(spec.tags or []),
+                        )
+                    )
+                    states[-1].__dict__["canvas_width"] = model.scene.canvas.width
+                    states[-1].__dict__["canvas_height"] = model.scene.canvas.height
+                    emitter.emitted += 1
+                    if emitter.limit is not None and emitter.emitted >= emitter.limit:
+                        break
+                emitter.last_emit_by_pair[pair_key] = current_time_s
+                if emitter.limit is not None and emitter.emitted >= emitter.limit:
+                    break
+            if emitter.limit is not None and emitter.emitted >= emitter.limit:
+                break
 
 
 def _pick_size(size_spec, rng) -> float:
@@ -783,6 +984,28 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
                     limit=emitter.limit,
                 )
             )
+    collision_emitters: List[CollisionEmitterState] = []
+    if model.systems.collision_emitters:
+        for emitter in model.systems.collision_emitters:
+            when = emitter.when or {}
+            collision_emitters.append(
+                CollisionEmitterState(
+                    id=emitter.id,
+                    entity_id=emitter.entity_id,
+                    a=emitter.a,
+                    b=emitter.b,
+                    count=int(emitter.count),
+                    distance_lte=(
+                        float(when["distance_lte"]) if "distance_lte" in when else None
+                    ),
+                    probability=(
+                        float(when["probability"]) if "probability" in when else None
+                    ),
+                    cooldown_s=float(emitter.cooldown_s or 0.0),
+                    scatter_radius=float(emitter.scatter_radius or 0.0),
+                    limit=emitter.limit,
+                )
+            )
     for frame in range(frames):
         current_time = frame * dt
         # 1) Forces (placeholder; implement in dedicated step)
@@ -791,6 +1014,8 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
         for rule in model.systems.rules:
             if rule.type == "orbit":
                 _apply_orbit(states, model, dt, rule)
+            elif rule.type == "parametric_spiral_motion":
+                _apply_parametric_spiral(states, model, dt, rule)
             elif rule.type in {"attract", "repel"}:
                 _apply_attract_repel(states, model, dt, rule)
             elif rule.type == "move":
@@ -801,14 +1026,25 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
                 states = _apply_merge(states, model, rule)
             elif rule.type == "decay":
                 states = _apply_decay(states, model, dt, rule)
+            elif rule.type == "size_animation":
+                states = _apply_size_animation(states, model, dt, rule)
             elif rule.type == "memory":
                 _apply_memory(states, model, dt, memory, rule)
+            elif rule.type == "color_animation":
+                _apply_color_animation(states, model, current_time, rule)
         _apply_emitters(
             states,
             emitters,
             model,
             current_time,
             dt,
+            rng,
+        )
+        _apply_collision_emitters(
+            states,
+            collision_emitters,
+            model,
+            current_time,
             rng,
         )
         _apply_interactions(states, model, dt)
@@ -848,13 +1084,16 @@ def render_dsl(dsl_path: str | Path, out_dir: str | Path, out_video: str | Path)
 def _warn_on_unsupported(model) -> None:
     supported_rules = {
         "orbit",
+        "parametric_spiral_motion",
         "split",
         "move",
         "attract",
         "repel",
         "merge",
         "decay",
+        "size_animation",
         "memory",
+        "color_animation",
     }
     for rule in model.systems.rules:
         if rule.type not in supported_rules:

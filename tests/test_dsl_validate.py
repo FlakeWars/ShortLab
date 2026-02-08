@@ -19,7 +19,7 @@ def test_valid_examples():
 
 def test_invalid_missing_entity_reference(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-001"
   title: "Invalid"
@@ -66,7 +66,7 @@ output:
 
 def test_invalid_termination_both_time_and_condition(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-002"
   title: "Invalid Termination"
@@ -117,7 +117,7 @@ output:
 
 def test_invalid_rule_missing_required_params(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-003"
   title: "Invalid Rule Params"
@@ -162,9 +162,507 @@ output:
         validate_file(path)
 
 
+def test_valid_rule_size_animation(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "valid-006"
+  title: "Valid Size Animation"
+  seed: 1
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "wave"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "wave"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "expand"
+      type: "size_animation"
+      applies_to: "wave"
+      params:
+        rate_per_s: 80
+        max: 300
+        remove_on_limit: false
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "valid.yaml"
+    path.write_text(data)
+    assert validate_file(path) is not None
+
+
+def test_invalid_rule_size_animation_missing_rate(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "invalid-006"
+  title: "Invalid Size Animation"
+  seed: 1
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "wave"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "wave"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "expand"
+      type: "size_animation"
+      applies_to: "wave"
+      params:
+        max: 300
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "invalid.yaml"
+    path.write_text(data)
+    with pytest.raises(DSLValidationError):
+        validate_file(path)
+
+
+def test_invalid_rule_size_animation_min_max(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "invalid-007"
+  title: "Invalid Size Animation Limits"
+  seed: 1
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "wave"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "wave"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "expand"
+      type: "size_animation"
+      applies_to: "wave"
+      params:
+        rate_per_s: 80
+        min: 120
+        max: 60
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "invalid.yaml"
+    path.write_text(data)
+    with pytest.raises(DSLValidationError):
+        validate_file(path)
+
+
+def test_valid_rule_color_animation(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "valid-007"
+  title: "Valid Color Animation"
+  seed: 2
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF", "#FF00FF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "pulse"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "pulse"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "color-cycle"
+      type: "color_animation"
+      applies_to: "pulse"
+      params:
+        colors: ["#FFFFFF", "#FF00FF"]
+        rate_per_s: 1.5
+        mode: "lerp"
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "valid.yaml"
+    path.write_text(data)
+    assert validate_file(path) is not None
+
+
+def test_invalid_rule_color_animation_missing_colors(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "invalid-031"
+  title: "Invalid Color Animation Missing Colors"
+  seed: 2
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF", "#FF00FF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "pulse"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "pulse"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "color-cycle"
+      type: "color_animation"
+      applies_to: "pulse"
+      params:
+        rate_per_s: 1.5
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "invalid.yaml"
+    path.write_text(data)
+    with pytest.raises(DSLValidationError):
+        validate_file(path)
+
+
+def test_invalid_rule_color_animation_colors_not_in_palette(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "invalid-032"
+  title: "Invalid Color Animation Palette"
+  seed: 2
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "pulse"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "pulse"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "color-cycle"
+      type: "color_animation"
+      applies_to: "pulse"
+      params:
+        colors: ["#FFFFFF", "#FF00FF"]
+        rate_per_s: 1.5
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "invalid.yaml"
+    path.write_text(data)
+    with pytest.raises(DSLValidationError):
+        validate_file(path)
+
+
+def test_invalid_rule_color_animation_mode(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "invalid-033"
+  title: "Invalid Color Animation Mode"
+  seed: 2
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF", "#FF00FF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "pulse"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "pulse"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "color-cycle"
+      type: "color_animation"
+      applies_to: "pulse"
+      params:
+        colors: ["#FFFFFF", "#FF00FF"]
+        rate_per_s: 1.5
+        mode: "fade"
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "invalid.yaml"
+    path.write_text(data)
+    with pytest.raises(DSLValidationError):
+        validate_file(path)
+
+
+def test_valid_rule_parametric_spiral_motion(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "valid-spiral-001"
+  title: "Valid Spiral"
+  seed: 1
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "wave"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "wave"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "spiral"
+      type: "parametric_spiral_motion"
+      applies_to: "wave"
+      params:
+        center:
+          x: 540
+          y: 960
+        angular_speed: 2.0
+        radial_speed: 120.0
+        radius_min: 0
+        radius_max: 640
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "valid.yaml"
+    path.write_text(data)
+    assert validate_file(path) is not None
+
+
+def test_invalid_rule_parametric_spiral_motion_missing_params(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "invalid-spiral-001"
+  title: "Invalid Spiral"
+  seed: 1
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "wave"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "wave"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "spiral"
+      type: "parametric_spiral_motion"
+      applies_to: "wave"
+      params:
+        radial_speed: 120.0
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "invalid.yaml"
+    path.write_text(data)
+    with pytest.raises(DSLValidationError):
+        validate_file(path)
+
+
+def test_invalid_rule_parametric_spiral_motion_radius_limits(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "invalid-spiral-002"
+  title: "Invalid Spiral Limits"
+  seed: 1
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 10
+  palette: ["#000000", "#FFFFFF"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "wave"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "wave"
+      count: 1
+      distribution:
+        type: "center"
+  rules:
+    - id: "spiral"
+      type: "parametric_spiral_motion"
+      applies_to: "wave"
+      params:
+        center:
+          x: 540
+          y: 960
+        angular_speed: 2.0
+        radial_speed: 120.0
+        radius_min: 640
+        radius_max: 120
+termination:
+  time:
+    at_s: 10
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "invalid.yaml"
+    path.write_text(data)
+    with pytest.raises(DSLValidationError):
+        validate_file(path)
+
+
 def test_invalid_rule_unknown_type(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-004"
   title: "Invalid Rule Type"
@@ -212,7 +710,7 @@ output:
 
 def test_invalid_rule_missing_point_fields(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-005"
   title: "Invalid Point"
@@ -262,7 +760,7 @@ output:
 
 def test_valid_selector_tag_and_all(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "valid-001"
   title: "Selectors"
@@ -310,7 +808,7 @@ output:
 
 def test_invalid_tag_selector_unknown_tag(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-014"
   title: "Invalid Tag Selector"
@@ -360,7 +858,7 @@ output:
 
 def test_invalid_forces_noise_missing_fields(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-015"
   title: "Invalid Forces"
@@ -411,7 +909,7 @@ output:
 
 def test_invalid_interactions_when_probability_range(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-016"
   title: "Invalid Interactions"
@@ -478,7 +976,7 @@ output:
 
 def test_invalid_distribution_grid_missing_params(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-017"
   title: "Invalid Grid"
@@ -526,7 +1024,7 @@ output:
 
 def test_invalid_entity_size_minmax(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-018"
   title: "Invalid Size"
@@ -576,7 +1074,7 @@ output:
 
 def test_invalid_entity_render_opacity(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-019"
   title: "Invalid Render"
@@ -626,7 +1124,7 @@ output:
 
 def test_invalid_interactions_rule_missing_params(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-020"
   title: "Invalid Interaction Rule"
@@ -689,7 +1187,7 @@ output:
 
 def test_invalid_palette_reference(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-021"
   title: "Invalid Palette"
@@ -737,7 +1235,7 @@ output:
 
 def test_invalid_orbit_speed_negative(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-022"
   title: "Invalid Orbit Speed"
@@ -788,7 +1286,7 @@ output:
 
 def test_invalid_background_not_in_palette(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-023"
   title: "Invalid Background"
@@ -836,7 +1334,7 @@ output:
 
 def test_invalid_palette_format(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-024"
   title: "Invalid Palette Format"
@@ -884,7 +1382,7 @@ output:
 
 def test_invalid_canvas_dims(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-025"
   title: "Invalid Canvas"
@@ -932,7 +1430,7 @@ output:
 
 def test_invalid_output_resolution_mismatch(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-026"
   title: "Invalid Output Resolution"
@@ -980,7 +1478,7 @@ output:
 
 def test_invalid_duplicate_ids(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-027"
   title: "Invalid Duplicates"
@@ -1037,7 +1535,7 @@ output:
 
 def test_invalid_output_format(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-028"
   title: "Invalid Output Format"
@@ -1085,7 +1583,7 @@ output:
 
 def test_invalid_output_codec(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-029"
   title: "Invalid Output Codec"
@@ -1133,7 +1631,7 @@ output:
 
 def test_invalid_palette_min_size(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-030"
   title: "Invalid Palette Size"
@@ -1181,7 +1679,7 @@ output:
 
 def test_invalid_emitter_missing_required_fields(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-006"
   title: "Invalid Emitter"
@@ -1232,9 +1730,142 @@ output:
         validate_file(path)
 
 
+def test_invalid_collision_emitter_missing_required_fields(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "invalid-031"
+  title: "Invalid Collision Emitter"
+  seed: 9
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 5
+  palette: ["#000000", "#FFFFFF", "#FF0000"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "a"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+    - id: "b"
+      shape: "circle"
+      size: 8
+      color: "#FF0000"
+  spawns:
+    - entity_id: "a"
+      count: 1
+      distribution:
+        type: "center"
+  collision_emitters:
+    - id: "emit-on-touch"
+      entity_id: "b"
+      a: "a"
+  rules:
+    - id: "move"
+      type: "move"
+      applies_to: "a"
+      params:
+        speed: 1.0
+termination:
+  time:
+    at_s: 5
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "invalid-collision.yaml"
+    path.write_text(data)
+    with pytest.raises(DSLValidationError):
+        validate_file(path)
+
+
+def test_valid_collision_emitter(tmp_path: Path):
+    data = """
+dsl_version: "1.4"
+meta:
+  id: "valid-031"
+  title: "Valid Collision Emitter"
+  seed: 10
+  tags: []
+scene:
+  canvas:
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_s: 5
+  palette: ["#000000", "#FFFFFF", "#FF0000"]
+  background: "#000000"
+systems:
+  entities:
+    - id: "a"
+      shape: "circle"
+      size: 8
+      color: "#FFFFFF"
+    - id: "b"
+      shape: "circle"
+      size: 8
+      color: "#FF0000"
+    - id: "spark"
+      shape: "circle"
+      size: 3
+      color: "#FFFFFF"
+  spawns:
+    - entity_id: "a"
+      count: 1
+      distribution:
+        type: "center"
+    - entity_id: "b"
+      count: 1
+      distribution:
+        type: "center"
+  collision_emitters:
+    - id: "emit-on-touch"
+      entity_id: "spark"
+      a: "a"
+      b: "b"
+      count: 2
+      when:
+        distance_lte: 12
+        probability: 0.5
+      cooldown_s: 0.1
+      scatter_radius: 2
+      limit: 10
+  rules:
+    - id: "move-a"
+      type: "move"
+      applies_to: "a"
+      params:
+        speed: 1.0
+    - id: "move-b"
+      type: "move"
+      applies_to: "b"
+      params:
+        speed: 1.0
+termination:
+  time:
+    at_s: 5
+output:
+  format: "mp4"
+  resolution: "1080x1920"
+  codec: "h264"
+  bitrate: "8M"
+"""
+    path = tmp_path / "valid-collision.yaml"
+    path.write_text(data)
+    model = validate_file(path)
+    assert model.systems.collision_emitters
+
+
 def test_valid_metric_condition_and_fsm(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "valid-002"
   title: "Metrics Contract"
@@ -1297,7 +1928,7 @@ output:
 
 def test_invalid_bounds_missing_restitution(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-007"
   title: "Invalid Bounds"
@@ -1348,7 +1979,7 @@ output:
 
 def test_invalid_metric_condition_missing_fields(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-008"
   title: "Invalid Metric Condition"
@@ -1398,7 +2029,7 @@ output:
 
 def test_invalid_metric_operator(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-009"
   title: "Invalid Metric Operator"
@@ -1450,7 +2081,7 @@ output:
 
 def test_invalid_metric_name(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-010"
   title: "Invalid Metric Name"
@@ -1502,7 +2133,7 @@ output:
 
 def test_invalid_metric_value_range(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-011"
   title: "Invalid Metric Range"
@@ -1554,7 +2185,7 @@ output:
 
 def test_invalid_metric_window_negative(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-012"
   title: "Invalid Metric Window"
@@ -1607,7 +2238,7 @@ output:
 
 def test_invalid_metric_sample_gt_window(tmp_path: Path):
     data = """
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "invalid-013"
   title: "Invalid Metric Sample"

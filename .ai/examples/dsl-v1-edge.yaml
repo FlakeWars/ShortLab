@@ -1,4 +1,4 @@
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "example-grid-001"
   title: "Komórki pamięci (edge)"

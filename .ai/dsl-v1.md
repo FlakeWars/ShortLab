@@ -1,4 +1,4 @@
-# DSL v1 — szkic specyfikacji (struktura i pola)
+# DSL v1.4 — szkic specyfikacji (struktura i pola)
 
 Dokument opisuje minimalny zakres DSL dla animacji Short (MVP). Format docelowy: **YAML** (z możliwością konwersji do JSON). Specyfikacja jest deterministyczna i wersjonowana.
 
@@ -19,7 +19,7 @@ root
 
 ### 2.1. dsl_version
 - Typ: string
-- Przykład: "1.0"
+- Przykład: "1.4"
 - Cel: wersjonowanie DSL i kompatybilność wsteczna.
 
 ### 2.2. meta
@@ -51,6 +51,8 @@ Minimalny zestaw systemów, które opisują reguły animacji.
     - definicje inicjalizacji obiektów (patrz 3.2)
   - `rules` (array)
     - reguły zachowania i interakcji (patrz 3.3)
+  - `collision_emitters` (array, opcjonalne)
+    - emitery uruchamiane przez kolizje/proksymity (patrz 3.2.3)
 
 ### 2.5. termination
 - Typ: object
@@ -137,6 +139,27 @@ Struktura:
 
 Uwaga: `limit` dotyczy **pojedynczego emitera** (per-emitter), a nie globalnej liczby obiektów.
 
+#### 3.2.3. Emitery kolizyjne (collision_triggered_emitter) (v1.4)
+Emitery wyzwalane zderzeniem lub bliskim podejsciem par obiektow.
+
+Struktura:
+- `collision_emitters` (array)
+  - `id` (string)
+  - `entity_id` (string) — typ emitowanego obiektu
+  - `a` (selector) — zbior obiektow A
+  - `b` (selector) — zbior obiektow B
+  - `count` (integer, optional, default=1) — liczba obiektow per zdarzenie
+  - `when` (object, optional)
+    - `distance_lte` (number, optional) — prog zblizenia w `px`
+    - `probability` (number 0..1, optional)
+  - `cooldown_s` (number, optional, default=0) — minimalny czas miedzy emisjami dla tej pary
+  - `scatter_radius` (number, optional, default=0) — losowy rozrzut od punktu kontaktu
+  - `limit` (integer, optional) — limit emisji na emiter
+
+Zasady:
+- Jesli `when.distance_lte` nie podano, prog = `size(a) + size(b)` (kontakt).
+- Punkt emisji to srodek odcinka A-B, opcjonalnie rozproszony przez `scatter_radius`.
+
 ### 3.3. rules (reguły zachowania)
 Lista reguł uruchamianych w pętli symulacji.
 Minimalne pola:
@@ -146,7 +169,7 @@ Minimalne pola:
 - `params` (object)
 - `probability` (number 0..1, optional)
 
-#### 3.3.1. Słownik reguł `rules.type` + wymagane `params` (v1.1)
+#### 3.3.1. Słownik reguł `rules.type` + wymagane `params` (v1.3)
 Poniższa lista definiuje **minimalne, wymagane parametry** dla każdej reguły.
 Parametry opcjonalne mogą mieć wartości domyślne ustalone przez renderer.
 
@@ -172,6 +195,15 @@ Parametry opcjonalne mogą mieć wartości domyślne ustalone przez renderer.
   - wymagane: `rate_per_s` (number 0..1)
 - `memory`
   - wymagane: `decay` (number 0..1), `influence` (number)
+- `size_animation`
+  - wymagane: `rate_per_s` (number; >0 wzrost, <0 zmniejszanie)
+  - opcjonalne: `min` (number, >=0), `max` (number, >=0), `remove_on_limit` (bool, default=false)
+- `parametric_spiral_motion`
+  - wymagane: `center` (selector lub point), `angular_speed` (number, rad/s), `radial_speed` (number, px/s)
+  - opcjonalne: `radius_min` (number, >=0), `radius_max` (number, >=0)
+- `color_animation`
+  - wymagane: `colors` (array of palette tokens, min 2), `rate_per_s` (number, kroki/sek)
+  - opcjonalne: `mode` (string: "step" | "lerp", default="step"), `phase_offset` (number, default=0)
 
 #### 3.3.2. Selektory (v1.1)
 `selector` wskazuje zbiór obiektów. Dozwolone formy:
@@ -202,6 +234,11 @@ Ustawienia czasu (np. skala symulacji).
 - **`entities.size.value`** → nie jest obsługiwane (użyj liczby lub `{min,max}`).
 - **`spawns.params` na poziomie spawnu** → nie istnieje; `params` są tylko w `distribution`.
 - **`distribution.params: {}` dla `center`** → pomiń `params` w całości.
+- **`size_animation` bez `rate_per_s`** → brak wymaganej prędkości zmiany rozmiaru.
+- **`parametric_spiral_motion` bez `center/angular_speed/radial_speed`** → brak wymaganych parametrów spirali.
+- **`color_animation` bez `colors` lub z kolorami poza `palette`** → brak wymaganych tokenów koloru.
+- **`color_animation.mode` spoza `step|lerp`** → niepoprawny tryb animacji.
+- **`collision_emitters` bez `entity_id/a/b`** → brak wymaganych pól emitera kolizyjnego.
 - **Kąty**: podawane w stopniach (`deg`), zgodnie z ruchem wskazówek zegara.
 - **Wektory 2D**: `[x, y]` w `px` lub jednostkach bezwzględnych (bez normalizacji); jeśli wymagany kierunek, normalizacja odbywa się w rendererze.
 - **Punkty (point)**: zapis jako obiekt `{ x: number, y: number }` w `px`.
@@ -309,12 +346,13 @@ Standardowa kolejność w jednej klatce:
 1) **Spawn/init** (tylko start lub emitery; jeśli dotyczy).
 2) **Forces** (globalne siły, np. grawitacja/noise).
 3) **Rules** (kolejno według listy w DSL).
-4) **Interactions/Collisions** (jeśli zdefiniowane).
-5) **Constraints/Bounds** (np. odbicia od krawędzi, klamry pozycji).
-6) **FSM transitions** (jeśli występują).
-7) **Termination check** (warunki zakończenia).
+4) **Collision Emitters** (jeśli zdefiniowane).
+5) **Interactions/Collisions** (jeśli zdefiniowane).
+6) **Constraints/Bounds** (np. odbicia od krawędzi, klamry pozycji).
+7) **FSM transitions** (jeśli występują).
+8) **Termination check** (warunki zakończenia).
 
-Renderer może rozszerzać kroki 4–5, ale nie powinien zmieniać kolejności 1–3 bez zmiany wersji DSL.
+Renderer może rozszerzać kroki 4–6, ale nie powinien zmieniać kolejności 1–3 bez zmiany wersji DSL.
 
 #### 4.6.1. Interactions vs Constraints (v1.1)
 - **Interactions/Collisions**: reguły zależne od relacji między obiektami (np. merge/split/repel/attract), wykonywane na parach obiektów lub grupach.

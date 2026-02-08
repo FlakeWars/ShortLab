@@ -50,6 +50,18 @@ def _validate_refs(model: DSL) -> List[str]:
         if applies not in entity_ids:
             errors.append(f"rule.applies_to not found: {applies}")
 
+    if model.systems.collision_emitters:
+        for emitter in model.systems.collision_emitters:
+            if emitter.entity_id not in entity_ids:
+                errors.append(f"collision_emitters.entity_id not found: {emitter.entity_id}")
+            for selector_value, label in ((emitter.a, "collision_emitters.a"), (emitter.b, "collision_emitters.b")):
+                if selector_value in {"*", "all"}:
+                    continue
+                if selector_value.startswith("tag:"):
+                    continue
+                if selector_value not in entity_ids:
+                    errors.append(f"{label} not found: {selector_value}")
+
     term = model.termination
     if (term.time is None and term.condition is None) or (
         term.time is not None and term.condition is not None

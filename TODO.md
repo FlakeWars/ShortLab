@@ -1,8 +1,24 @@
 # TODO
 
 ## Now (W toku)
-- [ ] (brak aktywnego zadania — czeka na wybór)
+- [ ] DSL GAP: collision_triggered_emitter (branch: feat/dsl-gap-collision-triggered-emitter)
+  - [x] Spec DSL v1.4: dodać `collision_emitters` + bump wersji w przykładach
+  - [x] Walidator: schemat `collision_emitters` + walidacja selectorów/when
+  - [x] Renderer: obsługa emitera kolizyjnego
+  - [x] Testy walidacji `collision_emitters`
+  - [ ] Oznaczyć GAP jako implemented + reverify kandydatów/idei
+  - [ ] Ops: uruchomić `DSL_GAP_ID=... DSL_GAP_STATUS=implemented DSL_GAP_IMPLEMENTED_IN=1.4 make dsl-gap-status`
 ## Next (Kolejne)
+- [ ] DSL GAP: color_animation_rule (branch: feat/dsl-gap-color-animation)
+  - [x] Spec DSL v1.3: dodać regułę `color_animation` + bump wersji w przykładach
+  - [x] Walidator: wymagane `colors/rate_per_s` + walidacja palette/mode
+  - [x] Renderer: obsługa reguły `color_animation`
+  - [x] Testy walidacji + update przykładu w promptcie kompilatora
+  - [ ] Oznaczyć GAP jako implemented + reverify kandydatów/idei
+- [ ] Docs/Compiler: heurystyki dla `collision_emitters` (cooldown/limit), żeby uniknąć lawinowego spawnu
+- [ ] Renderer: obsługa shape="triangle" (kolorowanie trójkątów wymaga renderu)
+- [ ] Ops: oznaczyc DSL GAP `parametric_spiral_motion` jako implemented + reverify (branch: chore/dsl-gap-parametric-spiral-status)
+- [ ] Ops: oznaczyc DSL GAP `size_animation` jako implemented + reverify (branch: chore/dsl-gap-size-animation-status)
 - [ ] Manual Flow v1.1 (branch: feat/dev-manual-flow-v1-1)
   - [ ] Render-only z istniejącego DSL (bez ponownej kompilacji) + UI akcja
   - [ ] UI: czytelny feedback błędów dla akcji reset/undo/delete
@@ -168,6 +184,15 @@
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
 
 ## Done (Zrobione)
+- [x] DSL GAP: parametric_spiral_motion (branch: feat/dsl-gap-parametric-spiral) (2026-02-08)
+  - [x] Spec DSL v1.2: dodana reguła `parametric_spiral_motion` + bump wersji w przykładach
+  - [x] Walidator: wymagane `center/angular_speed/radial_speed` + walidacja radius_min/max
+  - [x] Renderer: obsługa `parametric_spiral_motion` + testy walidacji + nowe goldeny
+- [x] DSL GAP: size_animation (branch: feat/dsl-gap-size-animation) (2026-02-08)
+  - [x] Spec DSL v1.1: dodana reguła `size_animation` + bump wersji w przykładach
+  - [x] Walidator: wymagane `rate_per_s` + walidacja min/max/remove_on_limit
+  - [x] Renderer: obsługa `size_animation` + testy walidacji
+  - [x] Makefile: `dsl-gap-status` wspiera `DSL_GAP_IMPLEMENTED_IN`
 - [x] Dev Mode: manualny flow + cofanie kroków (branch: feat/dev-manual-flow) (2026-02-08)
   - [x] Tryb manualny: wyłącz automaty (verify/compile/render) w dev
   - [x] Cofnij weryfikację kandydata (status -> unverified) + UI akcja
@@ -533,6 +558,9 @@
 
 ## Notatki / decyzje
 - (2026-02-08) Merge `feat/dev-manual-flow` -> `main`; brak aktywnego zadania w `Now` — potrzebny wybór kolejnego.
+- (2026-02-08) DSL v1.1: dodano regułę `size_animation`; potrzebne ręczne ustawienie statusu gapa i reverify po wdrożeniu.
+- (2026-02-08) DSL v1.2: dodano regułę `parametric_spiral_motion`; potrzebne ręczne ustawienie statusu gapa i reverify po wdrożeniu.
+- (2026-02-08) DSL v1.3: dodano regułę `color_animation` + zaktualizowano goldeny; potrzebne ręczne ustawienie statusu gapa i reverify.
 - Docker Desktop instalujemy manualnie (bootstrap pomija cask docker).
 - Python/Node instalujemy i pinujemy przez mise (`.mise.toml`).
 - `make verify` traktuje skia-python i usługi z compose jako opcjonalne do czasu uruchomienia renderera i infra.

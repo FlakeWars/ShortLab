@@ -141,6 +141,40 @@ class Emitter(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class CollisionEmitter(BaseModel):
+    id: str
+    entity_id: str
+    a: str
+    b: str
+    count: int = 1
+    when: Optional[Dict[str, object]] = None
+    cooldown_s: Optional[float] = 0.0
+    scatter_radius: Optional[float] = 0.0
+    limit: Optional[int] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def _validate_collision_emitter(self) -> "CollisionEmitter":
+        if int(self.count) <= 0:
+            raise ValueError("collision_emitters.count must be >= 1")
+        if self.cooldown_s is not None and float(self.cooldown_s) < 0.0:
+            raise ValueError("collision_emitters.cooldown_s must be >= 0")
+        if self.scatter_radius is not None and float(self.scatter_radius) < 0.0:
+            raise ValueError("collision_emitters.scatter_radius must be >= 0")
+        if self.limit is not None and int(self.limit) < 0:
+            raise ValueError("collision_emitters.limit must be >= 0")
+        if self.when is not None:
+            distance = self.when.get("distance_lte")
+            probability = self.when.get("probability")
+            if distance is not None and float(distance) < 0.0:
+                raise ValueError("collision_emitters.when.distance_lte must be >= 0")
+            if probability is not None:
+                if not (0.0 <= float(probability) <= 1.0):
+                    raise ValueError("collision_emitters.when.probability must be 0..1")
+        return self
+
+
 class Rule(BaseModel):
     id: str
     type: str
@@ -154,6 +188,7 @@ class Rule(BaseModel):
         "orbit": "center",
         "attract": "target",
         "repel": "target",
+        "parametric_spiral_motion": "center",
     }
 
     _REQUIRED_PARAMS = {
@@ -164,7 +199,10 @@ class Rule(BaseModel):
         "split": ["into", "angle_threshold_deg"],
         "merge": ["distance"],
         "decay": ["rate_per_s"],
+        "parametric_spiral_motion": ["center", "angular_speed", "radial_speed"],
+        "size_animation": ["rate_per_s"],
         "memory": ["decay", "influence"],
+        "color_animation": ["colors", "rate_per_s"],
     }
 
     @model_validator(mode="after")
@@ -181,6 +219,68 @@ class Rule(BaseModel):
         point_param = self._POINT_RULE_PARAMS.get(self.type)
         if point_param is not None:
             self._validate_point_param(point_param, self.params.get(point_param))
+        if self.type == "size_animation":
+            rate = self.params.get("rate_per_s")
+            try:
+                float(rate)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("rule.params.rate_per_s must be numeric") from exc
+            min_v = self.params.get("min")
+            max_v = self.params.get("max")
+            if min_v is not None:
+                if float(min_v) < 0.0:
+                    raise ValueError("rule.params.min must be >= 0")
+            if max_v is not None:
+                if float(max_v) < 0.0:
+                    raise ValueError("rule.params.max must be >= 0")
+            if min_v is not None and max_v is not None:
+                if float(max_v) < float(min_v):
+                    raise ValueError("rule.params.max must be >= rule.params.min")
+            remove_on_limit = self.params.get("remove_on_limit")
+            if remove_on_limit is not None and not isinstance(remove_on_limit, bool):
+                raise ValueError("rule.params.remove_on_limit must be boolean")
+        if self.type == "parametric_spiral_motion":
+            angular = self.params.get("angular_speed")
+            radial = self.params.get("radial_speed")
+            try:
+                float(angular)
+                float(radial)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "rule.params.angular_speed and radial_speed must be numeric"
+                ) from exc
+            radius_min = self.params.get("radius_min")
+            radius_max = self.params.get("radius_max")
+            if radius_min is not None:
+                if float(radius_min) < 0.0:
+                    raise ValueError("rule.params.radius_min must be >= 0")
+            if radius_max is not None:
+                if float(radius_max) < 0.0:
+                    raise ValueError("rule.params.radius_max must be >= 0")
+            if radius_min is not None and radius_max is not None:
+                if float(radius_max) < float(radius_min):
+                    raise ValueError("rule.params.radius_max must be >= rule.params.radius_min")
+        if self.type == "color_animation":
+            colors = self.params.get("colors")
+            if not isinstance(colors, list) or len(colors) < 2:
+                raise ValueError("rule.params.colors must be a list with at least 2 colors")
+            for color in colors:
+                if not isinstance(color, str) or not color.startswith("#") or len(color) != 7:
+                    raise ValueError("rule.params.colors must be hex #RRGGBB tokens")
+            rate = self.params.get("rate_per_s")
+            try:
+                float(rate)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("rule.params.rate_per_s must be numeric") from exc
+            mode = self.params.get("mode")
+            if mode is not None and mode not in {"step", "lerp"}:
+                raise ValueError("rule.params.mode must be step or lerp")
+            phase_offset = self.params.get("phase_offset")
+            if phase_offset is not None:
+                try:
+                    float(phase_offset)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("rule.params.phase_offset must be numeric") from exc
         return self
 
     @staticmethod
@@ -272,6 +372,7 @@ class Systems(BaseModel):
     spawns: List[Spawn]
     rules: List[Rule]
     emitters: Optional[List[Emitter]] = None
+    collision_emitters: Optional[List[CollisionEmitter]] = None
     forces: Optional[Forces] = None
     fsm: Optional[FSM] = None
     interactions: Optional[Interactions] = None
@@ -310,6 +411,12 @@ class Systems(BaseModel):
                     _check_selector(pair.a, "interactions.pairs.a")
                 if isinstance(pair.b, str):
                     _check_selector(pair.b, "interactions.pairs.b")
+        if self.collision_emitters:
+            for emitter in self.collision_emitters:
+                if isinstance(emitter.a, str):
+                    _check_selector(emitter.a, "collision_emitters.a")
+                if isinstance(emitter.b, str):
+                    _check_selector(emitter.b, "collision_emitters.b")
         return self
 
 
@@ -543,6 +650,15 @@ class DSL(BaseModel):
                 stroke = ent.render.get("stroke")
                 if stroke and stroke.get("color") not in palette:
                     raise ValueError("entities.render.stroke.color not in palette")
+        for rule in self.systems.rules:
+            if rule.type != "color_animation":
+                continue
+            colors = rule.params.get("colors")
+            if not isinstance(colors, list):
+                raise ValueError("rule.params.colors must be a list")
+            for color in colors:
+                if color not in palette:
+                    raise ValueError(f"rule.params.colors not in palette: {color}")
         return self
 
     @model_validator(mode="after")
@@ -557,6 +673,10 @@ class DSL(BaseModel):
             emitter_ids = [e.id for e in self.systems.emitters]
             if len(emitter_ids) != len(set(emitter_ids)):
                 raise ValueError("emitters.id must be unique")
+        if self.systems.collision_emitters:
+            emitter_ids = [e.id for e in self.systems.collision_emitters]
+            if len(emitter_ids) != len(set(emitter_ids)):
+                raise ValueError("collision_emitters.id must be unique")
         return self
 
     @model_validator(mode="after")

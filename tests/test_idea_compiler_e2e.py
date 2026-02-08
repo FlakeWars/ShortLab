@@ -36,6 +36,10 @@ class _TemplateMediator:
                 entity["color"] = palette[2]
             if entity.get("id") == "particle":
                 entity["color"] = palette[1]
+        for rule in data["systems"].get("rules", []):
+            if rule.get("type") == "color_animation":
+                rule_params = rule.setdefault("params", {})
+                rule_params["colors"] = palette[1:4]
         for spawn in data["systems"]["spawns"]:
             spawn["count"] = max(1, int(spawn["count"]) + (idea_hash % 3))
         return {"dsl_yaml": yaml.safe_dump(data, sort_keys=False)}, {"provider": "test", "model": "template"}

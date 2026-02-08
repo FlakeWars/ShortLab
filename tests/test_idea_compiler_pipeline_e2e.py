@@ -72,6 +72,10 @@ class _TemplateMediator:
                 entity["color"] = palette[2]
             if entity["id"] == "particle":
                 entity["color"] = palette[1]
+        for rule in payload["systems"].get("rules", []):
+            if rule.get("type") == "color_animation":
+                rule_params = rule.setdefault("params", {})
+                rule_params["colors"] = palette[1:4]
         return {"dsl_yaml": yaml.safe_dump(payload, sort_keys=False)}, {"provider": "test", "model": "template"}
 
 

@@ -1,4 +1,4 @@
-dsl_version: "1.0"
+dsl_version: "1.4"
 meta:
   id: "example-reactor-001"
   title: "Reaktor podziału"
@@ -45,6 +45,13 @@ systems:
           x: 540
           y: 960
         speed: 1.0
+    - id: "color-cycle"
+      type: "color_animation"
+      applies_to: "particle"
+      params:
+        colors: ["#4CC3FF", "#FFB84C", "#F2F4F5"]
+        rate_per_s: 0.8
+        mode: "lerp"
     - id: "split-on-collision"
       type: "split"
       applies_to: "particle"
