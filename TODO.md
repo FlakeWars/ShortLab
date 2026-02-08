@@ -532,6 +532,7 @@
 - Przykład małego brancha: dokument/konwencja w jednym pliku (np. TODO, README, RFC-lite)
 
 ## Notatki / decyzje
+- (2026-02-08) Merge `feat/dev-manual-flow` -> `main`; brak aktywnego zadania w `Now` — potrzebny wybór kolejnego.
 - Docker Desktop instalujemy manualnie (bootstrap pomija cask docker).
 - Python/Node instalujemy i pinujemy przez mise (`.mise.toml`).
 - `make verify` traktuje skia-python i usługi z compose jako opcjonalne do czasu uruchomienia renderera i infra.
