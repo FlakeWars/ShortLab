@@ -131,7 +131,7 @@ const PIPELINE_STAGES = ['idea', 'render', 'qc', 'publish', 'metrics', 'done']
 const APP_VIEWS = ['home', 'plan', 'flow', 'repositories', 'settings'] as const
 type AppView = (typeof APP_VIEWS)[number]
 const CANDIDATE_CAPABILITY_ORDER = ['unverified', 'feasible', 'blocked_by_gaps'] as const
-const CANDIDATE_STATUS_ORDER = ['new', 'later', 'picked'] as const
+const CANDIDATE_STATUS_ORDER = ['new', 'later', 'picked', 'rejected'] as const
 const REPO_CARD_ORDER = [
   'idea_candidates',
   'ideas',
@@ -200,6 +200,7 @@ type SettingsResponse = {
   idea_gate_count?: string
   idea_gate_threshold?: string
   idea_gate_auto?: string
+  dev_manual_flow?: string
   operator_guard?: boolean
   artifacts_base_dir?: string
   openai_model?: string
@@ -346,6 +347,10 @@ function App() {
   const [ideaDecisionError, setIdeaDecisionError] = useState<string | null>(null)
   const [ideaDecisionMessage, setIdeaDecisionMessage] = useState<string | null>(null)
   const [ideaDecisionLoading, setIdeaDecisionLoading] = useState(false)
+  const [manualPickCandidates, setManualPickCandidates] = useState<IdeaCandidate[]>([])
+  const [manualPickCandidateId, setManualPickCandidateId] = useState('')
+  const [manualPickLoading, setManualPickLoading] = useState(false)
+  const [manualPickError, setManualPickError] = useState<string | null>(null)
   const [generatorMode, setGeneratorMode] = useState<'llm' | 'text' | 'file'>('llm')
   const [generatorLimit, setGeneratorLimit] = useState('5')
   const [generatorPrompt, setGeneratorPrompt] = useState('')
@@ -375,6 +380,13 @@ function App() {
   const [opsEnqueueLoading, setOpsEnqueueLoading] = useState(false)
   const [opsRerunLoading, setOpsRerunLoading] = useState(false)
   const [opsCleanupLoading, setOpsCleanupLoading] = useState(false)
+  const [manualIdeaId, setManualIdeaId] = useState('')
+  const [manualCompileLoading, setManualCompileLoading] = useState(false)
+  const [manualCompileMessage, setManualCompileMessage] = useState<string | null>(null)
+  const [manualCompileError, setManualCompileError] = useState<string | null>(null)
+  const [manualPipelineLoading, setManualPipelineLoading] = useState(false)
+  const [manualPipelineMessage, setManualPipelineMessage] = useState<string | null>(null)
+  const [manualPipelineError, setManualPipelineError] = useState<string | null>(null)
 
   const [settings, setSettings] = useState<SettingsResponse | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
@@ -400,10 +412,12 @@ function App() {
   const [candidateList, setCandidateList] = useState<IdeaCandidate[]>([])
   const [candidateListLoading, setCandidateListLoading] = useState(false)
   const [candidateListError, setCandidateListError] = useState<string | null>(null)
+  const [candidateActionLoading, setCandidateActionLoading] = useState<Record<string, boolean>>({})
   const [candidateFilterStatus, setCandidateFilterStatus] = useState('')
   const [candidateFilterCapability, setCandidateFilterCapability] = useState('')
   const [candidateFilterSimilarity, setCandidateFilterSimilarity] = useState('')
   const [candidateListLimit, setCandidateListLimit] = useState('25')
+  const manualFlowEnabled = settings?.dev_manual_flow === '1'
 
   const opsHeaders = (): Record<string, string> => {
     const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
@@ -522,6 +536,30 @@ function App() {
     }
   }
 
+  const fetchManualPickCandidates = async () => {
+    setManualPickLoading(true)
+    setManualPickError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('capability_status', 'feasible')
+      params.set('limit', '50')
+      const response = await fetch(`${API_BASE}/idea-candidates?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as IdeaCandidate[]
+      const filtered = payload.filter((row) => row.status === 'new' || row.status === 'later')
+      setManualPickCandidates(filtered)
+      if (!filtered.find((row) => row.id === manualPickCandidateId)) {
+        setManualPickCandidateId(filtered[0]?.id ?? '')
+      }
+    } catch (err) {
+      setManualPickError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setManualPickLoading(false)
+    }
+  }
+
   const handleGenerateCandidates = async () => {
     setGeneratorLoading(true)
     setGeneratorError(null)
@@ -554,6 +592,9 @@ function App() {
       fetchSystemStatus()
       fetchIdeaCandidates()
       fetchCandidateList()
+      if (manualFlowEnabled) {
+        fetchManualPickCandidates()
+      }
     } catch (err) {
       setGeneratorError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -592,25 +633,123 @@ function App() {
       if (!payload.idea_id) {
         throw new Error('Brak idea_id po decyzji.')
       }
-      const enqueueResponse = await fetch(`${API_BASE}/ops/enqueue`, {
+      if (manualFlowEnabled) {
+        setIdeaDecisionMessage('Wybrana idea zapisana. Uruchom kompilację ręcznie w sekcji Manual.')
+      } else {
+        const enqueueResponse = await fetch(`${API_BASE}/ops/enqueue`, {
+          method: 'POST',
+          headers: opsHeaders(),
+          body: JSON.stringify({
+            dsl_template: enqueueDsl,
+            out_root: enqueueOutRoot,
+            idea_id: payload.idea_id,
+            idea_gate: false,
+          }),
+        })
+        if (!enqueueResponse.ok) {
+          throw new Error(`API error ${enqueueResponse.status}`)
+        }
+        setIdeaDecisionMessage('Wybrana idea przekazana do pipeline.')
+        fetchSummary()
+      }
+    } catch (err) {
+      setIdeaDecisionError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setIdeaDecisionLoading(false)
+    }
+  }
+
+  const handleManualPick = async () => {
+    setIdeaDecisionLoading(true)
+    setIdeaDecisionError(null)
+    setIdeaDecisionMessage(null)
+    try {
+      if (!manualPickCandidateId) {
+        throw new Error('Wybierz kandydata do ręcznego wyboru.')
+      }
+      const response = await fetch(`${API_BASE}/idea-repo/decide`, {
         method: 'POST',
         headers: opsHeaders(),
         body: JSON.stringify({
-          dsl_template: enqueueDsl,
-          out_root: enqueueOutRoot,
-          idea_id: payload.idea_id,
-          idea_gate: false,
+          decisions: [
+            {
+              idea_candidate_id: manualPickCandidateId,
+              decision: 'picked',
+            },
+          ],
         }),
       })
-      if (!enqueueResponse.ok) {
-        throw new Error(`API error ${enqueueResponse.status}`)
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
       }
-      setIdeaDecisionMessage('Wybrana idea przekazana do pipeline.')
+      const payload = (await response.json()) as { idea_id?: string }
+      if (!payload.idea_id) {
+        throw new Error('Brak idea_id po decyzji.')
+      }
+      setIdeaDecisionMessage('Kandydat ręcznie wybrany.')
+      fetchSystemStatus()
+      fetchCandidateList()
       fetchSummary()
     } catch (err) {
       setIdeaDecisionError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setIdeaDecisionLoading(false)
+    }
+  }
+
+  const setCandidateAction = (id: string, loading: boolean) => {
+    setCandidateActionLoading((prev) => ({ ...prev, [id]: loading }))
+  }
+
+  const handleResetCandidateCapability = async (candidateId: string) => {
+    setCandidateAction(candidateId, true)
+    try {
+      const response = await fetch(`${API_BASE}/idea-candidates/${candidateId}/reset-capability`, {
+        method: 'POST',
+        headers: opsHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      fetchCandidateList()
+      fetchSystemStatus()
+      fetchBlockedCandidates()
+    } finally {
+      setCandidateAction(candidateId, false)
+    }
+  }
+
+  const handleDeleteCandidate = async (candidateId: string) => {
+    setCandidateAction(candidateId, true)
+    try {
+      const response = await fetch(`${API_BASE}/idea-candidates/${candidateId}/delete`, {
+        method: 'POST',
+        headers: opsHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      fetchCandidateList()
+      fetchSystemStatus()
+    } finally {
+      setCandidateAction(candidateId, false)
+    }
+  }
+
+  const handleUndoCandidateDecision = async (candidateId: string) => {
+    setCandidateAction(candidateId, true)
+    try {
+      const response = await fetch(`${API_BASE}/idea-candidates/${candidateId}/undo-decision`, {
+        method: 'POST',
+        headers: opsHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      fetchCandidateList()
+      fetchSystemStatus()
+    } finally {
+      setCandidateAction(candidateId, false)
     }
   }
 
@@ -661,6 +800,68 @@ function App() {
       setOpsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setOpsEnqueueLoading(false)
+    }
+  }
+
+  const handleManualCompile = async () => {
+    setManualCompileLoading(true)
+    setManualCompileError(null)
+    setManualCompileMessage(null)
+    try {
+      if (!manualIdeaId.trim()) {
+        throw new Error('Podaj idea_id do kompilacji.')
+      }
+      const response = await fetch(`${API_BASE}/ideas/${manualIdeaId.trim()}/compile-dsl`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          dsl_template: enqueueDsl,
+          out_root: 'out/manual-compile',
+          max_attempts: 3,
+          max_repairs: 2,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setManualCompileMessage(`Compiled: ${JSON.stringify(payload)}`)
+      fetchSystemStatus()
+    } catch (err) {
+      setManualCompileError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setManualCompileLoading(false)
+    }
+  }
+
+  const handleManualPipeline = async () => {
+    setManualPipelineLoading(true)
+    setManualPipelineError(null)
+    setManualPipelineMessage(null)
+    try {
+      if (!manualIdeaId.trim()) {
+        throw new Error('Podaj idea_id do uruchomienia pipeline.')
+      }
+      const response = await fetch(`${API_BASE}/ops/enqueue`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          dsl_template: enqueueDsl,
+          out_root: enqueueOutRoot,
+          idea_id: manualIdeaId.trim(),
+          idea_gate: false,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}`)
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setManualPipelineMessage(`Pipeline started: ${JSON.stringify(payload)}`)
+      fetchSummary()
+    } catch (err) {
+      setManualPipelineError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setManualPipelineLoading(false)
     }
   }
 
@@ -796,7 +997,8 @@ function App() {
         throw new Error(`API error ${response.status}`)
       }
       const payload = (await response.json()) as IdeaCandidate[]
-      setCandidateList(payload)
+      const filtered = candidateFilterStatus ? payload : payload.filter((row) => row.status !== 'rejected')
+      setCandidateList(filtered)
     } catch (err) {
       setCandidateListError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -923,6 +1125,12 @@ function App() {
   useEffect(() => {
     fetchIdeaCandidates()
   }, [])
+
+  useEffect(() => {
+    if (!manualFlowEnabled) return
+    if (activeView !== 'flow') return
+    fetchManualPickCandidates()
+  }, [activeView, manualFlowEnabled])
 
   useEffect(() => {
     fetchAuditEvents()
@@ -1358,6 +1566,11 @@ function App() {
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Flow</h2>
             <p className="text-sm text-stone-600">Sekwencja operatora: Idea Generator &rarr; Idea Gate &rarr; Compile &rarr; Render &rarr; QC &rarr; Publish.</p>
+            {manualFlowEnabled ? (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-700">
+                Manual flow włączony (brak automatycznych akcji).
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {['Idea Generator', 'Idea Gate', 'Compile', 'Render', 'QC', 'Publish'].map((step) => (
@@ -1445,6 +1658,66 @@ function App() {
         </div>
       </section>
 
+{manualFlowEnabled ? (
+      <section id="flow-manual-panel" className="rounded-[28px] border border-amber-200/80 bg-amber-50/40 p-6 shadow-2xl shadow-amber-900/10">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-xl font-semibold text-stone-900">Manual Flow</h3>
+            <p className="text-sm text-stone-600">Kroki uruchamiane ręcznie przez operatora.</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4">
+            <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Idea ID
+              <input
+                className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+                placeholder="UUID"
+                value={manualIdeaId}
+                onChange={(event) => setManualIdeaId(event.target.value)}
+              />
+            </label>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button className="rounded-full" onClick={handleManualCompile} disabled={manualCompileLoading}>
+                {manualCompileLoading ? 'Compiling…' : 'Compile DSL'}
+              </Button>
+              <Button variant="outline" className="rounded-full" onClick={handleManualPipeline} disabled={manualPipelineLoading}>
+                {manualPipelineLoading ? 'Starting…' : 'Start pipeline (compile+render)'}
+              </Button>
+            </div>
+            {manualCompileMessage ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-800">
+                {manualCompileMessage}
+              </div>
+            ) : null}
+            {manualCompileError ? (
+              <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">
+                {manualCompileError}
+              </div>
+            ) : null}
+            {manualPipelineMessage ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-800">
+                {manualPipelineMessage}
+              </div>
+            ) : null}
+            {manualPipelineError ? (
+              <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">
+                {manualPipelineError}
+              </div>
+            ) : null}
+          </div>
+          <div className="rounded-2xl border border-amber-200/70 bg-white/70 p-4 text-xs text-stone-600">
+            <div className="font-semibold text-stone-900">Tryb manualny</div>
+            <ul className="mt-2 list-disc space-y-2 pl-4">
+              <li>Brak automatycznego enqueue po Idea Gate.</li>
+              <li>Weryfikacja i kompilacja uruchamiane ręcznie.</li>
+              <li>Render można powtórzyć w panelu Operations.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+) : null}
+
 <section id="idea-generator-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -1485,7 +1758,7 @@ function App() {
               <div className="text-xs uppercase tracking-[0.18em] text-stone-500">New/Later/Picked</div>
               <div className="mt-2 text-sm text-stone-700">
                 new: {candidateStatusSummary.new ?? 0} · later: {candidateStatusSummary.later ?? 0} · picked:{' '}
-                {candidateStatusSummary.picked ?? 0}
+                {candidateStatusSummary.picked ?? 0} · rejected: {candidateStatusSummary.rejected ?? 0}
               </div>
             </CardContent>
           </Card>
@@ -1798,6 +2071,44 @@ function App() {
             >
               Wyczyść
             </Button>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-stone-200/70 bg-stone-50/70 p-4">
+          <div className="text-sm font-semibold text-stone-900">Ręczny wybór kandydata</div>
+          <div className="mt-2 flex flex-wrap items-end gap-3">
+            <label className="flex min-w-[240px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Kandydat (feasible)
+              <select
+                className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+                value={manualPickCandidateId}
+                onChange={(event) => setManualPickCandidateId(event.target.value)}
+              >
+                {manualPickCandidates.length === 0 ? (
+                  <option value="">Brak kandydatów</option>
+                ) : (
+                  manualPickCandidates.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.title ?? candidate.id}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="rounded-full" onClick={fetchManualPickCandidates} disabled={manualPickLoading}>
+                {manualPickLoading ? 'Ładowanie…' : 'Odśwież listę'}
+              </Button>
+              <Button className="rounded-full" onClick={handleManualPick} disabled={ideaDecisionLoading || !manualPickCandidateId}>
+                Wybierz kandydata
+              </Button>
+            </div>
+          </div>
+          {manualPickError ? (
+            <div className="mt-2 text-xs text-rose-600">{manualPickError}</div>
+          ) : null}
+          <div className="mt-2 text-xs text-stone-500">
+            Lista obejmuje kandydatów o statusie new/later oraz capability = feasible.
           </div>
         </div>
 
@@ -2252,12 +2563,13 @@ function App() {
                   <th className="px-2 py-3">Similarity</th>
                   <th className="px-2 py-3">Title / Details</th>
                   <th className="px-2 py-3">Created</th>
+                  <th className="px-2 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {candidateList.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
+                    <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
                       No candidates matched. Adjust filters or generate new ideas.
                     </td>
                   </tr>
@@ -2285,6 +2597,34 @@ function App() {
                         </details>
                       </td>
                       <td className="px-2 py-4 text-stone-600">{formatDate(row.created_at)}</td>
+                      <td className="px-2 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => handleResetCandidateCapability(row.id)}
+                            disabled={candidateActionLoading[row.id]}
+                          >
+                            Reset verify
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => handleUndoCandidateDecision(row.id)}
+                            disabled={candidateActionLoading[row.id] || row.status === 'new'}
+                          >
+                            Undo decision
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            className="rounded-full"
+                            onClick={() => handleDeleteCandidate(row.id)}
+                            disabled={candidateActionLoading[row.id] || row.status === 'picked'}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -2808,6 +3148,7 @@ function App() {
                 <SettingRow label="IDEA_GATE_COUNT" value={settings.idea_gate_count} />
                 <SettingRow label="IDEA_GATE_THRESHOLD" value={settings.idea_gate_threshold} />
                 <SettingRow label="IDEA_GATE_AUTO" value={settings.idea_gate_auto} />
+                <SettingRow label="DEV_MANUAL_FLOW" value={settings.dev_manual_flow} />
               </div>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">

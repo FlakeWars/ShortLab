@@ -134,6 +134,7 @@ curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
 - `RQ_JOB_TIMEOUT` / `RQ_RENDER_TIMEOUT` – timeouty jobów w sekundach.
 - `FFMPEG_TIMEOUT_S` – timeout ffmpeg w rendererze.
 - `IDEA_GATE_COUNT` – liczba propozycji losowanych w Idea Gate.
+- `DEV_MANUAL_FLOW` – tryb manualny (bez automatycznych akcji w Idea Gate), `1` aby włączyć.
 - `OPENAI_API_KEY` – klucz do generatora pomysłów (opcjonalny).
 - `OPENAI_MODEL` – model OpenAI dla generatora pomysłów (np. `gpt-4o-mini`).
 - `OPENAI_BASE_URL` – endpoint API (domyślnie `https://api.openai.com/v1`).

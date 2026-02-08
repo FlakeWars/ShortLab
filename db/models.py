@@ -149,7 +149,7 @@ class IdeaCandidate(Base):
             name="ck_idea_candidate_similarity_status",
         ),
         CheckConstraint(
-            "status in ('new', 'later', 'picked')",
+            "status in ('new', 'later', 'picked', 'rejected')",
             name="ck_idea_candidate_status",
         ),
         CheckConstraint(

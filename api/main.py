@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, desc, func, select, text
+from sqlalchemy import and_, delete, desc, func, select, text
 
 from embeddings import EmbeddingConfig, EmbeddingService
 from db.models import (
@@ -125,6 +125,10 @@ def _repo_counts(session, model, status_col=None) -> dict:
         rows = session.execute(select(status_col, func.count()).group_by(status_col)).all()
         payload["by_status"] = {str(status or "unknown"): int(count) for status, count in rows}
     return payload
+
+
+def _dev_manual_flow_enabled() -> bool:
+    return getenv("DEV_MANUAL_FLOW", "0").lower() in {"1", "true", "yes"}
 
 
 def _animation_row(animation: Animation, render: Render | None, qc: QCDecision | None) -> dict:
@@ -336,6 +340,7 @@ def get_settings() -> dict:
         "idea_gate_count": flag("IDEA_GATE_COUNT", "3"),
         "idea_gate_threshold": flag("IDEA_GATE_THRESHOLD", "0.85"),
         "idea_gate_auto": flag("IDEA_GATE_AUTO", "0"),
+        "dev_manual_flow": flag("DEV_MANUAL_FLOW", "0"),
         "operator_guard": flag("OPERATOR_TOKEN", "") != "",
         "artifacts_base_dir": flag("ARTIFACTS_BASE_DIR", "out"),
         "openai_model": flag("OPENAI_MODEL", ""),
@@ -437,6 +442,7 @@ def list_metrics_daily(
 @app.get("/idea-candidates")
 def list_idea_candidates(
     idea_batch_id: Optional[UUID] = None,
+    status: Optional[str] = None,
     similarity_status: Optional[str] = None,
     capability_status: Optional[str] = None,
     selected: Optional[bool] = None,
@@ -449,6 +455,8 @@ def list_idea_candidates(
         stmt = select(IdeaCandidate)
         if idea_batch_id:
             stmt = stmt.where(IdeaCandidate.idea_batch_id == idea_batch_id)
+        if status:
+            stmt = stmt.where(IdeaCandidate.status == status)
         if similarity_status:
             stmt = stmt.where(IdeaCandidate.similarity_status == similarity_status)
         if capability_status:
@@ -582,10 +590,11 @@ def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
             select(IdeaCandidate).where(IdeaCandidate.status.in_(["new", "later"]))
         ).scalars().all()
 
-        for candidate in base_candidates:
-            if candidate.capability_status == "unverified":
-                verify_candidate_capability(session, idea_candidate_id=candidate.id)
-        session.flush()
+        if not _dev_manual_flow_enabled():
+            for candidate in base_candidates:
+                if candidate.capability_status == "unverified":
+                    verify_candidate_capability(session, idea_candidate_id=candidate.id)
+            session.flush()
 
         stmt = (
             select(IdeaCandidate)
@@ -670,6 +679,9 @@ def decide_idea_repo(
                     )
                 )
             elif item.decision == "rejected":
+                candidate.status = "rejected"
+                candidate.decision_at = now
+                candidate.selected = False
                 session.add(
                     AuditEvent(
                         event_type="idea_decision",
@@ -678,7 +690,7 @@ def decide_idea_repo(
                         payload={"idea_candidate_id": str(candidate.id), "decision": "rejected"},
                     )
                 )
-                session.delete(candidate)
+                session.add(candidate)
 
         session.add(
             AuditEvent(
@@ -788,6 +800,116 @@ def verify_candidate_capability_batch(
         ]
         session.commit()
         return jsonable_encoder({"verified": len(reports), "reports": reports})
+    finally:
+        session.close()
+
+
+@app.post("/idea-candidates/{candidate_id}/reset-capability")
+def reset_candidate_capability(
+    candidate_id: UUID,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        candidate = session.get(IdeaCandidate, candidate_id)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="idea_candidate_not_found")
+
+        session.execute(
+            delete(IdeaCandidateGapLink).where(
+                IdeaCandidateGapLink.idea_candidate_id == candidate.id
+            )
+        )
+        candidate.capability_status = "unverified"
+        session.add(candidate)
+
+        session.add(
+            AuditEvent(
+                event_type="idea_candidate_reset",
+                source="ui",
+                occurred_at=datetime.now(timezone.utc),
+                payload={"idea_candidate_id": str(candidate.id), "action": "reset_capability"},
+            )
+        )
+        session.commit()
+        return jsonable_encoder({"id": candidate.id, "capability_status": candidate.capability_status})
+    finally:
+        session.close()
+
+
+@app.post("/idea-candidates/{candidate_id}/delete")
+def delete_candidate(
+    candidate_id: UUID,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        candidate = session.get(IdeaCandidate, candidate_id)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="idea_candidate_not_found")
+        if candidate.status == "picked":
+            raise HTTPException(status_code=409, detail="candidate_already_picked")
+
+        candidate.status = "rejected"
+        candidate.selected = False
+        candidate.selected_at = None
+        candidate.decision_at = datetime.now(timezone.utc)
+        candidate.decision_by = None
+        session.add(candidate)
+
+        session.add(
+            AuditEvent(
+                event_type="idea_candidate_delete",
+                source="ui",
+                occurred_at=datetime.now(timezone.utc),
+                payload={"idea_candidate_id": str(candidate.id), "action": "soft_delete"},
+            )
+        )
+        session.commit()
+        return jsonable_encoder({"id": candidate.id, "status": candidate.status})
+    finally:
+        session.close()
+
+
+@app.post("/idea-candidates/{candidate_id}/undo-decision")
+def undo_candidate_decision(
+    candidate_id: UUID,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        candidate = session.get(IdeaCandidate, candidate_id)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="idea_candidate_not_found")
+        if candidate.status == "new":
+            raise HTTPException(status_code=409, detail="candidate_already_new")
+
+        if candidate.status == "picked" and candidate.idea is not None:
+            animations_count = session.execute(
+                select(func.count()).select_from(Animation).where(Animation.idea_id == candidate.idea.id)
+            ).scalar_one()
+            if animations_count > 0:
+                raise HTTPException(status_code=409, detail="idea_already_used")
+            session.delete(candidate.idea)
+
+        candidate.status = "new"
+        candidate.selected = False
+        candidate.selected_at = None
+        candidate.selected_by = None
+        candidate.decision_at = None
+        candidate.decision_by = None
+        session.add(candidate)
+
+        session.add(
+            AuditEvent(
+                event_type="idea_candidate_undo",
+                source="ui",
+                occurred_at=datetime.now(timezone.utc),
+                payload={"idea_candidate_id": str(candidate.id), "action": "undo_decision"},
+            )
+        )
+        session.commit()
+        return jsonable_encoder({"id": candidate.id, "status": candidate.status})
     finally:
         session.close()
 

@@ -1,6 +1,17 @@
 # TODO
 
 ## Now (W toku)
+- [ ] Dev Mode: manualny flow + cofanie kroków (branch: feat/dev-manual-flow)
+  - [x] Tryb manualny: wyłącz automaty (verify/compile/render) w dev
+  - [x] Cofnij weryfikację kandydata (status -> unverified) + UI akcja
+  - [x] Usuń kandydata (soft delete) + UI akcja
+  - [x] Cofnij decyzję Idea Gate (picked/later/rejected -> new) + UI akcja
+  - [x] Idea Gate: wybór konkretnego kandydata (nie tylko losowanie)
+  - [x] Manualne uruchamianie compile/render z UI (bez auto)
+## Next (Kolejne)
+- [ ] Manual Flow v1.1 (branch: feat/dev-manual-flow-v1-1)
+  - [ ] Render-only z istniejącego DSL (bez ponownej kompilacji) + UI akcja
+  - [ ] UI: czytelny feedback błędów dla akcji reset/undo/delete
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
@@ -18,7 +29,11 @@
   - [x] Flow board: karty etapów z licznikami + CTA do odpowiednich sekcji
   - [x] Flow tab zawiera mini‑listę Animations (bez skoku do Repositories)
   - [ ] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
-## Next (Kolejne)
+- [ ] Audit/Debug Log (branch: feat/ui-audit-log)
+  - [ ] Centralny log zdarzeń w UI (akcje operatora + system events)
+  - [ ] Logi wywołań LLM (provider/model/latency/status, bez pełnych promptów w UI)
+  - [ ] Debug level w dev (więcej szczegółów w logach API/worker)
+  - [ ] Widoczny wynik każdego kroku (success/fail + error payload)
 - [ ] Similarity scaling (branch: feat/similarity-scaling)
   - [ ] Wdrozyć ANN index (FAISS/HNSW) dla embeddingów idei
   - [ ] Async podobienstwo: obliczenia w tle + status `similarity_status` aktualizowany po fakcie
