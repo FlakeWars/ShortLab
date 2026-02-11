@@ -22,8 +22,13 @@ if [[ -z "${GODOT_VERSION:-}" ]]; then
 fi
 
 VERSION="${GODOT_VERSION}"
+# Godot download endpoint expects major.minor for stable builds (e.g. 4.6).
+VERSION_SHORT="${VERSION%.*}"
+if [[ "${VERSION_SHORT}" == "${VERSION}" ]]; then
+  VERSION_SHORT="${VERSION}"
+fi
 BASE_URL="https://downloads.godotengine.org"
-ARCHIVE_URL="${BASE_URL}/?flavor=stable&platform=macos.universal&slug=macos.universal.zip&version=${VERSION}"
+ARCHIVE_URL="${BASE_URL}/?flavor=stable&platform=macos.universal&slug=macos.universal.zip&version=${VERSION_SHORT}"
 
 mkdir -p "${INSTALL_DIR}" "${TMP_DIR}"
 
