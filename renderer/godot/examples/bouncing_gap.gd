@@ -13,6 +13,7 @@ const PAIR_SPAWN := 2
 
 var ring_body
 var ring_shape
+var ring_points := PackedVector2Array()
 var elapsed_s := 0.0
 
 
@@ -29,7 +30,8 @@ func _setup_physics() -> void:
     )
     ring_body = AnimatableBody2D.new()
     ring_shape = CollisionPolygon2D.new()
-    ring_shape.polygon = _build_ring_with_gap(RING_RADIUS, GAP_DEG, 48)
+    ring_points = _build_ring_with_gap(RING_RADIUS, GAP_DEG, 48)
+    ring_shape.polygon = ring_points
     ring_body.add_child(ring_shape)
     ring_body.position = Vector2(WIDTH / 2.0, HEIGHT / 2.0)
     add_child(ring_body)
@@ -41,6 +43,29 @@ func _physics_process(delta: float) -> void:
     _cleanup_outside()
     if get_tree().get_node_count() < 6 and _ball_count() == 0:
         _spawn_pair()
+    queue_redraw()
+
+
+func _draw() -> void:
+    draw_rect(Rect2(Vector2.ZERO, Vector2(WIDTH, HEIGHT)), Color(0, 0, 0), true)
+    _draw_ring()
+    _draw_balls()
+
+
+func _draw_ring() -> void:
+    if ring_points.is_empty():
+        return
+    var center := ring_body.position
+    var rotated := PackedVector2Array()
+    for point in ring_points:
+        rotated.append(point.rotated(ring_body.rotation) + center)
+    draw_polyline(rotated, Color(0.9, 0.9, 0.9), 4.0, true)
+
+
+func _draw_balls() -> void:
+    for child in get_children():
+        if child is RigidBody2D:
+            draw_circle(child.position, RADIUS, Color(0.4, 0.8, 1.0))
 
 
 func _spawn_pair() -> void:
