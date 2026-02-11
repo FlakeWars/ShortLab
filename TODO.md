@@ -2,10 +2,10 @@
 
 ## Now (W toku)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
-  - [ ] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM
-  - [ ] [P1] Zdefiniować ograniczoną pulę node/shape + Godot 4.x only (ban API 3.x)
-  - [ ] [P2] Ustalić format logów błędów dla pętli naprawy LLM (ścieżka -> expected -> got)
-  - [ ] [P2] Zdefiniować limit prób naprawy i fallback przy fail
+  - [x] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM
+ - [x] [P1] Zdefiniować ograniczoną pulę node/shape + Godot 4.x only (ban API 3.x)
+ - [x] [P2] Ustalić format logów błędów dla pętli naprawy LLM (ścieżka -> expected -> got)
+  - [x] [P2] Zdefiniować limit prób naprawy i fallback przy fail
 ## Next (Kolejne)
 - [ ] Godot pipeline v0 (branch: chore/godot-pipeline-v0)
   - [ ] [P1] Walidacja skryptu: parse + load + tick fizyki (smoke test)

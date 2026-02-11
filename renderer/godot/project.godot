@@ -1,0 +1,15 @@
+; Minimal Godot 4.x project for LLM-generated GDScript scenes
+config_version=5
+
+[application]
+config/name="ShortLabGodotRunner"
+config/features=PackedStringArray("4.6")
+run/main_scene="res://main.tscn"
+
+[display]
+window/size/viewport_width=1080
+window/size/viewport_height=1920
+window/size/mode=2
+
+[physics/2d]
+default_gravity=980
