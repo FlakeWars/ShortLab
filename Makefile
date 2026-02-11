@@ -63,6 +63,12 @@ METRICS_RENDER_ID ?=
 METRICS_PULL_STATUS ?= queued
 METRICS_PULL_SOURCE ?= api
 METRICS_PULL_ERROR ?=
+GODOT_BIN ?= godot
+GODOT_SCRIPT ?=
+GODOT_SECONDS ?= 5
+GODOT_FPS ?= 30
+GODOT_MAX_NODES ?= 200
+GODOT_OUT ?= out/godot/render.mp4
 
 
 # Optional paths (adjust when code exists)
@@ -168,6 +174,23 @@ worker-dev: ## Run worker with isolated Redis DB
 .PHONY: worker-burst
 worker-burst: ## Run worker in burst mode (process jobs then exit)
 	@OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES RQ_SIMPLE_WORKER=1 PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/worker.py --burst
+
+.PHONY: godot-validate
+godot-validate: ## Validate GDScript via Godot runner
+	@GODOT_BIN="$(GODOT_BIN)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/godot-run.py \
+		--mode validate --script "$(GODOT_SCRIPT)" --seconds "$(GODOT_SECONDS)" --max-nodes "$(GODOT_MAX_NODES)"
+
+.PHONY: godot-preview
+godot-preview: ## Render preview video via Godot Movie Maker
+	@GODOT_BIN="$(GODOT_BIN)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/godot-run.py \
+		--mode preview --script "$(GODOT_SCRIPT)" --seconds "$(GODOT_SECONDS)" --fps "$(GODOT_FPS)" \
+		--max-nodes "$(GODOT_MAX_NODES)" --out "$(GODOT_OUT)"
+
+.PHONY: godot-render
+godot-render: ## Render final video via Godot Movie Maker
+	@GODOT_BIN="$(GODOT_BIN)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/godot-run.py \
+		--mode render --script "$(GODOT_SCRIPT)" --seconds "$(GODOT_SECONDS)" --fps "$(GODOT_FPS)" \
+		--max-nodes "$(GODOT_MAX_NODES)" --out "$(GODOT_OUT)"
 
 .PHONY: scheduler
 scheduler: ## Run scheduler (placeholder)

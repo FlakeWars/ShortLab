@@ -8,11 +8,11 @@
   - [x] [P2] Zdefiniować limit prób naprawy i fallback przy fail
 ## Next (Kolejne)
 - [ ] Godot pipeline v0 (branch: chore/godot-pipeline-v0)
-  - [ ] [P1] Walidacja skryptu: parse + load + tick fizyki (smoke test)
+  - [x] [P1] Walidacja skryptu: parse + load + tick fizyki (smoke test)
   - [ ] [P1] Retry loop: LLM repair z limitem prób i timeoutem
-  - [ ] [P2] Preview render: low-res/krótki klip + zapis artefaktów
-  - [ ] [P2] Render finalny: Movie Maker + metadane (hash skryptu, wersja Godot)
-  - [ ] [P2] Ograniczenia runtime: limit obiektów, limit czasu sceny
+  - [x] [P2] Preview render: low-res/krótki klip + zapis artefaktów
+  - [x] [P2] Render finalny: Movie Maker + metadane (hash skryptu, wersja Godot)
+  - [x] [P2] Ograniczenia runtime: limit obiektów, limit czasu sceny
 - [ ] Godot render pipeline: Movie Maker + preview (branch: chore/godot-movie-pipeline)
   - [ ] [P1] Zweryfikować CLI renderu na macOS ARM64 (preview + final)
   - [ ] [P2] Określić tryb preview (low-res / krótkie klipy / klatki)

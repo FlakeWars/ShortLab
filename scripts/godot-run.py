@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _project_dir() -> Path:
+    return _repo_root() / "renderer" / "godot"
+
+
+def _generated_dir(project_dir: Path) -> Path:
+    return project_dir / "generated"
+
+
+def _copy_script(source: Path, dest_dir: Path) -> Path:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_name = f"llm_{uuid.uuid4().hex}.gd"
+    dest_path = dest_dir / dest_name
+    shutil.copyfile(source, dest_path)
+    return dest_path
+
+
+def _run_cmd(cmd: list[str]) -> int:
+    print("[godot-run]", " ".join(cmd))
+    completed = subprocess.run(cmd, check=False)
+    return completed.returncode
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run Godot runner for GDScript")
+    parser.add_argument("--mode", choices=["validate", "preview", "render"], required=True)
+    parser.add_argument("--script", required=True, help="Path to .gd script to run")
+    parser.add_argument("--seconds", type=float, default=5.0)
+    parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument("--max-nodes", type=int, default=200)
+    parser.add_argument("--out", default="out/godot/render.mp4")
+    args = parser.parse_args()
+
+    script_path = Path(args.script).resolve()
+    if not script_path.exists():
+        raise SystemExit(f"[godot-run] script not found: {script_path}")
+    if script_path.suffix != ".gd":
+        raise SystemExit("[godot-run] script must be .gd")
+
+    project_dir = _project_dir()
+    generated_dir = _generated_dir(project_dir)
+    local_script = _copy_script(script_path, generated_dir)
+
+    godot_bin = os.getenv("GODOT_BIN", "godot")
+    res_script = f"res://generated/{local_script.name}"
+    cmd = [
+        godot_bin,
+        "--path",
+        str(project_dir),
+        "--script",
+        "res://runner.gd",
+        "--",
+        "--script_path",
+        res_script,
+        "--seconds",
+        str(args.seconds),
+        "--max_nodes",
+        str(args.max_nodes),
+    ]
+
+    if args.mode == "validate":
+        cmd.insert(1, "--headless")
+        return _run_cmd(cmd)
+
+    out_path = Path(args.out).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd.extend(["--write-movie", str(out_path), "--fixed-fps", str(args.fps)])
+    return _run_cmd(cmd)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
