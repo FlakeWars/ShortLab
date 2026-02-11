@@ -10,7 +10,7 @@ from typing import Any
 
 from db.models import Idea
 from llm import get_mediator
-from .prompting import build_idea_context, read_godot_contract
+from .prompting import build_idea_context, read_godot_contract, read_godot_guidelines
 
 
 ALLOWED_IDEA_STATUSES = {"feasible", "ready_for_gate", "picked"}
@@ -37,6 +37,7 @@ def compile_idea_to_gdscript(
         raise RuntimeError(f"idea_not_feasible:{idea.id}:{idea.status}")
 
     contract = read_godot_contract()
+    guidelines = read_godot_guidelines()
     prompt_version = os.getenv("IDEA_GDSCRIPT_PROMPT_VERSION", "idea-to-gdscript-v1")
     repair_version = os.getenv("IDEA_GDSCRIPT_REPAIR_PROMPT_VERSION", "idea-to-gdscript-repair-v1")
     errors: list[str] = []
@@ -52,7 +53,7 @@ def compile_idea_to_gdscript(
             is_repair=bool(errors),
         )
         try:
-            system_prompt = _build_system_prompt(contract=contract)
+            system_prompt = _build_system_prompt(contract=contract, guidelines=guidelines)
             payload, route_meta = get_mediator().generate_json(
                 task_type=current_task,
                 system_prompt=system_prompt,
@@ -160,7 +161,7 @@ def _build_compile_prompt(
     )
 
 
-def _build_system_prompt(*, contract: str) -> str:
+def _build_system_prompt(*, contract: str, guidelines: str) -> str:
     return (
         "You write one Godot 4.6 GDScript file for a 2D animation. "
         "Return JSON only.\n\n"
@@ -171,4 +172,8 @@ def _build_system_prompt(*, contract: str) -> str:
         "<<<CONTRACT_BEGIN>>>\n"
         f"{contract}\n"
         "<<<CONTRACT_END>>>\n"
+        "\nGUIDELINES (BEGIN):\n"
+        "<<<GUIDELINES_BEGIN>>>\n"
+        f"{guidelines}\n"
+        "<<<GUIDELINES_END>>>\n"
     )
