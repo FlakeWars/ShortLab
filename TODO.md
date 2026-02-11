@@ -14,11 +14,12 @@
   - [x] [P2] Render finalny: Movie Maker + metadane (hash skryptu, wersja Godot)
   - [x] [P2] Ograniczenia runtime: limit obiektów, limit czasu sceny
 - [ ] Godot render pipeline: Movie Maker + preview (branch: chore/godot-movie-pipeline)
-  - [ ] [P1] Zweryfikować CLI renderu na macOS ARM64 (preview + final)
-  - [ ] [P1] Zweryfikować flagi `--script/--write-movie/--headless` z runnerem
+  - [x] [P1] Zweryfikować CLI renderu na macOS ARM64 (preview + final)
+  - [x] [P1] Zweryfikować flagi `--script/--write-movie/--headless` z runnerem
   - [ ] [P2] Określić tryb preview (low-res / krótkie klipy / klatki)
   - [ ] [P2] Udokumentować komendę `make godot-verify-cli` + wymagany `GODOT_SCRIPT`
   - [x] [P2] Dodać przykładowy skrypt testowy do weryfikacji CLI
+  - [x] [P2] Notatka: weryfikacja przeszła z `GODOT_SECONDS=1`, `GODOT_FPS=12` (ogv)
 - [ ] Security: weryfikacja checksum dla paczki Godot (branch: chore/godot-checksum)
   - [ ] Sprawdzić, czy Godot publikuje sumy SHA dla macOS
   - [ ] Dodać weryfikację checksum w `scripts/install-godot.sh` jeśli dostępne
