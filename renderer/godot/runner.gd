@@ -27,33 +27,34 @@ func _init() -> void:
 
     if script_path == "":
         printerr("[runner] missing --script_path")
-        OS.exit_code = 2
+        OS.set_exit_code(2)
         quit()
         return
 
     var script := load(script_path)
     if script == null:
         printerr("[runner] failed to load script: " + script_path)
-        OS.exit_code = 3
+        OS.set_exit_code(3)
         quit()
         return
 
-    var node := script.new()
+    var node: Node = script.new()
     if node == null:
         printerr("[runner] failed to instantiate script: " + script_path)
-        OS.exit_code = 4
+        OS.set_exit_code(4)
         quit()
         return
 
-    var root := get_root()
-    root.add_child(node)
+    get_root().add_child(node)
 
-func _process(delta: float) -> void:
+func _process(delta: float) -> bool:
     elapsed_s += delta
     if get_node_count() > max_nodes:
         printerr("[runner] max_nodes exceeded: " + str(get_node_count()))
-        OS.exit_code = 5
+        OS.set_exit_code(5)
         quit()
-        return
+        return true
     if elapsed_s >= duration_s:
         quit()
+        return true
+    return false
