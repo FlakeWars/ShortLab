@@ -28,8 +28,8 @@ func _setup_physics() -> void:
         GRAVITY
     )
     ring_body = AnimatableBody2D.new()
-    ring_shape = CollisionShape2D.new()
-    ring_shape.shape = _build_ring_with_gap(RING_RADIUS, GAP_DEG, 48)
+    ring_shape = CollisionPolygon2D.new()
+    ring_shape.polygon = _build_ring_with_gap(RING_RADIUS, GAP_DEG, 48)
     ring_body.add_child(ring_shape)
     ring_body.position = Vector2(WIDTH / 2.0, HEIGHT / 2.0)
     add_child(ring_body)
@@ -78,15 +78,13 @@ func _ball_count() -> int:
     return count
 
 
-func _build_ring_with_gap(radius: float, gap_deg: float, segments: int):
+func _build_ring_with_gap(radius: float, gap_deg: float, segments: int) -> PackedVector2Array:
     var points := PackedVector2Array()
     var gap_rad := deg_to_rad(gap_deg)
     var start := gap_rad * 0.5
     var end := TAU - gap_rad * 0.5
     for i in range(segments + 1):
         var t := float(i) / float(segments)
-        var angle := lerp(start, end, t)
+        var angle := start + (end - start) * t
         points.append(Vector2(cos(angle), sin(angle)) * radius)
-    var poly = PolygonShape2D.new()
-    poly.points = points
-    return poly
+    return points
