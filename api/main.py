@@ -392,6 +392,8 @@ def debug_llm_routes(_guard: None = Depends(_require_operator)) -> dict:
         "idea_verify_capability",
         "idea_compile_dsl",
         "dsl_repair",
+        "gdscript_generate",
+        "gdscript_repair",
     ]
     routes: dict[str, dict[str, str | bool]] = {}
     for task in tasks:

@@ -4,11 +4,20 @@ from pathlib import Path
 
 
 DSL_SPEC_PATH = Path(".ai/dsl-v1.md")
+GODOT_CONTRACT_PATH = Path(".ai/godot-gdscript-contract.md")
 
 
 def read_dsl_spec(max_chars: int = 16000) -> str:
     try:
         text = DSL_SPEC_PATH.read_text()
+    except Exception:
+        return ""
+    return text[:max_chars]
+
+
+def read_godot_contract(max_chars: int = 16000) -> str:
+    try:
+        text = GODOT_CONTRACT_PATH.read_text()
     except Exception:
         return ""
     return text[:max_chars]

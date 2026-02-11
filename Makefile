@@ -33,6 +33,13 @@ IDEA_COMPILE_TEMPLATE ?= .ai/examples/dsl-v1-happy.yaml
 IDEA_COMPILE_OUT ?= out/manual-compile
 IDEA_COMPILE_MAX_ATTEMPTS ?= 3
 IDEA_COMPILE_MAX_REPAIRS ?= 2
+IDEA_GDSCRIPT_ID ?=
+IDEA_GDSCRIPT_OUT ?= out/manual-gdscript
+IDEA_GDSCRIPT_MAX_ATTEMPTS ?= 3
+IDEA_GDSCRIPT_MAX_REPAIRS ?= 2
+IDEA_GDSCRIPT_VALIDATE ?= 0
+IDEA_GDSCRIPT_VALIDATE_SECONDS ?= 2
+IDEA_GDSCRIPT_MAX_NODES ?= 200
 DSL_GAP_ID ?=
 DSL_GAP_STATUS ?= accepted
 QC_RESULT ?= accepted
@@ -373,6 +380,17 @@ idea-compile-dsl: ## Force compile one idea to DSL (LLM compiler path)
 		--out-root "$(IDEA_COMPILE_OUT)" \
 		--max-attempts "$(IDEA_COMPILE_MAX_ATTEMPTS)" \
 		--max-repairs "$(IDEA_COMPILE_MAX_REPAIRS)"
+
+.PHONY: idea-compile-gdscript
+idea-compile-gdscript: ## Force compile one idea to GDScript (LLM)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/idea-compile-gdscript.py \
+		--idea-id "$(IDEA_GDSCRIPT_ID)" \
+		--out-root "$(IDEA_GDSCRIPT_OUT)" \
+		--max-attempts "$(IDEA_GDSCRIPT_MAX_ATTEMPTS)" \
+		--max-repairs "$(IDEA_GDSCRIPT_MAX_REPAIRS)" \
+		$$( [ "$(IDEA_GDSCRIPT_VALIDATE)" = "1" ] && echo "--validate" || echo "" ) \
+		--validate-seconds "$(IDEA_GDSCRIPT_VALIDATE_SECONDS)" \
+		--max-nodes "$(IDEA_GDSCRIPT_MAX_NODES)"
 
 # --- Data / exports ---
 .PHONY: export

@@ -137,6 +137,8 @@ DEFAULT_TASK_PROFILES: dict[str, str] = {
     "idea_verify_capability": "analytical",
     "idea_compile_dsl": "structured",
     "dsl_repair": "structured",
+    "gdscript_generate": "structured",
+    "gdscript_repair": "structured",
 }
 
 
