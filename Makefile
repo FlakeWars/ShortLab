@@ -192,6 +192,11 @@ godot-render: ## Render final video via Godot Movie Maker
 		--mode render --script "$(GODOT_SCRIPT)" --seconds "$(GODOT_SECONDS)" --fps "$(GODOT_FPS)" \
 		--max-nodes "$(GODOT_MAX_NODES)" --out "$(GODOT_OUT)"
 
+.PHONY: godot-verify-cli
+godot-verify-cli: ## Verify Godot CLI flags (headless + write-movie)
+	@GODOT_BIN="$(GODOT_BIN)" GODOT_SECONDS="$(GODOT_SECONDS)" GODOT_FPS="$(GODOT_FPS)" \
+		GODOT_MAX_NODES="$(GODOT_MAX_NODES)" ./scripts/godot-verify-cli.sh "$(GODOT_SCRIPT)"
+
 .PHONY: scheduler
 scheduler: ## Run scheduler (placeholder)
 	@echo "Run scheduler (APScheduler)" 
