@@ -1,6 +1,6 @@
 # Stos technologiczny (MVP) - stan aktualny
 
-Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowane. Dobór skupia się na: deterministyczności, prostocie uruchomienia lokalnego, łatwym debugowaniu oraz możliwości rozszerzania.
+Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowane. Dobór skupia się na: szybkim uzyskaniu dzialajacej animacji, prostocie uruchomienia lokalnego, latwym debugowaniu oraz mozliwosci rozszerzania.
 
 ## 1. Języki i runtime
 - **Python 3.12**: główny język backendu i workerów (szybki development, dobre biblioteki do AI, pipeline i integracji API).
@@ -23,13 +23,12 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
   - Celery: gdy pojawi się potrzeba złożonych workflow i retry.
 - **Scheduler**: **APScheduler** (lokalny harmonogram uruchomień dziennych).
 
-## 4. DSL, wersjonowanie i deterministyczność
-- **DSL w YAML/JSON** (z wersją schematu): łatwe diffy i walidacja.
-- **Walidacja schematu**: `pydantic` + `jsonschema`.
-- **Wersjonowanie DSL**: pole `dsl_version` oraz migratory "upgrader" w kodzie.
-- **DSL Capability Verifier** (MVP): oddzielny etap `IdeaCandidate -> feasible?` (TAK/NIE + `dsl_gaps`) przed kompilacja.
-- **LLM DSL Compiler** (MVP): etap `Idea -> DSL` tylko dla idei wykonalnych, z torem `generate -> validate -> repair/retry -> fallback`.
-- **Raportowanie luk DSL**: `dsl_gaps` zapisywane do backlogu/audytu jako input do rozwoju DSL.
+## 4. Skrypt GDScript, kontrakt i walidacja
+- **GDScript (Godot 4.x)**: pelny skrypt generowany przez LLM (bez template'ow animacji).
+- **Kontrakt skryptu**: ograniczona pula node/shape + limit czasu/obiektow; brak IO/sieci poza workspace.
+- **Walidacja skryptu**: parse + load + krotki tick fizyki (smoke test) przed renderem.
+- **Petla naprawy**: precyzyjny raport bledow -> retry LLM (limit prob).
+- **Wersjonowanie**: wersja Godot i kontraktu skryptu zapisywane w metadanych renderu.
 
 ## 4a. Embedding i podobieństwo (Idea Gate / deduplikacja)
 - **scikit-learn (HashingVectorizer)**: lokalne embeddings (CPU) bez pobierania modeli.
@@ -37,13 +36,10 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 - **Fallback offline**: hash-embedding, gdy wektorizer niedostępny.
 
 ## 5. Silnik renderingu 2D
-- **MVP-first**: **Python + Skia-Python** lub **Cairo** jako renderer:
-  - Szybszy start i niższy koszt utrzymania.
-  - Wystarczające do 14-dniowego eksperymentu, jeśli deterministyczność jest stabilna.
-- **Docelowo**: **Rust + Skia** (np. `skia-safe`) jako osobny serwis/CLI renderer:
-  - Silniejsza deterministyczność (kontrola RNG, stabilność float).
-  - Lepsza wydajność dla większej skali.
-- **FFmpeg**: spójna kompresja wideo i kontrola parametrów exportu.
+- **Godot 4.x**: silnik renderu i fizyki 2D.
+- **Movie Maker**: render offline/CLI (preview + final).
+- **FFmpeg**: opcjonalna kompresja i postprocessing wideo.
+- **Legacy**: Python + Skia/Cairo pozostaja w repo jako stary tor, ale nie sa juz kierunkiem docelowym.
 
 ## 6. Dane i przechowywanie
 - **PostgreSQL**: metadane, statusy pipeline, QC, audit log, tagi, metryki.
@@ -75,14 +71,14 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 ## 10.1. UI – zakres operacyjny (MVP)
 - **Dashboard**: status pipeline + ostatnie joby (queued/running/failed/succeeded).
 - **Animacje**: lista animacji + metadane + statusy.
-- **Render**: podgląd wideo + metryki renderu + DSL/Design System.
+- **Render**: podglad wideo + metryki renderu + hash skryptu/Godot/Design System.
 - **Idea Gate**: propozycje + wybór + similarity.
 - **QC**: backend flow jest dostępny, osobny panel UI jest w backlogu.
 - **Audit log**: historia zdarzeń i filtr po typie.
 - **Ops**: enqueue/rerun/cleanup z guardem operatora.
 
 ## 11. Testy i jakość
-- **Pytest**: testy pipeline, DSL i deterministyczności renderu (golden tests).
+- **Pytest**: testy pipeline, walidacji skryptu i stabilnosci renderu (golden tests gdzie to mozliwe).
 - **Playwright**: testy smoke UI panelu review.
 - **Pre-commit**: format/lint (ruff + black).
 
@@ -92,27 +88,27 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 - **Makefile**: wygodne taski (build, render, run, migrate).
 
 ### Uwaga: macOS (Apple Silicon, M2) i odporność na zmiany sprzętowe
-Jeśli głównym celem jest stabilność środowiska na macOS ARM64 oraz dostępność bibliotek (Skia/Cairo/FFmpeg), pełna konteneryzacja może nie pomóc, bo Docker działa w VM z Linuksem i nie zapewnia macOS-owych zależności. Zalecane podejście:
+Jeśli głównym celem jest stabilność środowiska na macOS ARM64 oraz dostępność bibliotek (Godot/FFmpeg), pełna konteneryzacja może nie pomóc, bo Docker działa w VM z Linuksem i nie zapewnia macOS-owych zaleznosci. Zalecane podejście:
 - **Usługi infrastrukturalne w Compose** (Postgres/Redis/MinIO).
-- **Renderer i FFmpeg natywnie na macOS** z twardo przypiętymi wersjami.
+- **Godot i FFmpeg natywnie na macOS** z twardo przypiętymi wersjami.
 - **Pinning zależności**: `pyproject` + lock (`uv`/`poetry`), opcjonalnie `constraints.txt`.
 - **Bootstrap środowiska**: `Brewfile` + `scripts/setup-macos.sh` dla powtarzalnego setupu.
 
 ## Rekomendowany minimalny zestaw (start MVP)
 1. Python + FastAPI + RQ + Redis
 2. Postgres + Alembic
-3. Renderer Python+Skia-Python/Cairo + FFmpeg
+3. Godot 4.x + GDScript + Movie Maker (+ opcjonalnie FFmpeg)
 4. React + Vite panel review
 5. Lokalny storage dla wideo
 
 ## Plan migracji z MVP do wersji docelowej
-1. **Etap 0 (MVP)**: Pythonowy renderer, lokalny storage, podstawowa observability.
+1. **Etap 0 (MVP)**: Godot 4.x + GDScript, lokalny storage, podstawowa observability.
 2. **Etap 1 (Stabilizacja)**:
-   - Ustalić deterministyczność i dodać golden tests renderu.
-   - Zdefiniować tolerancje pikselowe i wersjonowanie renderera.
-3. **Etap 2 (Renderer docelowy)**:
-   - Wydzielić renderer jako osobny CLI/serwis w Rust+Skia.
-   - Utrzymać kontrakt wejścia/wyjścia zgodny z MVP (DSL + metadane).
+   - Walidacja skryptu + ograniczenia runtime.
+   - Tryb preview vs final render.
+3. **Etap 2 (Hardening)**:
+   - Kontrakt bledow i petla naprawy LLM.
+   - Sandboxing w projekcie Godot (brak IO/sieci, limity zasobow).
 4. **Etap 3 (Storage i skala)**:
    - Przenieść artefakty do MinIO/S3.
    - Dodać polityki retencji i lifecycle dla odrzuconych renderów.
@@ -122,8 +118,8 @@ Jeśli głównym celem jest stabilność środowiska na macOS ARM64 oraz dostęp
 
 ## Uzasadnienie wyboru
 - **Szybkość iteracji**: Python i FastAPI minimalizują koszt zmian i eksperymentów.
-- **MVP bez nadmiernej złożoności**: renderer w Pythonie na start, z jasną ścieżką do Rust+Skia.
-- **Deterministyczność**: kontrola RNG + metadane renderu; możliwość podmiany renderera bez zmiany pipeline.
+- **Najkrotsza droga do animacji**: Godot ma wbudowana fizyke i render, wiec redukuje koszt budowy silnika od zera.
+- **Elastycznosc kreatywna**: pelny skrypt GDScript pozwala na szerokie spektrum zachowan i scen.
 - **Czytelny pipeline**: job queue + statusy w DB = proste debugowanie.
 - **Skalowalność w przyszłości**: łatwa migracja do chmury (S3, K8s) bez przebudowy architektury.
 
@@ -131,9 +127,9 @@ Jeśli głównym celem jest stabilność środowiska na macOS ARM64 oraz dostęp
 - **Przechowywanie kluczy**: `.env`/vault lokalny + ograniczone uprawnienia plików.
 - **Auth**: session-based + Argon2, logowanie zdarzeń i nieudanych prób.
 - **Panel**: podstawowy rate limiting i blokada publikacji bez konfiguracji kluczy.
-# Generator pomysłów (moduł)
-- **Provider**: OpenAI API / lokalny LLM (opcjonalnie) jako generator pomysłów.
-- **Fallback**: statyczny plik `.ai/ideas.md` + zapis wygenerowanych pomysłów do DB.
+# Generator pomyslow + skryptow (modul)
+- **Provider**: OpenAI API / lokalny LLM (opcjonalnie) jako generator pomyslow i pelnych skryptow GDScript.
+- **Fallback**: statyczny plik `.ai/ideas.md` dla opisow + odrzut, gdy brak poprawnego skryptu.
 - **Embedding**: docelowo embeddingi modelowe (np. OpenAI) zamiast hash‑embeddingu.
 
 # Embedding Service (moduł)

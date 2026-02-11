@@ -1,55 +1,55 @@
 # Dokument wymagań produktu (PRD) - ShortLab: automatyczny system generowania i publikacji Shorts oparty o AI
 ## 1. Przegląd produktu
 1. Cel: Zbudować eksperymentalny, lokalny system, który codziennie generuje, renderuje i publikuje krótkie animacje 2D typu Short, aby empirycznie sprawdzić, czy regularna publikacja treści AI zwiększa zasięgi w rolling 14-dniowych oknach.
-2. Zakres MVP: Półautomatyczny pipeline oparty o kolejkę zadań i workerów, z webowym panelem review, deterministycznym renderem 2D oraz zbieraniem metryk z YouTube i TikTok.
-3. Charakter animacji: Minimalistyczne, krótkie, deterministyczne symulacje 2D oparte o FSM i predefiniowane reguły, z ograniczoną paletą kolorów i prostą kompozycją.
-4. Architektura: Lokalne uruchomienie, job-based pipeline: generacja DSL -> render -> QC/review -> publikacja -> metryki -> analiza.
+2. Zakres MVP: Półautomatyczny pipeline oparty o kolejkę zadań i workerów, z webowym panelem review, renderem 2D w Godot 4.x oraz zbieraniem metryk z YouTube i TikTok.
+3. Charakter animacji: Krótkie animacje 2D z fizyką (kolizje, grawitacja, pęd) i prostą kompozycją; deterministyczność nie jest celem nadrzędnym na tym etapie.
+4. Architektura: Lokalne uruchomienie, job-based pipeline: generacja pomysłu + skryptu GDScript -> walidacja/naprawa -> preview -> render -> QC/review -> publikacja -> metryki -> analiza.
 5. Autonomia: Etapy manual -> assisted -> semi-auto, z ewaluacją co 14 dni i jawnie zdefiniowanymi kryteriami wyjścia.
 
-## 1a. Stan implementacji (na dzień 5 lutego 2026)
-1. Działa: pipeline enqueue -> generate_dsl -> render (RQ/Redis), podgląd animacji i artefaktów, audit log, podstawowe operacje z UI.
-2. Działa: Idea Repository + Idea Gate (picked/later/rejected), DSL Capability Verifier na **kandydatach** (`feasible/blocked_by_gaps`) i re-verification po zmianie statusu gapa.
+## 1a. Stan implementacji (na dzień 11 lutego 2026)
+1. Działa (legacy): pipeline enqueue -> generate_dsl -> render (RQ/Redis), podgląd animacji i artefaktów, audit log, podstawowe operacje z UI.
+2. Działa: Idea Repository + Idea Gate (picked/later/rejected) oraz embeddings do similarity.
 3. Działa: mediator LLM z routingiem per task i persystencją metryk/budżetu do DB (`/llm/metrics` + retention).
-4. Działa: LLM Idea->DSL Compiler (generate/validate/repair + fallback) uruchamiany tylko dla idei wykonalnych.
-5. Częściowo: UI jest operacyjne, ale nadal nie pokrywa pełnego docelowego przepływu QC/publish/metrics jako głównego UX.
-6. Jeszcze niegotowe: panel QC i panel publikacji, pełne E2E "idea -> publikacja".
+4. Przyjęty kierunek: Godot 4.x + GDScript (LLM generuje pełny skrypt) — migracja w toku.
+5. Brakuje: walidator GDScript + pętla naprawy, preview render, pipeline Godot Movie Maker.
+6. Częściowo: UI jest operacyjne, ale nadal nie pokrywa pełnego docelowego przepływu QC/publish/metrics jako głównego UX.
 
 ## 2. Problem użytkownika
 1. Brak skalowalnego sposobu na codzienną publikację Shorts i systematyczną obserwację wpływu regularności na zasięgi.
 2. Trudność w utrzymaniu spójnego procesu generacji, kontroli jakości i publikacji przy minimalnym udziale człowieka.
-3. Brak deterministycznej reprodukowalności wygenerowanych animacji do analizy i debugowania.
+3. Brak powtarzalności wygenerowanych animacji do analizy i debugowania (deterministycznosc jest drugorzędna na tym etapie).
 4. Ograniczona możliwość agregacji metryk i analizy trendów w rolling oknach dla wielu platform.
 5. Potrzeba bezpiecznego, kontrolowanego zwiększania autonomii systemu opartego na danych, a nie intuicji.
 
 ## 3. Wymagania funkcjonalne
-1. Generacja koncepcji i specyfikacji
-   1.1. System kompiluje pomysly animacji (Idea, tekst) do specyfikacji DSL (YAML) przez modul LLM DSL Compiler.
-   1.2. DSL jest wersjonowany i kompatybilny wstecz; każda animacja referencjonuje wersję DSL.
-   1.3. Logika animacji oparta o FSM jako kontrakt API; AI parametryzuje predefiniowane stany i przejścia.
-   1.4. System posiada Idea Repository: generator zapisuje pomysły do repo, Idea Gate losuje N propozycji i wymusza klasyfikację (picked/later/rejected).
-   1.5. System sprawdza unikalność pomysłu względem historii (hash + similarity/embedding) i oznacza zbyt podobne.
-   1.6. System korzysta z osobnego modulu generatora pomyslow (AI) i zapisuje propozycje w bazie; w razie braku AI uzywa fallbacku z pliku.
+1. Generacja koncepcji i skryptu
+   1.1. System generuje pomysly animacji wraz z pelnym skryptem GDScript (Godot 4.x) w jednym kroku LLM.
+   1.2. Kazdy kandydat zawiera: opis, skrypt, hash skryptu, wersje Godot oraz metadane generacji.
+   1.3. Skrypt przechodzi walidacje: parse + load + krotki tick fizyki (smoke test).
+   1.4. Jesli walidacja nie przejdzie, uruchamia sie petla naprawy (max N prob) z precyzyjnym raportem bledow.
+   1.5. System posiada Idea Repository: generator zapisuje pomysly do repo, Idea Gate losuje N propozycji i wymusza klasyfikacje (picked/later/rejected).
+   1.6. System sprawdza unikalnosc pomyslu wzgledem historii (hash + similarity/embedding) i oznacza zbyt podobne.
    1.7. System posiada osobny modul embeddings (provider + fallback), wspoldzielony przez Idea Gate i generator pomyslow.
    1.8. MVP korzysta z lokalnych embeddingow (scikit-learn HashingVectorizer) jako papierka lakmusowego; zdalny provider jest opcjonalny.
-   1.9. System posiada osobny DSL Capability Verifier (TAK/NIE), ktory ocenia wykonalnosc **kandydatow** wzgledem aktualnego DSL i przypina `dsl_gaps`.
-   1.10. LLM DSL Compiler uruchamia sie tylko dla **idei** wybranych z Idea Gate, ktore pochodza z kandydatow o statusie `feasible` (lub odblokowanych po wdrozeniu gapow), i przechodzi tor: generate -> validate -> repair/retry -> fallback.
-   1.11. Jesli idea wymaga funkcji poza obecnym DSL, system zapisuje `dsl_gaps` do globalnej listy (z deduplikacja) oraz linkuje je do kandydatow (a po wyborze do idei).
+   1.9. Skrypty sa uruchamiane w ograniczonym srodowisku projektu (bez dostepu do sieci i plikow poza workspace).
+   1.10. Jesli po limitach napraw skrypt pozostaje niepoprawny, kandydat jest odrzucany lub generowany od nowa.
 
 2. Rendering i reprodukowalność
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.
-   2.2. Render jest deterministyczny i możliwy do odtworzenia 1:1 z metadanych.
-   2.3. Każdy render zapisuje komplet metadanych: seed, wersja DSL, wersja design systemu, parametry symulacji.
-   2.4. Renderer emituje zdarzenia audio do pliku `events.json` (MVP).
+   2.2. Render jest wykonywany przez Godot 4.x (Movie Maker); deterministycznosc jest traktowana jako best-effort.
+   2.3. Każdy render zapisuje komplet metadanych: seed (jesli uzyty), wersja Godot, hash skryptu, wersja design systemu, parametry symulacji.
+   2.4. System posiada tryb preview (niska rozdzielczosc / krótki klip) przed renderem finalnym.
+   2.5. Renderer emituje zdarzenia audio do pliku `events.json` (MVP, opcjonalne).
        - Pola: `t` (czas w sekundach), `type` (np. collision/spawn/merge/split), `payload` opcjonalny.
 3. Design system i warstwa wizualna
    3.1. Warstwa wizualna jest minimalistyczna i oparta o zamrożony Design System MVP.
    3.2. Design System jest wersjonowany i przypisywany do każdej animacji.
 4. Pipeline job-based
-   4.1. System obsługuje kolejkę zadań i workerów dla etapów: generacja -> (opcjonalnie Idea Gate) -> render -> review -> publikacja -> metryki.
+   4.1. System obsługuje kolejkę zadań i workerów dla etapów: generacja skryptu -> walidacja/naprawa -> preview -> render -> review -> publikacja -> metryki.
    4.2. Każdy etap zapisuje status i artefakty w repozytorium lokalnym.
    4.3. Niepowodzenia etapów są logowane i możliwe do ponownego uruchomienia.
 5. Webowy panel review i QC
-   5.1. Panel umożliwia podgląd wideo, metadanych, wersji DSL i Design Systemu.
+   5.1. Panel umożliwia podgląd wideo, metadanych, wersji Godot, hash skryptu i Design Systemu.
    5.2. Operator może zaakceptować, odrzucić lub zlecić regenerację.
    5.3. QC zawiera checklisty hard fail i soft judgement; decyzja jest zapisywana z uzasadnieniem.
    5.4. Panel operacyjny pokazuje stan pipeline (queued/running/failed/succeeded) i ostatnie joby.
@@ -104,20 +104,21 @@
 5. MVP nie obejmuje zautomatyzowanej optymalizacji poprzez A/B testy; jedynie zbieranie danych pod przyszłe testy.
 6. Integracja z TikTok może być ograniczona formalnie lub technicznie; w MVP dopuszczalne są manualne obejścia.
 7. MVP nie obejmuje wieloużytkowego środowiska z rozbudowanymi rolami i uprawnieniami.
+8. MVP nie gwarantuje pelnej deterministycznosci fizyki miedzy uruchomieniami lub maszynami.
 
 ## 5. Historyjki użytkowników
 1. US-001
    Tytuł: Generacja codziennej animacji
-   Opis: Jako operator chcę wygenerować nową specyfikację DSL dla animacji, aby uruchomić codzienny pipeline.
+   Opis: Jako operator chcę wygenerować nowy skrypt GDScript dla animacji, aby uruchomić codzienny pipeline.
    Kryteria akceptacji:
-   - System generuje DSL i zapisuje wersję DSL oraz metadane generacji.
+   - System generuje skrypt GDScript i zapisuje wersję Godot oraz metadane generacji.
    - Status zadania jest widoczny w kolejce.
 2. US-002
-   Tytuł: Render deterministyczny
-   Opis: Jako operator chcę wyrenderować animację na podstawie DSL, aby uzyskać gotowy materiał wideo.
+   Tytuł: Render 2D
+   Opis: Jako operator chcę wyrenderować animację na podstawie skryptu GDScript, aby uzyskać gotowy materiał wideo.
    Kryteria akceptacji:
    - Render kończy się plikiem wideo w formacie pionowym.
-   - Metadane renderu zawierają seed, wersję DSL i wersję Design Systemu.
+   - Metadane renderu zawierają seed (jesli uzyty), wersję Godot i wersję Design Systemu.
 3. US-003
    Tytuł: Podgląd materiału
    Opis: Jako operator chcę obejrzeć wyrenderowaną animację w panelu review, aby ocenić jakość.

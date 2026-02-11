@@ -1,45 +1,47 @@
 # ShortLab
 
-ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publikacji krótkich animacji 2D (Shorts), z panelem review, półautomatyczną publikacją i metrykami dla YouTube/TikTok.
+ShortLab to lokalny pipeline do codziennego generowania i publikacji krótkich animacji 2D (Shorts), z panelem review, półautomatyczną publikacją i metrykami dla YouTube/TikTok. Nowy kierunek zaklada Godot 4.x + pelny GDScript generowany przez LLM (deterministycznosc nie jest celem nadrzednym).
 
 ## Zakres MVP
-- Generacja DSL -> render -> review/QC -> publikacja -> metryki.
-- Deterministyczny render 2D (Skia-Python/Cairo) + FFmpeg.
+- Generacja pomyslu + skryptu GDScript -> walidacja/naprawa -> preview -> render -> review/QC -> publikacja -> metryki.
+- Render 2D w Godot 4.x (Movie Maker) + opcjonalny FFmpeg.
 - Lokalna infrastruktura: Postgres, Redis, MinIO (Docker Compose).
 - Panel review: React + Vite.
 
-## Stan implementacji (2026-02-05)
-- Działa end-to-end dla ścieżki operacyjnej: enqueue -> generate_dsl -> render -> artefakty.
-- Działa Idea Repository/Idea Gate + DSL Capability Verifier na kandydatach + `dsl_gaps`.
-- Działa mediator LLM z routingiem i persystencją metryk/budżetu w DB.
-- Działa LLM Idea->DSL Compiler (generate/validate/repair + fallback).
-- W toku: pełna ścieżka UI dla QC/publikacji/metryk.
+## Stan implementacji (2026-02-11)
+- Dziala legacy sciezka DSL: enqueue -> generate_dsl -> render -> artefakty.
+- Dziala Idea Repository/Idea Gate + embeddings.
+- Dziala mediator LLM z routingiem i persystencja metryk/budzetu w DB.
+- Nowy kierunek: Godot 4.x + GDScript (LLM generuje pelny skrypt) — migracja w toku.
+- W toku: pelna sciezka UI dla QC/publikacji/metryk.
 
 ## Szybki start (macOS M2 Pro)
 1. Zainstaluj narzędzia bazowe:
    - `make setup-macos` (lub `make bootstrap` dla pełnego setupu)
-2. Zainstaluj wersje runtime przez mise:
+2. Zainstaluj Godot 4.x (wersja w `versions.env`) manualnie na macOS.
+3. Zainstaluj wersje runtime przez mise:
    - `mise trust`
    - `mise install`
-2. Zweryfikuj środowisko:
+4. Zweryfikuj środowisko:
    - `make verify`
-3. Utwórz venv i zależności:
+5. Utwórz venv i zależności:
    - `make venv`
    - `make deps-py-uv` lub `make deps-py-poetry`
    - Jeśli pycairo nie ładuje się na ARM64: `make pycairo-arm`
    - Jeśli widzisz ostrzeżenie o `VIRTUAL_ENV`, wykonaj `deactivate` lub `unset VIRTUAL_ENV`
    - Jeśli zmieniasz wersję Pythona: `make deps-py-lock UV_LOCK_ARGS=--upgrade`
    - Jeśli masz `pyenv` w PATH, uruchamiaj polecenia przez `.venv/bin/python` lub Makefile
-4. Uruchom infrastrukturę:
+6. Uruchom infrastrukturę:
    - Docker Desktop zainstaluj manualnie (bootstrap pomija cask)
    - `make infra-up`
-5. Uruchom API/worker/UI (gdy kod będzie gotowy):
+7. Uruchom API/worker/UI (gdy kod będzie gotowy):
    - `make api`
    - `make worker`
    - `make ui`
    - `make run-dev` – uruchamia API+UI+worker z domyślnymi portami i REDIS db=1
 
-### Pipeline (MVP) – komendy operacyjne
+### Pipeline (legacy DSL) – komendy operacyjne
+Uwaga: ponizsze komendy dotycza legacy sciezki DSL. Nowy pipeline Godot/GDScript jest w przygotowaniu.
 - `make worker` – startuje workera RQ.
 - `make worker-burst` – worker w trybie burst (przetwarza i kończy).
 - `make enqueue` – wrzuca minimalny job (generacja DSL -> render).
@@ -83,7 +85,7 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
   - persystencja metryk/budżetu: `LLM_MEDIATOR_PERSIST_BACKEND=db` (fallback: `LLM_MEDIATOR_STATE_FILE`)
   - retention: `LLM_MEDIATOR_METRICS_RETENTION_DAYS`, `LLM_MEDIATOR_BUDGET_RETENTION_DAYS`
   - metryki runtime: `GET /llm/metrics` (operator-only)
-- LLM Idea->DSL Compiler (MVP, feature flag):
+- LLM Idea->DSL Compiler (legacy DSL, feature flag):
   - włącz: `IDEA_DSL_COMPILER_ENABLED=1`
   - działa tylko dla idei o statusie `feasible`/`ready_for_gate`
   - routing mediatora: `LLM_ROUTE_IDEA_COMPILE_DSL_*`
@@ -104,7 +106,14 @@ ShortLab to lokalny, deterministyczny pipeline do codziennego generowania i publ
 - `make run-dev` jest idempotentne: jeśli już działa, zwraca komunikat i exit 0.
 - `make stop-dev` – zatrzymuje procesy uruchomione przez `make run-dev` i zwalnia porty API/UI.
 
-### Operacje (API) – przykłady curl
+### Pipeline (Godot/GDScript) – w przygotowaniu
+- LLM generuje pelny skrypt GDScript (Godot 4.x).
+- Walidacja: parse + load + krotki tick fizyki; bledy wracaja do LLM (limit prob).
+- Preview render (Movie Maker) przed decyzja operatora.
+- Render finalny -> QC -> publikacja -> metryki.
+- Komendy i API dla nowego toru zostana dodane w ramach migracji.
+
+### Operacje (API) – przykłady curl (legacy DSL)
 Zakładając `OPERATOR_TOKEN=sekret`:
 ```bash
 curl -sS -X POST http://localhost:8000/ops/enqueue \
@@ -123,7 +132,7 @@ curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
   -d '{"older_min":30}'
 ```
 
-### Pipeline (MVP) – minimalny flow
+### Pipeline (legacy DSL) – minimalny flow
 1. Uruchom infra: `make infra-up`
 2. Zainstaluj deps (jeśli zmiany w `pyproject.toml`): `make deps-py-uv`
 3. Start workera: `make worker`
@@ -131,6 +140,7 @@ curl -sS -X POST http://localhost:8000/ops/cleanup-jobs \
 5. Status: `make job-status` lub `make job-summary`
 
 ### Zmienne środowiskowe (.env)
+Uwaga: ponizsza lista dotyczy glownie legacy sciezki DSL; nowy tor Godot/GDScript doda wlasne zmienne.
 - `DATABASE_URL` – połączenie do Postgresa.
 - `REDIS_URL` – połączenie do Redis (RQ).
 - `RQ_JOB_TIMEOUT` / `RQ_RENDER_TIMEOUT` – timeouty jobów w sekundach.
@@ -168,7 +178,7 @@ Dostępne cele:
 - `/.ai/db-plan.md` – kanoniczny schemat bazy danych.
 
 ## Uwagi
-- Renderer i FFmpeg uruchamiane natywnie na macOS dla stabilności i dostępności bibliotek.
+- Godot i FFmpeg uruchamiane natywnie na macOS dla stabilnosci i dostepnosci bibliotek.
 - Zmiany wersji narzędzi powinny być wykonywane przez aktualizację `Brewfile` i lockfile.
 - W razie zawieszeń renderu sprawdź `make job-summary` i użyj `make job-cleanup`.
   - Jeśli render wisi tylko w workerze, upewnij się, że używasz najnowszej wersji (ffmpeg z `-nostdin` + absolutne ścieżki).

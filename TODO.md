@@ -1,33 +1,31 @@
 # TODO
 
 ## Now (W toku)
-- [ ] DSL GAP: collision_triggered_emitter (branch: feat/dsl-gap-collision-triggered-emitter)
-  - [x] Spec DSL v1.4: dodać `collision_emitters` + bump wersji w przykładach
-  - [x] Walidator: schemat `collision_emitters` + walidacja selectorów/when
-  - [x] Renderer: obsługa emitera kolizyjnego
-  - [x] Testy walidacji `collision_emitters`
-  - [ ] Oznaczyć GAP jako implemented + reverify kandydatów/idei
-  - [ ] Ops: uruchomić `DSL_GAP_ID=... DSL_GAP_STATUS=implemented DSL_GAP_IMPLEMENTED_IN=1.4 make dsl-gap-status`
-- [ ] Manual Flow: Render z istniejącego DSL + UI akcja (branch: feat/dev-manual-flow-v1-1)
-  - [ ] Render-only bez ponownej kompilacji
-  - [ ] UI: przycisk „Render from DSL” w manualnym panelu
+- [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
+  - [ ] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM
+  - [ ] [P1] Zdefiniować ograniczoną pulę node/shape + Godot 4.x only (ban API 3.x)
+  - [ ] [P2] Ustalić format logów błędów dla pętli naprawy LLM (ścieżka -> expected -> got)
+  - [ ] [P2] Zdefiniować limit prób naprawy i fallback przy fail
 ## Next (Kolejne)
+- [ ] Godot pipeline v0 (branch: chore/godot-pipeline-v0)
+  - [ ] [P1] Walidacja skryptu: parse + load + tick fizyki (smoke test)
+  - [ ] [P1] Retry loop: LLM repair z limitem prób i timeoutem
+  - [ ] [P2] Preview render: low-res/krótki klip + zapis artefaktów
+  - [ ] [P2] Render finalny: Movie Maker + metadane (hash skryptu, wersja Godot)
+  - [ ] [P2] Ograniczenia runtime: limit obiektów, limit czasu sceny
+- [ ] Godot render pipeline: Movie Maker + preview (branch: chore/godot-movie-pipeline)
+  - [ ] [P1] Zweryfikować CLI renderu na macOS ARM64 (preview + final)
+  - [ ] [P2] Określić tryb preview (low-res / krótkie klipy / klatki)
+- [ ] Spike: deterministyczność i headless render dla gotowego silnika 2D (branch: chore/engine-determinism-spike)
+  - [ ] Test powtarzalności (golden testy / hash klatek) na macOS ARM64
+  - [ ] Minimalny pipeline exportu do mp4 + koszt uruchomienia
+  - [ ] Ocena mapowania kontraktu skryptu -> API silnika (granice ekspresji)
+- [ ] Security: sandbox/allowlist dla skryptowego runtime (branch: chore/script-sandbox)
+  - [ ] Zdefiniować ograniczenia (brak IO, brak sieci, limity czasu/pamięci)
+  - [ ] Wymusić whitelistę funkcji/klas dostępnych dla skryptu
 - [ ] LLM: ryzyko kosztów po wydłużeniu promptów (branch: chore/llm-prompt-costs)
   - [ ] Zmierz średni koszt tokenów dla verify/compile po zmianach
   - [ ] Rozważyć caching system promptów / skrócenie specyfikacji
-- [ ] DSL GAP: color_animation_rule (branch: feat/dsl-gap-color-animation)
-  - [x] Spec DSL v1.3: dodać regułę `color_animation` + bump wersji w przykładach
-  - [x] Walidator: wymagane `colors/rate_per_s` + walidacja palette/mode
-  - [x] Renderer: obsługa reguły `color_animation`
-  - [x] Testy walidacji + update przykładu w promptcie kompilatora
-  - [ ] Oznaczyć GAP jako implemented + reverify kandydatów/idei
-- [ ] Docs/Compiler: heurystyki dla `collision_emitters` (cooldown/limit), żeby uniknąć lawinowego spawnu
-- [ ] Renderer: obsługa shape="triangle" (kolorowanie trójkątów wymaga renderu)
-- [ ] Ops: oznaczyc DSL GAP `parametric_spiral_motion` jako implemented + reverify (branch: chore/dsl-gap-parametric-spiral-status)
-- [ ] Ops: oznaczyc DSL GAP `size_animation` jako implemented + reverify (branch: chore/dsl-gap-size-animation-status)
-- [ ] Manual Flow v1.1 (branch: feat/dev-manual-flow-v1-1)
-  - [ ] Render-only z istniejącego DSL (bez ponownej kompilacji) + UI akcja
-  - [ ] UI: czytelny feedback błędów dla akcji reset/undo/delete
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
@@ -55,9 +53,9 @@
   - [ ] Async podobienstwo: obliczenia w tle + status `similarity_status` aktualizowany po fakcie
   - [ ] Integracja z generatorem: fallback do "unknown" gdy ANN niegotowy
   - [ ] Monitoring kosztu O(N) do czasu wdrozenia ANN (metryka czasu per batch)
-- [ ] UI: doprecyzować komunikację capability vs idea (branch: feat/ui-capability-copy)
-  - [ ] Spójne nazewnictwo kandydatów vs idei w panelach Flow/DSL Capability
-  - [ ] Podpowiedzi w UI: kiedy powstaje Idea i dlaczego Idea Gate filtruje tylko feasible
+- [ ] UI: doprecyzować komunikację walidacji skryptu vs idea (branch: feat/ui-capability-copy)
+  - [ ] Spójne nazewnictwo kandydatów vs idei w panelach Flow/Script Validation
+  - [ ] Podpowiedzi w UI: kiedy powstaje Idea i dlaczego Idea Gate filtruje tylko valid
 - [ ] UI: LLM usage panel v1.1 (branch: feat/ui-llm-usage)
   - [ ] Dodać drill-down per request/run (powiązanie z konkretnym `idea_id` / jobem)
   - [ ] Dodać komunikat, że koszt estymowany = 0 gdy brak `LLM_PRICE_DEFAULT_*`
@@ -100,14 +98,10 @@
 - [ ] UX IA v2: Control Tower / Plan / Flow (branch: feat/ui-ia-v2)
   - [ ] `Home / Control Tower`: health + KPI + "co teraz" + alerty z CTA
   - [ ] `Plan / Calendar`: tydzień publikacji, backlog gotowych animacji, statusy `planned/ready/blocked/published`
-  - [ ] `Flow`: stepper operatora `Idea Gate -> Compile DSL -> Render -> QC -> Publish`
+  - [ ] `Flow`: stepper operatora `Idea Gate -> Validate Script -> Preview -> Render -> QC -> Publish`
   - [ ] W `Flow` pokazywać tylko aktywną ścieżkę i następny krok; automatyzacje w tle
   - [ ] `Repositories`: osobny obszar analityczno-administracyjny (bez mieszania z flow)
   - [ ] Definicja stanów pustych/błędów dla każdego widoku (w tym niezgodność API/UI)
-- [ ] Procedura obsługi `dsl_gap` (branch: feat/dsl-gap-procedure)
-  - [ ] Zdefiniować workflow: triage -> decyzja (accept/reject) -> implementacja -> re-verify idei
-  - [ ] Dodać w UI alert/CTA dla operatora gdy backlog gapów blokuje flow
-  - [ ] Dodać kryteria "done" dla implementacji gapa (testy + przykładowe idee odblokowane)
 - [ ] UI: QC (branch: feat/ui-qc)
   - [ ] Panel QC w UI + akcja accept/reject/regenerate
 - [ ] UI: publikacja (branch: feat/ui-publish)
@@ -124,18 +118,11 @@
 - [ ] Pipeline: UUID w JSON payload (branch: fix/uuid-json)
   - [ ] Zamieniać UUID -> str przed zapisem JSON (psycopg JSON dump)
   - [ ] Dodać test dla payload z UUID
-- [ ] Idea → DSL mapping (branch: feat/idea-to-dsl)
-  - [ ] Mapowanie pola idei na parametry DSL (seed, liczba bytów, tempo/duration)
-  - [ ] Warianty reguł/parametrów w oparciu o preview/summary
-  - [ ] Wymusić widoczne różnice (paleta, tło, kształty, promień orbity)
-  - [ ] Test: różne idee → różne DSL
-  - [ ] Dodać metrykę „delta DSL vs template” i minimalny próg różnorodności
-  - [ ] Walidacja: brak użycia template w promptach kompilatora (test regresji)
 - [ ] Audio: SFX repo + kolizje (branch: feat/audio-sfx)
   - [ ] Repozytorium efektów (SFX) + metadane (tagi/rodzaj/poziom głośności)
   - [ ] Mapowanie zdarzeń w rendererze -> SFX (kolizje, spawn, merge/split)
   - [ ] Mixer: złożenie SFX z wideo (FFmpeg)
-  - [ ] Konfiguracja w DSL/metadata (włącz/wyłącz, głośność)
+  - [ ] Konfiguracja w skrypcie/metadata (włącz/wyłącz, głośność)
 - [ ] Audio: muzyka tła (branch: feat/audio-music)
   - [ ] Repozytorium podkładów (licencja, długość, BPM, nastrój)
   - [ ] Wybór podkładu per animacja + miks z SFX
@@ -150,9 +137,9 @@
   - [ ] Interfejs (UI/API) do przeglądu insightów
 - [ ] LLM prompt hardening (branch: feat/llm-prompt-hardening)
   - [x] Dopasować przykłady odpowiedzi w promptach do wybranego języka (PL/EN)
-  - [ ] Wdrożyć rytuał postmortem dla błędów LLM: log błędu -> poprawka prompta -> test regresji (DSL/compiler/validator)
-  - [ ] Sprawdzić limity tokenów po rozbudowie promptów (verifier/compiler) i dostroić `*_MAX_TOKENS`
-  - [ ] Rozważyć skróconą wersję DSL spec dla promptów (kompresja/skrót) bez utraty kluczowych definicji
+  - [ ] Wdrożyć rytuał postmortem dla błędów LLM: log błędu -> poprawka prompta -> test regresji (GDScript/validator/runner)
+  - [ ] Sprawdzić limity tokenów po rozbudowie promptów (generate/repair) i dostroić `*_MAX_TOKENS`
+  - [ ] Rozważyć skróconą wersję kontraktu GDScript dla promptów (kompresja/skrót) bez utraty kluczowych definicji
   - [x] Dodać `language` do CLI (`make idea-generate`, `make idea-verify-capability`)
   - [ ] Udokumentować `IDEA_GEN_LANGUAGE` i `IDEA_VERIFY_LANGUAGE` w README
 - [ ] Platform Registry (branch: feat/platform-registry)
@@ -188,6 +175,44 @@
 - [ ] Dev: spójny REDIS_URL dla run-dev/job-status (branch: chore/dev-redis)
   - [ ] Ujednolicić DB index (0/1) i opisać w README/Makefile
   - [x] Job-status/cleanup używa tej samej bazy co run-dev
+
+### Legacy (DSL) — zdeprior.
+- [ ] DSL GAP: collision_triggered_emitter (branch: feat/dsl-gap-collision-triggered-emitter)
+  - [x] Spec DSL v1.4: dodać `collision_emitters` + bump wersji w przykładach
+  - [x] Walidator: schemat `collision_emitters` + walidacja selectorów/when
+  - [x] Renderer: obsługa emitera kolizyjnego
+  - [x] Testy walidacji `collision_emitters`
+  - [ ] Oznaczyć GAP jako implemented + reverify kandydatów/idei
+  - [ ] Ops: uruchomić `DSL_GAP_ID=... DSL_GAP_STATUS=implemented DSL_GAP_IMPLEMENTED_IN=1.4 make dsl-gap-status`
+- [ ] DSL GAP: color_animation_rule (branch: feat/dsl-gap-color-animation)
+  - [x] Spec DSL v1.3: dodać regułę `color_animation` + bump wersji w przykładach
+  - [x] Walidator: wymagane `colors/rate_per_s` + walidacja palette/mode
+  - [x] Renderer: obsługa reguły `color_animation`
+  - [x] Testy walidacji + update przykładu w promptcie kompilatora
+  - [ ] Oznaczyć GAP jako implemented + reverify kandydatów/idei
+- [ ] Flow v2 spike: single-LLM idea+DSL + deterministic walidacja (branch: chore/flow-v2-spike)
+  - [ ] Kontrakt odpowiedzi LLM (idea opisowa + DSL) + schemat walidacji
+  - [ ] Polityka odrzutu/skip bez pętli repair (co robimy z niepoprawnym DSL)
+  - [ ] Quick preview (low-res / keyframes) do decyzji przed pełnym renderem
+- [ ] Procedura obsługi `dsl_gap` (branch: feat/dsl-gap-procedure)
+  - [ ] Zdefiniować workflow: triage -> decyzja (accept/reject) -> implementacja -> re-verify idei
+  - [ ] Dodać w UI alert/CTA dla operatora gdy backlog gapów blokuje flow
+  - [ ] Dodać kryteria "done" dla implementacji gapa (testy + przykładowe idee odblokowane)
+- [ ] Idea → DSL mapping (branch: feat/idea-to-dsl)
+  - [ ] Mapowanie pola idei na parametry DSL (seed, liczba bytów, tempo/duration)
+  - [ ] Warianty reguł/parametrów w oparciu o preview/summary
+  - [ ] Wymusić widoczne różnice (paleta, tło, kształty, promień orbity)
+  - [ ] Test: różne idee → różne DSL
+  - [ ] Dodać metrykę „delta DSL vs template” i minimalny próg różnorodności
+  - [ ] Walidacja: brak użycia template w promptach kompilatora (test regresji)
+- [ ] Manual Flow v1.1 (branch: feat/dev-manual-flow-v1-1)
+  - [ ] Render-only z istniejącego DSL (bez ponownej kompilacji) + UI akcja
+  - [ ] UI: przycisk „Render from DSL” w manualnym panelu
+  - [ ] UI: czytelny feedback błędów dla akcji reset/undo/delete
+- [ ] Docs/Compiler: heurystyki dla `collision_emitters` (cooldown/limit), żeby uniknąć lawinowego spawnu
+- [ ] Renderer: obsługa shape="triangle" (kolorowanie trójkątów wymaga renderu)
+- [ ] Ops: oznaczyc DSL GAP `parametric_spiral_motion` jako implemented + reverify (branch: chore/dsl-gap-parametric-spiral-status)
+- [ ] Ops: oznaczyc DSL GAP `size_animation` jako implemented + reverify (branch: chore/dsl-gap-size-animation-status)
 
 ## Done (Zrobione)
 - [x] Compiler: pętla naprawcza + prompty + doprecyzowanie DSL (branch: main) (2026-02-08)

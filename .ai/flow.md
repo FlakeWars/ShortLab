@@ -1,87 +1,66 @@
-# Flow E2E (IdeaCandidate -> Idea -> DSL -> Render -> Publish)
+# Flow E2E (IdeaCandidate -> GDScript -> Preview -> Render -> Publish)
 
-Poniżej jest aktualny, krok po kroku, opis przeplywu systemu po zmianie na weryfikacje DSL po stronie **IdeaCandidate**.
+Poniżej nowy, uproszczony przeplyw oparty o pelny skrypt GDScript generowany przez LLM i render w Godot 4.x.
 
-## 1) Generowanie pomyslow (Idea Generator)
-- Wejscie: konfiguracja generatora + prompt.
-- Wyjscie: rekordy `idea_candidate` (status=`new`, capability_status=`unverified`) powiazane z `idea_batch`.
-- Dodatkowo: ustawiany `similarity_status` (ok/too_similar/unknown).
-- Fallback: statyczne pomysly z pliku, gdy brak LLM.
+## 1) Generowanie pomyslu + skryptu (LLM)
+- Wejscie: prompt z ograniczona pula node/shape, czasem max i limitem obiektow.
+- Wyjscie: rekord `idea_candidate` z opisem + pelnym skryptem GDScript.
+- Dodatkowo: obliczany embedding i similarity do historii.
 
-## 2) Weryfikacja mozliwosci DSL (Capability Verifier) - na kandydacie
-- Wejscie: `idea_candidate` z capability_status=`unverified`.
-- Akcja: analiza tekstu kandydata vs aktualny DSL (reguly + sygnaly).
-- Jesli brakuje funkcji: tworzy/odnajduje `dsl_gap`, linkuje przez `idea_candidate_gap_link`.
+## 2) Walidacja skryptu (smoke test) + petla naprawy
+- Wejscie: `idea_candidate` z `status=new` i skryptem.
+- Akcja: parse + load + krotki tick fizyki (np. 1-2 sekundy).
+- Jesli bledy:
+  - raport (sciezka -> expected -> got),
+  - LLM repair (limit prob).
 - Wyjscie:
-  - `idea_candidate.capability_status = feasible` (gdy brak blokujacych gapow)
-  - albo `idea_candidate.capability_status = blocked_by_gaps`
-- (Opcjonalnie) Jesli kandydat ma juz powiazana `idea`, aktualizuje jej status na `ready_for_gate` / `blocked_by_gaps`.
+  - `script_status=valid` albo `script_status=invalid` po limicie.
 
 ## 3) Idea Gate (wybor operatora)
-- Wejscie: kandydaci z `status in (new,later)` oraz `capability_status=feasible`.
-- UI losuje N kandydatow (/idea-repo/sample) i wymusza klasyfikacje:
+- Wejscie: kandydaci ze `script_status=valid`.
+- UI losuje N kandydatow i wymusza klasyfikacje:
   - `picked` (dokladnie jeden)
-  - `later` (zostaje w repozytorium)
-  - `rejected` (usuniecie kandydata)
-- Wyjscie:
-  - kandydat `picked` -> `idea_candidate.status = picked`
-  - tworzy sie `idea` powiazana z kandydatem, `idea.status = ready_for_gate`
-  - audit event zapisywany w DB
+  - `later`
+  - `rejected`
+- Wyjscie: `picked` przechodzi do preview/render.
 
-## 4) Uruchomienie pipeline (enqueue)
-- Wejscie: `idea_id` z kroku 3.
-- Akcja: `/ops/enqueue` uruchamia pipeline z wybrana idea.
-- Wyjscie: joby w kolejce (generate_dsl -> render).
+## 4) Preview render (opcjonalnie, zalecane)
+- Wejscie: skrypt z `picked`.
+- Akcja: Godot Movie Maker w trybie preview (niska rozdzielczosc / krotki klip).
+- Wyjscie: podglad wideo do decyzji operatora.
 
-## 5) Kompilacja Idea -> DSL
-- Wejscie: `idea` w stanie `ready_for_gate` (albo `feasible`).
-- Akcja: LLM DSL Compiler (generate -> validate -> repair -> retry -> fallback).
-- Wyjscie:
-  - zapis `dsl.yaml` w `out_root`
-  - `idea.status = compiled`
-  - raport walidacji + metadata kompilacji
+## 5) Render finalny
+- Wejscie: `picked` + (opcjonalnie) zaakceptowany preview.
+- Akcja: Godot Movie Maker renderuje finalne wideo.
+- Wyjscie: artefakty wideo + metadane (hash skryptu, wersja Godot, parametry).
 
-## 6) Render
-- Wejscie: DSL + parametry renderu.
-- Akcja: renderer (Cairo/Skia) + FFmpeg.
-- Wyjscie:
-  - rekordy `animation`, `render`
-  - `artifacts` (wideo + metadata)
-  - pipeline stage `render`
-
-## 7) QC (manual)
+## 6) QC (manual)
 - Wejscie: render + artefakty.
 - Akcja: operator podejmuje decyzje QC (accept/reject/regenerate).
 - Wyjscie: zapis `qc_decision`, aktualizacja statusu animacji.
-- Status: panel QC w UI jest w backlogu (planowane).
+- Jesli `regenerate`: notatka trafia do LLM jako wejscie do naprawy skryptu.
 
-## 8) Publikacja
+## 7) Publikacja
 - Wejscie: zaakceptowana animacja.
 - Akcja: publish (YouTube/TikTok) przez ujednolicony interfejs platform.
 - Wyjscie: `publish_record` + status publikacji.
-- Status: panel publikacji w UI jest w backlogu (planowane).
 
-## 9) Metryki i feedback
+## 8) Metryki i feedback
 - Wejscie: opublikowana animacja + platforma.
 - Akcja: pull metryk dziennych + analiza.
 - Wyjscie: metryki w DB + insighty dla generatora idei.
-- Status: modul feedback/analytics planowany.
 
 ---
 
 ## Sprzezenia zwrotne (petle)
-- **Dsl Gap -> Reverify**: zmiana `dsl_gap.status` na `implemented` uruchamia re-verification
-  kandydatow (i idei), odblokowujac wczesniej zablokowane propozycje.
-- **Kompilator -> Repair**: jesli DSL nie przejdzie walidacji, uruchamia sie petla repair/retry.
-- **Render -> Rerun**: nieudany render moze zostac uruchomiony ponownie (rerun).
+- **Walidacja -> Repair**: bledy skryptu wracaja do LLM w tej samej sesji.
+- **QC -> Repair**: notatka operatora powoduje naprawe skryptu i nowy preview/render.
 
-## Najwazniejsze stany
-- `idea_candidate.status`: `new | later | picked`
-- `idea_candidate.capability_status`: `unverified | feasible | blocked_by_gaps`
-- `idea.status`: `ready_for_gate | compiled` (pozostale statusy sa legacy i moga byc widoczne)
-- `dsl_gap.status`: `new | accepted | in_progress | implemented | rejected`
+## Najwazniejsze stany (proponowane)
+- `idea_candidate.status`: `new | later | picked | rejected`
+- `idea_candidate.script_status`: `unverified | valid | invalid`
+- `animation.status`: `rendered | qc_accepted | qc_rejected | published`
 
 ## Wazne uwagi
-- **Idea Gate operuje na kandydacie**, nie na idei. Idea powstaje dopiero po decyzji `picked`.
-- Weryfikacja DSL (capability) jest wykonywana **przed** Idea Gate i filtruje propozycje.
-- Jesli nie ma zadnych feasible kandydatow, Idea Gate zwraca pusta liste.
+- Skrypt GDScript jest glownym kontraktem; brak osobnego DSL w MVP.
+- Legacy DSL pipeline pozostaje w repo, ale nie jest kierunkiem rozwojowym.
