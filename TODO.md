@@ -24,7 +24,8 @@
   - [ ] [P2] Sprawdzić warning FFmpeg: "Broken file, keyframe not correctly marked" dla `.ogv` z Godota
     - [ ] Zweryfikować, czy warning wpływa na seek/jakosc; rozważyć zapis `.avi` jako intermediate
   - [x] [P2] Post-merge review (2026-02-11): docs spójne z preview `.mp4`, ryzyko FFmpeg zapisane
-  - [ ] [P2] Spisac "wskazowki GDScript" do prompta (nauczki z iteracji nad przykladem)
+  - [x] [P2] Spisac "wskazowki GDScript" do prompta (nauczki z iteracji nad przykladem)
+  - [x] [P2] Post-merge review (2026-02-11): przyklad GDScript dodany do kontraktu + guidelines spisane
 - [ ] Security: weryfikacja checksum dla paczki Godot (branch: chore/godot-checksum)
   - [ ] Sprawdzić, czy Godot publikuje sumy SHA dla macOS
   - [ ] Dodać weryfikację checksum w `scripts/install-godot.sh` jeśli dostępne
