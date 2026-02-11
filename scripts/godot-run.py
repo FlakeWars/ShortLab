@@ -44,16 +44,26 @@ def _movie_ext_supported(path: Path) -> bool:
     return path.suffix.lower() in {".ogv", ".avi", ".png"}
 
 
-def _transcode_movie(src: Path, dest: Path, scale: float) -> int:
+def _transcode_movie(
+    src: Path, dest: Path, scale: float, fps: int, is_sequence: bool
+) -> int:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise SystemExit("[godot-run] ffmpeg not found (required to convert movie)")
-    cmd = [
-        ffmpeg,
-        "-y",
-        "-i",
-        str(src),
-    ]
+    cmd = [ffmpeg, "-y"]
+    if is_sequence:
+        cmd.extend(
+            [
+                "-framerate",
+                str(fps),
+                "-start_number",
+                "0",
+                "-i",
+                str(src),
+            ]
+        )
+    else:
+        cmd.extend(["-i", str(src)])
     if scale != 1.0:
         cmd.extend(
             [
@@ -63,6 +73,12 @@ def _transcode_movie(src: Path, dest: Path, scale: float) -> int:
         )
     cmd.extend(
         [
+            "-r",
+            str(fps),
+            "-fps_mode",
+            "cfr",
+            "-vsync",
+            "cfr",
             "-c:v",
             "libx264",
             "-pix_fmt",
@@ -124,8 +140,14 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     movie_path = out_path
     needs_transcode = not _movie_ext_supported(out_path)
+    sequence_pattern: Path | None = None
     if needs_transcode:
-        movie_path = out_path.with_suffix(".ogv")
+        if args.mode == "preview":
+            base = out_path.with_suffix("")
+            sequence_pattern = base.with_name(f"{base.name}%08d.png")
+            movie_path = base.with_suffix(".png")
+        else:
+            movie_path = out_path.with_suffix(".ogv")
     elif args.scale != 1.0:
         print("[godot-run] scale ignored for native Movie Maker outputs (.ogv/.avi/.png)")
     cmd.extend(["--write-movie", str(movie_path), "--fixed-fps", str(args.fps)])
@@ -133,7 +155,10 @@ def main() -> int:
     if exit_code != 0:
         return exit_code
     if needs_transcode:
-        return _transcode_movie(movie_path, out_path, args.scale)
+        src_path = sequence_pattern or movie_path
+        return _transcode_movie(
+            src_path, out_path, args.scale, args.fps, sequence_pattern is not None
+        )
     return 0
 
 
