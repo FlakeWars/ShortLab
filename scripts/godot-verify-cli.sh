@@ -18,15 +18,15 @@ fi
 mkdir -p "${OUT_DIR}"
 
 echo "[godot-verify-cli] validate (headless)"
-"${GODOT_BIN}" --headless --path "${PROJECT_DIR}" --script "res://runner.gd" -- \
-  --script_path "${SCRIPT_PATH}" --seconds "${SECONDS}" --max_nodes "${MAX_NODES}"
+GODOT_SCRIPT_PATH="${SCRIPT_PATH}" GODOT_SECONDS="${SECONDS}" GODOT_MAX_NODES="${MAX_NODES}" \
+  "${GODOT_BIN}" --headless --path "${PROJECT_DIR}" --script "res://runner.gd"
 
 echo "[godot-verify-cli] preview (write-movie)"
-"${GODOT_BIN}" --path "${PROJECT_DIR}" --script "res://runner.gd" -- \
-  --script_path "${SCRIPT_PATH}" --seconds "${SECONDS}" --max_nodes "${MAX_NODES}" \
+GODOT_SCRIPT_PATH="${SCRIPT_PATH}" GODOT_SECONDS="${SECONDS}" GODOT_MAX_NODES="${MAX_NODES}" \
+  "${GODOT_BIN}" --path "${PROJECT_DIR}" --script "res://runner.gd" \
   --write-movie "${OUT_DIR}/preview.mp4" --fixed-fps "${FPS}"
 
 echo "[godot-verify-cli] render (write-movie)"
-"${GODOT_BIN}" --path "${PROJECT_DIR}" --script "res://runner.gd" -- \
-  --script_path "${SCRIPT_PATH}" --seconds "${SECONDS}" --max_nodes "${MAX_NODES}" \
+GODOT_SCRIPT_PATH="${SCRIPT_PATH}" GODOT_SECONDS="${SECONDS}" GODOT_MAX_NODES="${MAX_NODES}" \
+  "${GODOT_BIN}" --path "${PROJECT_DIR}" --script "res://runner.gd" \
   --write-movie "${OUT_DIR}/final.mp4" --fixed-fps "${FPS}"

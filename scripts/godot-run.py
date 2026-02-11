@@ -30,9 +30,9 @@ def _copy_script(source: Path, dest_dir: Path) -> Path:
     return dest_path
 
 
-def _run_cmd(cmd: list[str]) -> int:
+def _run_cmd(cmd: list[str], env: dict[str, str]) -> int:
     print("[godot-run]", " ".join(cmd))
-    completed = subprocess.run(cmd, check=False)
+    completed = subprocess.run(cmd, check=False, env=env)
     return completed.returncode
 
 
@@ -64,23 +64,20 @@ def main() -> int:
         str(project_dir),
         "--script",
         "res://runner.gd",
-        "--",
-        "--script_path",
-        res_script,
-        "--seconds",
-        str(args.seconds),
-        "--max_nodes",
-        str(args.max_nodes),
     ]
+    env = os.environ.copy()
+    env["GODOT_SCRIPT_PATH"] = res_script
+    env["GODOT_SECONDS"] = str(args.seconds)
+    env["GODOT_MAX_NODES"] = str(args.max_nodes)
 
     if args.mode == "validate":
         cmd.insert(1, "--headless")
-        return _run_cmd(cmd)
+        return _run_cmd(cmd, env)
 
     out_path = Path(args.out).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cmd.extend(["--write-movie", str(out_path), "--fixed-fps", str(args.fps)])
-    return _run_cmd(cmd)
+    return _run_cmd(cmd, env)
 
 
 if __name__ == "__main__":

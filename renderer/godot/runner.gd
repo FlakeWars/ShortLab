@@ -29,6 +29,15 @@ func _init() -> void:
                 i += 1
 
     if script_path == "":
+        script_path = OS.get_environment("GODOT_SCRIPT_PATH")
+    var env_seconds := OS.get_environment("GODOT_SECONDS")
+    if env_seconds != "":
+        duration_s = float(env_seconds)
+    var env_max_nodes := OS.get_environment("GODOT_MAX_NODES")
+    if env_max_nodes != "":
+        max_nodes = int(env_max_nodes)
+
+    if script_path == "":
         printerr("[runner] missing --script_path")
         quit(2)
         return
