@@ -22,6 +22,10 @@ def _generated_dir(project_dir: Path) -> Path:
     return project_dir / "generated"
 
 
+def _log_dir(repo_root: Path) -> Path:
+    return repo_root / "out" / "godot" / "logs"
+
+
 def _copy_script(source: Path, dest_dir: Path) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_name = f"llm_{uuid.uuid4().hex}.gd"
@@ -30,10 +34,34 @@ def _copy_script(source: Path, dest_dir: Path) -> Path:
     return dest_path
 
 
-def _run_cmd(cmd: list[str], env: dict[str, str]) -> int:
+def _run_cmd(cmd: list[str], env: dict[str, str] | None = None) -> int:
     print("[godot-run]", " ".join(cmd))
     completed = subprocess.run(cmd, check=False, env=env)
     return completed.returncode
+
+
+def _movie_ext_supported(path: Path) -> bool:
+    return path.suffix.lower() in {".ogv", ".avi", ".png"}
+
+
+def _transcode_movie(src: Path, dest: Path) -> int:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise SystemExit("[godot-run] ffmpeg not found (required to convert movie)")
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(src),
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        str(dest),
+    ]
+    return _run_cmd(cmd)
 
 
 def main() -> int:
@@ -52,14 +80,20 @@ def main() -> int:
     if script_path.suffix != ".gd":
         raise SystemExit("[godot-run] script must be .gd")
 
+    repo_root = _repo_root()
     project_dir = _project_dir()
     generated_dir = _generated_dir(project_dir)
     local_script = _copy_script(script_path, generated_dir)
+    log_dir = _log_dir(repo_root)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"godot-run-{uuid.uuid4().hex}.log"
 
     godot_bin = os.getenv("GODOT_BIN", "godot")
     res_script = f"res://generated/{local_script.name}"
     cmd = [
         godot_bin,
+        "--log-file",
+        str(log_file),
         "--path",
         str(project_dir),
         "--script",
@@ -76,8 +110,17 @@ def main() -> int:
 
     out_path = Path(args.out).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    cmd.extend(["--write-movie", str(out_path), "--fixed-fps", str(args.fps)])
-    return _run_cmd(cmd, env)
+    movie_path = out_path
+    needs_transcode = not _movie_ext_supported(out_path)
+    if needs_transcode:
+        movie_path = out_path.with_suffix(".ogv")
+    cmd.extend(["--write-movie", str(movie_path), "--fixed-fps", str(args.fps)])
+    exit_code = _run_cmd(cmd, env)
+    if exit_code != 0:
+        return exit_code
+    if needs_transcode:
+        return _transcode_movie(movie_path, out_path)
+    return 0
 
 
 if __name__ == "__main__":

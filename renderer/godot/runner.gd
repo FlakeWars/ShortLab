@@ -41,6 +41,12 @@ func _init() -> void:
         printerr("[runner] missing --script_path")
         quit(2)
         return
+    if not script_path.begins_with("res://"):
+        script_path = ProjectSettings.localize_path(script_path)
+    if not script_path.begins_with("res://"):
+        printerr("[runner] script_path must be res:// or within project: " + script_path)
+        quit(2)
+        return
 
     var script := load(script_path)
     if script == null:

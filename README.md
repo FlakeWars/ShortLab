@@ -121,6 +121,11 @@ make godot-verify-cli GODOT_SCRIPT=/abs/path/to/script.gd
 ```
 Wymagane: `GODOT_BIN` w PATH albo ustawione jako zmienna srodowiskowa.
 Domyslnie `make godot-install` instaluje Godota do `.tools/godot/current/Godot.app/Contents/MacOS/Godot`.
+Podglad/render (Movie Maker) wspiera tylko `.ogv/.avi`, ale `scripts/godot-run.py` automatycznie konwertuje do `.mp4` przez FFmpeg:
+```bash
+make godot-preview GODOT_SCRIPT=/abs/path/to/script.gd GODOT_OUT=out/godot/preview.mp4
+make godot-render GODOT_SCRIPT=/abs/path/to/script.gd GODOT_OUT=out/godot/final.mp4
+```
 
 ### Operacje (API) – przykłady curl (legacy DSL)
 Zakładając `OPERATOR_TOKEN=sekret`:
