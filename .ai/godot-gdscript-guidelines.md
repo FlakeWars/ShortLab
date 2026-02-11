@@ -39,3 +39,7 @@ Docelowo jego tresc ma byc czescia prompta.
   - `physics_fps` (np. 480),
   - `solver/default_iterations` (np. 32).
 
+## 8) Antywzorzec: warianty tej samej animacji
+- **Zakaz tworzenia wariantow** tej samej animacji (zmiana koloru/rozmiaru/parametru to nadal ta sama animacja).
+- Cel: **maksymalna roznorodnosc idei**, a nie parametryzacja jednego schematu.
+- Embedding ma zapobiegac powtorkom — ten przyklad nie moze sie pojawic ponownie w innym wariancie.

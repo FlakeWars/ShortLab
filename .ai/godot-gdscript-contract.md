@@ -30,6 +30,7 @@ Cel: szybki, stabilny render 2D z fizyka przy minimalnej liczbie bledow.
 - Czas animacji: **maks. 60s**.
 - Limit obiektow aktywnych: **max 200** (soft limit).
 - Brak assetow zewnetrznych (tekstury, fonty, audio) w v0.
+- Zakaz generowania wariantow tej samej animacji (zmiany parametrow nie tworza nowej idei).
 
 ## 5) Format wyjscia LLM
 LLM zwraca **pelny kod GDScript** (jeden plik `.gd`), bez komentarzy opisowych.

@@ -155,6 +155,7 @@
   - [ ] Rozważyć skróconą wersję kontraktu GDScript dla promptów (kompresja/skrót) bez utraty kluczowych definicji
   - [x] Dodać `language` do CLI (`make idea-generate`, `make idea-verify-capability`)
   - [ ] Udokumentować `IDEA_GEN_LANGUAGE` i `IDEA_VERIFY_LANGUAGE` w README
+- [ ] Prompt: zakaz wariantow tej samej animacji (antywzorzec, wymagana roznorodnosc idei)
 - [ ] Platform Registry (branch: feat/platform-registry)
   - [ ] Ujednolicony interfejs publikacji (publish/status/metrics)
   - [ ] Rejestr platform + pluginy (YouTube/TikTok jako pierwsze)
