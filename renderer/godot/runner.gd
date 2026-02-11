@@ -7,6 +7,9 @@ var elapsed_s := 0.0
 
 func _init() -> void:
     var args := OS.get_cmdline_args()
+    var sep_index := args.find("--")
+    if sep_index >= 0:
+        args = args.slice(sep_index + 1, args.size())
     var i := 0
     while i < args.size():
         match args[i]:
