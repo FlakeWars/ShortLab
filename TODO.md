@@ -15,6 +15,7 @@
   - [x] [P2] Ograniczenia runtime: limit obiektów, limit czasu sceny
 - [ ] Godot render pipeline: Movie Maker + preview (branch: chore/godot-movie-pipeline)
   - [ ] [P1] Zweryfikować CLI renderu na macOS ARM64 (preview + final)
+  - [ ] [P1] Zweryfikować flagi `--script/--write-movie/--headless` z runnerem
   - [ ] [P2] Określić tryb preview (low-res / krótkie klipy / klatki)
 - [ ] Spike: deterministyczność i headless render dla gotowego silnika 2D (branch: chore/engine-determinism-spike)
   - [ ] Test powtarzalności (golden testy / hash klatek) na macOS ARM64
