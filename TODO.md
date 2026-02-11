@@ -21,6 +21,7 @@
   - [x] [P2] Dodać przykładowy skrypt testowy do weryfikacji CLI
   - [x] [P2] Notatka: weryfikacja przeszła z `GODOT_SECONDS=1`, `GODOT_FPS=12` (ogv)
   - [x] [P2] Auto-konwersja Movie Maker `.ogv` -> `.mp4` przez FFmpeg dla podglądu na macOS
+  - [ ] [P2] Sprawdzić warning FFmpeg: "Broken file, keyframe not correctly marked" dla `.ogv` z Godota
 - [ ] Security: weryfikacja checksum dla paczki Godot (branch: chore/godot-checksum)
   - [ ] Sprawdzić, czy Godot publikuje sumy SHA dla macOS
   - [ ] Dodać weryfikację checksum w `scripts/install-godot.sh` jeśli dostępne
