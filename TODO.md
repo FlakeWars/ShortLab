@@ -157,6 +157,7 @@
   - [ ] Udokumentować `IDEA_GEN_LANGUAGE` i `IDEA_VERIFY_LANGUAGE` w README
 - [ ] Prompt: zakaz wariantow tej samej animacji (antywzorzec, wymagana roznorodnosc idei)
   - [x] Post-merge review (2026-02-11): zasada anty-variant dodana do kontraktu + guidelines
+  - [x] Post-merge review (2026-02-11): guidelines dodane do prompta GDScript
 - [ ] Platform Registry (branch: feat/platform-registry)
   - [ ] Ujednolicony interfejs publikacji (publish/status/metrics)
   - [ ] Rejestr platform + pluginy (YouTube/TikTok jako pierwsze)
