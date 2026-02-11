@@ -152,6 +152,10 @@ deps-frontend: ## Install frontend deps (if frontend exists)
 frontend-init: ## Initialize frontend (Vite + React + TS)
 	@./scripts/init-frontend.sh "$(FRONTEND_DIR)" "react-ts"
 
+.PHONY: godot-install
+godot-install: ## Install pinned Godot (macOS)
+	@./scripts/install-godot.sh
+
 # --- Infra (Postgres/Redis/MinIO) ---
 .PHONY: infra-up
 infra-up: ## Start infra services via docker compose

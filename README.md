@@ -18,7 +18,8 @@ ShortLab to lokalny pipeline do codziennego generowania i publikacji krótkich a
 ## Szybki start (macOS M2 Pro)
 1. Zainstaluj narzędzia bazowe:
    - `make setup-macos` (lub `make bootstrap` dla pełnego setupu)
-2. Zainstaluj Godot 4.x (wersja w `versions.env`) manualnie na macOS.
+2. Zainstaluj Godot 4.x (wersja w `versions.env`) przez Makefile:
+   - `make godot-install`
 3. Zainstaluj wersje runtime przez mise:
    - `mise trust`
    - `mise install`
@@ -119,6 +120,7 @@ Do testu flag Godota (headless + write-movie):
 make godot-verify-cli GODOT_SCRIPT=/abs/path/to/script.gd
 ```
 Wymagane: `GODOT_BIN` w PATH albo ustawione jako zmienna srodowiskowa.
+Domyslnie `make godot-install` instaluje Godota do `.tools/godot/current/Godot.app/Contents/MacOS/Godot`.
 
 ### Operacje (API) – przykłady curl (legacy DSL)
 Zakładając `OPERATOR_TOKEN=sekret`:

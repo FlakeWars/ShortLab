@@ -19,6 +19,9 @@
   - [ ] [P2] Określić tryb preview (low-res / krótkie klipy / klatki)
   - [ ] [P2] Udokumentować komendę `make godot-verify-cli` + wymagany `GODOT_SCRIPT`
   - [x] [P2] Dodać przykładowy skrypt testowy do weryfikacji CLI
+- [ ] Security: weryfikacja checksum dla paczki Godot (branch: chore/godot-checksum)
+  - [ ] Sprawdzić, czy Godot publikuje sumy SHA dla macOS
+  - [ ] Dodać weryfikację checksum w `scripts/install-godot.sh` jeśli dostępne
 - [ ] Spike: deterministyczność i headless render dla gotowego silnika 2D (branch: chore/engine-determinism-spike)
   - [ ] Test powtarzalności (golden testy / hash klatek) na macOS ARM64
   - [ ] Minimalny pipeline exportu do mp4 + koszt uruchomienia

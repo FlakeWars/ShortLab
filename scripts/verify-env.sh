@@ -91,10 +91,26 @@ get_compose_tag() {
   return 1
 }
 
+godot_bin=""
+if [[ -n "${GODOT_BIN:-}" && -x "${GODOT_BIN}" ]]; then
+  godot_bin="${GODOT_BIN}"
+elif [[ -x "${ROOT_DIR}/.tools/godot/current/Godot.app/Contents/MacOS/Godot" ]]; then
+  godot_bin="${ROOT_DIR}/.tools/godot/current/Godot.app/Contents/MacOS/Godot"
+elif command -v godot >/dev/null 2>&1; then
+  godot_bin="$(command -v godot)"
+fi
+
 python_v=$(get_mise_version "python3" "python3 --version | awk '{print \$2}'")
 node_v=$(get_mise_version "node" "node --version | sed 's/^v//'")
 ffmpeg_v=$(get_cmd_version "ffmpeg" "ffmpeg -version 2>/dev/null | head -n 1 | awk '{print \$3}'")
 cairo_v=$(get_cmd_version "pkg-config" "pkg-config --modversion cairo 2>/dev/null")
+godot_v="missing"
+if [[ -n "${godot_bin}" ]]; then
+  godot_v=$("${godot_bin}" --version 2>/dev/null | sed -n 's/^\\([0-9][0-9]*\\.[0-9][0-9]*\\).*/\\1/p')
+  if [[ -z "${godot_v}" ]]; then
+    godot_v="missing"
+  fi
+fi
 skia_v=$(${PYTHON_BIN} - <<'PY' 2>/dev/null || true
 import skia
 print(skia.__version__)
@@ -147,6 +163,9 @@ check_version "Python" "${PYTHON_VERSION}" "${python_v:-missing}"
 check_version "Node" "${NODE_VERSION_LTS}" "${node_v:-missing}"
 check_version "FFmpeg" "${FFMPEG_VERSION}" "${ffmpeg_v:-missing}"
 check_version "Cairo" "${CAIRO_VERSION}" "${cairo_v:-missing}"
+if [[ -n "${GODOT_VERSION:-}" ]]; then
+  check_version "Godot" "${GODOT_VERSION%.*}" "${godot_v:-missing}"
+fi
 
 if [[ "${skia_v:-missing}" == "missing" ]]; then
   echo "[verify] skia-python: WARN (missing, optional at this stage)"

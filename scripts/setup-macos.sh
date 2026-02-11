@@ -103,6 +103,13 @@ else
   log "WARNING: mise not found. Install via Brewfile or manually."
 fi
 
+if [[ -x "${ROOT_DIR}/scripts/install-godot.sh" ]]; then
+  log "Installing Godot (pinned version)..."
+  "${ROOT_DIR}/scripts/install-godot.sh"
+else
+  log "WARNING: scripts/install-godot.sh not executable or missing."
+fi
+
 if [[ -f "${VERSIONS_FILE}" ]]; then
   log "Pinned versions:"
   # shellcheck disable=SC1090
