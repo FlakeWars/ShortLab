@@ -113,6 +113,13 @@ Uwaga: ponizsze komendy dotycza legacy sciezki DSL. Nowy pipeline Godot/GDScript
 - Render finalny -> QC -> publikacja -> metryki.
 - Komendy i API dla nowego toru zostana dodane w ramach migracji.
 
+### Godot CLI (lokalna weryfikacja)
+Do testu flag Godota (headless + write-movie):
+```bash
+make godot-verify-cli GODOT_SCRIPT=/abs/path/to/script.gd
+```
+Wymagane: `GODOT_BIN` w PATH albo ustawione jako zmienna srodowiskowa.
+
 ### Operacje (API) – przykłady curl (legacy DSL)
 Zakładając `OPERATOR_TOKEN=sekret`:
 ```bash
