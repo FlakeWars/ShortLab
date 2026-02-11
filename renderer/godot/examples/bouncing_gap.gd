@@ -11,8 +11,8 @@ const ROT_SPEED := 0.6
 const MAX_BALLS := 120
 const PAIR_SPAWN := 2
 
-var ring_body: AnimatableBody2D
-var ring_shape: CollisionShape2D
+var ring_body
+var ring_shape
 var elapsed_s := 0.0
 
 
@@ -39,7 +39,7 @@ func _physics_process(delta: float) -> void:
     elapsed_s += delta
     ring_body.rotation += ROT_SPEED * delta
     _cleanup_outside()
-    if get_node_count() < 6 and _ball_count() == 0:
+    if get_tree().get_node_count() < 6 and _ball_count() == 0:
         _spawn_pair()
 
 
@@ -78,7 +78,7 @@ func _ball_count() -> int:
     return count
 
 
-func _build_ring_with_gap(radius: float, gap_deg: float, segments: int) -> PolygonShape2D:
+func _build_ring_with_gap(radius: float, gap_deg: float, segments: int):
     var points := PackedVector2Array()
     var gap_rad := deg_to_rad(gap_deg)
     var start := gap_rad * 0.5
@@ -87,6 +87,6 @@ func _build_ring_with_gap(radius: float, gap_deg: float, segments: int) -> Polyg
         var t := float(i) / float(segments)
         var angle := lerp(start, end, t)
         points.append(Vector2(cos(angle), sin(angle)) * radius)
-    var poly := PolygonShape2D.new()
+    var poly = PolygonShape2D.new()
     poly.points = points
     return poly

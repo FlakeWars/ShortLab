@@ -24,9 +24,9 @@ GODOT_SCRIPT_PATH="${SCRIPT_PATH}" GODOT_SECONDS="${SECONDS}" GODOT_MAX_NODES="$
 echo "[godot-verify-cli] preview (write-movie)"
 GODOT_SCRIPT_PATH="${SCRIPT_PATH}" GODOT_SECONDS="${SECONDS}" GODOT_MAX_NODES="${MAX_NODES}" \
   "${GODOT_BIN}" --path "${PROJECT_DIR}" --script "res://runner.gd" \
-  --write-movie "${OUT_DIR}/preview.mp4" --fixed-fps "${FPS}"
+  --write-movie "${OUT_DIR}/preview.ogv" --fixed-fps "${FPS}"
 
 echo "[godot-verify-cli] render (write-movie)"
 GODOT_SCRIPT_PATH="${SCRIPT_PATH}" GODOT_SECONDS="${SECONDS}" GODOT_MAX_NODES="${MAX_NODES}" \
   "${GODOT_BIN}" --path "${PROJECT_DIR}" --script "res://runner.gd" \
-  --write-movie "${OUT_DIR}/final.mp4" --fixed-fps "${FPS}"
+  --write-movie "${OUT_DIR}/final.ogv" --fixed-fps "${FPS}"

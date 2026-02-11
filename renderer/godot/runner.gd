@@ -48,12 +48,8 @@ func _init() -> void:
         quit(3)
         return
 
-    var node: Node = script.new()
-    if node == null:
-        printerr("[runner] failed to instantiate script: " + script_path)
-        quit(4)
-        return
-
+    var node := Node2D.new()
+    node.set_script(script)
     get_root().add_child(node)
 
 func _process(delta: float) -> bool:
