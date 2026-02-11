@@ -18,8 +18,11 @@ var elapsed_s := 0.0
 
 
 func _ready() -> void:
+    set_process(true)
+    set_physics_process(true)
     _setup_physics()
     _spawn_pair()
+    queue_redraw()
 
 
 func _setup_physics() -> void:
@@ -48,6 +51,7 @@ func _physics_process(delta: float) -> void:
 
 func _draw() -> void:
     draw_rect(Rect2(Vector2.ZERO, Vector2(WIDTH, HEIGHT)), Color(0, 0, 0), true)
+    draw_circle(Vector2(WIDTH / 2.0, HEIGHT / 2.0), 6.0, Color(1, 1, 1))
     _draw_ring()
     _draw_balls()
 
