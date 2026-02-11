@@ -76,6 +76,10 @@ GODOT_SECONDS ?= 5
 GODOT_FPS ?= 30
 GODOT_MAX_NODES ?= 200
 GODOT_OUT ?= out/godot/render.mp4
+GODOT_PREVIEW_SECONDS ?= 2
+GODOT_PREVIEW_FPS ?= 12
+GODOT_PREVIEW_SCALE ?= 0.5
+GODOT_PREVIEW_OUT ?= out/godot/preview.mp4
 
 
 # Optional paths (adjust when code exists)
@@ -194,8 +198,8 @@ godot-validate: ## Validate GDScript via Godot runner
 .PHONY: godot-preview
 godot-preview: ## Render preview video via Godot Movie Maker
 	@GODOT_BIN="$(GODOT_BIN)" PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/godot-run.py \
-		--mode preview --script "$(GODOT_SCRIPT)" --seconds "$(GODOT_SECONDS)" --fps "$(GODOT_FPS)" \
-		--max-nodes "$(GODOT_MAX_NODES)" --out "$(GODOT_OUT)"
+		--mode preview --script "$(GODOT_SCRIPT)" --seconds "$(GODOT_PREVIEW_SECONDS)" --fps "$(GODOT_PREVIEW_FPS)" \
+		--scale "$(GODOT_PREVIEW_SCALE)" --max-nodes "$(GODOT_MAX_NODES)" --out "$(GODOT_PREVIEW_OUT)"
 
 .PHONY: godot-render
 godot-render: ## Render final video via Godot Movie Maker

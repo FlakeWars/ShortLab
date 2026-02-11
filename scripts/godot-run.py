@@ -44,7 +44,7 @@ def _movie_ext_supported(path: Path) -> bool:
     return path.suffix.lower() in {".ogv", ".avi", ".png"}
 
 
-def _transcode_movie(src: Path, dest: Path) -> int:
+def _transcode_movie(src: Path, dest: Path, scale: float) -> int:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise SystemExit("[godot-run] ffmpeg not found (required to convert movie)")
@@ -53,14 +53,25 @@ def _transcode_movie(src: Path, dest: Path) -> int:
         "-y",
         "-i",
         str(src),
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-movflags",
-        "+faststart",
-        str(dest),
     ]
+    if scale != 1.0:
+        cmd.extend(
+            [
+                "-vf",
+                f"scale=iw*{scale}:ih*{scale}",
+            ]
+        )
+    cmd.extend(
+        [
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(dest),
+        ]
+    )
     return _run_cmd(cmd)
 
 
@@ -72,6 +83,7 @@ def main() -> int:
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--max-nodes", type=int, default=200)
     parser.add_argument("--out", default="out/godot/render.mp4")
+    parser.add_argument("--scale", type=float, default=1.0)
     args = parser.parse_args()
 
     script_path = Path(args.script).resolve()
@@ -114,12 +126,14 @@ def main() -> int:
     needs_transcode = not _movie_ext_supported(out_path)
     if needs_transcode:
         movie_path = out_path.with_suffix(".ogv")
+    elif args.scale != 1.0:
+        print("[godot-run] scale ignored for native Movie Maker outputs (.ogv/.avi/.png)")
     cmd.extend(["--write-movie", str(movie_path), "--fixed-fps", str(args.fps)])
     exit_code = _run_cmd(cmd, env)
     if exit_code != 0:
         return exit_code
     if needs_transcode:
-        return _transcode_movie(movie_path, out_path)
+        return _transcode_movie(movie_path, out_path, args.scale)
     return 0
 
 

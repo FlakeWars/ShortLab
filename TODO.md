@@ -16,12 +16,13 @@
 - [ ] Godot render pipeline: Movie Maker + preview (branch: chore/godot-movie-pipeline)
   - [x] [P1] Zweryfikować CLI renderu na macOS ARM64 (preview + final)
   - [x] [P1] Zweryfikować flagi `--script/--write-movie/--headless` z runnerem
-  - [ ] [P2] Określić tryb preview (low-res / krótkie klipy / klatki)
-  - [ ] [P2] Udokumentować komendę `make godot-verify-cli` + wymagany `GODOT_SCRIPT`
+  - [x] [P2] Określić tryb preview (krótki klip 2s @ 12 FPS, skala 0.5, mp4)
+  - [x] [P2] Udokumentować komendę `make godot-verify-cli` + wymagany `GODOT_SCRIPT`
   - [x] [P2] Dodać przykładowy skrypt testowy do weryfikacji CLI
   - [x] [P2] Notatka: weryfikacja przeszła z `GODOT_SECONDS=1`, `GODOT_FPS=12` (ogv)
   - [x] [P2] Auto-konwersja Movie Maker `.ogv` -> `.mp4` przez FFmpeg dla podglądu na macOS
   - [ ] [P2] Sprawdzić warning FFmpeg: "Broken file, keyframe not correctly marked" dla `.ogv` z Godota
+    - [ ] Zweryfikować, czy warning wpływa na seek/jakosc; rozważyć zapis `.avi` jako intermediate
   - [x] [P2] Post-merge review (2026-02-11): docs spójne z preview `.mp4`, ryzyko FFmpeg zapisane
 - [ ] Security: weryfikacja checksum dla paczki Godot (branch: chore/godot-checksum)
   - [ ] Sprawdzić, czy Godot publikuje sumy SHA dla macOS
