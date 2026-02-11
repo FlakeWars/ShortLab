@@ -55,7 +55,7 @@ func _draw() -> void:
 func _draw_ring() -> void:
     if ring_points.is_empty():
         return
-    var center := ring_body.position
+    var center = ring_body.position
     var rotated := PackedVector2Array()
     for point in ring_points:
         rotated.append(point.rotated(ring_body.rotation) + center)
