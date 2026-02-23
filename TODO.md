@@ -1,6 +1,12 @@
 # TODO
 
 ## Now (W toku)
+- [ ] Fix: ujednolicenie autodetekcji lokalnej binarki Godot (branch: fix/godot-bin-autodetect-everywhere)
+  - [x] Ujednolicić autodetekcję w `Makefile` i `scripts/godot-verify-cli.sh`
+  - [x] Zaktualizować README (brak ręcznego `GODOT_BIN` jako domyślny przypadek)
+  - [x] Smoke: `make godot-validate` bez ręcznego `GODOT_BIN`
+  - [x] Krytyczna analiza (2026-02-23): zachowanie jest teraz spójne dla `make godot-*`, `scripts/godot-run.py` i `scripts/godot-verify-cli.sh`; użytkownik nie musi znać ścieżki binarki przy standardowym setupie
+  - [ ] Ryzyko/uzupełnienie: sprawdzić czy wszystkie inne miejsca uruchamiania Godota (jeśli dojdą nowe skrypty) korzystają z tej samej kolejności fallbacku
 
 
 

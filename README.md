@@ -144,8 +144,8 @@ Do testu flag Godota (headless + write-movie):
 ```bash
 make godot-verify-cli GODOT_SCRIPT=/abs/path/to/script.gd
 ```
-Wymagane: `GODOT_BIN` w PATH albo ustawione jako zmienna srodowiskowa.
-Domyslnie `make godot-install` instaluje Godota do `.tools/godot/current/Godot.app/Contents/MacOS/Godot`.
+Domyslnie skrypty/targety probuja uzyc lokalnej binarki z `./.tools/godot/current/Godot.app/Contents/MacOS/Godot` (instalowanej przez `make godot-install`), a dopiero potem `godot` z `PATH`.
+`GODOT_BIN` ustawiaj tylko wtedy, gdy chcesz jawnie nadpisac domyslna sciezke.
 Podglad/render (Movie Maker) wspiera tylko `.ogv/.avi`, ale `scripts/godot-run.py` automatycznie konwertuje do `.mp4` przez FFmpeg:
 ```bash
 make godot-preview GODOT_SCRIPT=/abs/path/to/script.gd GODOT_PREVIEW_OUT=out/godot/preview.mp4

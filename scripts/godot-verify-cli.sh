@@ -3,7 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_DIR="${ROOT_DIR}/renderer/godot"
-GODOT_BIN="${GODOT_BIN:-godot}"
+if [[ -n "${GODOT_BIN:-}" && "${GODOT_BIN}" != "godot" ]]; then
+  GODOT_BIN="${GODOT_BIN}"
+elif [[ -x "${ROOT_DIR}/.tools/godot/current/Godot.app/Contents/MacOS/Godot" ]]; then
+  GODOT_BIN="${ROOT_DIR}/.tools/godot/current/Godot.app/Contents/MacOS/Godot"
+else
+  GODOT_BIN="${GODOT_BIN:-godot}"
+fi
 SCRIPT_PATH="${1:-}"
 SECONDS="${GODOT_SECONDS:-2}"
 FPS="${GODOT_FPS:-30}"
