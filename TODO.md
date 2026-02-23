@@ -1,16 +1,7 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Etap B: panel „Godot Manual Run” (GUI) z akcjami `compile_gdscript`, `validate`, `preview`, `final_render` dla wybranej idei (branch: feat/ui-godot-manual-run)
-  - [x] API: endpointy manualne `POST /ops/godot/{compile-gdscript,validate,preview,render}`
-  - [x] UI: panel `Godot Manual Run (Etap B)` w `Flow -> Manual Flow` z ręcznym uruchamianiem kroków
-  - [x] UI: statusy kroków + wynik (ścieżki skryptu/out, log file, stdout/stderr)
-  - [x] UI/API: podgląd pliku `preview/final` z lokalnej ścieżki (bez integracji z DB) przez bezpieczny endpoint `GET /godot/manual-file`
-  - [x] Testy API: regresja dla `compile_gdscript` i `validate` (pytest)
-  - [ ] Smoke test UI/API w uruchomionym `make run-dev` (manual kliknięcie kroków)
-    - [x] Smoke częściowy (2026-02-23): runtime `scripts/godot-run.py` + lokalny `GODOT_BIN` potwierdza `validate` dla przykładowego skryptu `renderer/godot/examples/bouncing_gap.gd`
-    - [x] Smoke częściowy (2026-02-23): `preview` i `render` uruchamiają Godota, ale kończą się `exit 250` w bieżącym środowisku (brak pliku logu z `--log-file`)
-    - [ ] Blokada: potwierdzić `preview/final_render` z panelu UI poza sandboxem (lokalny terminal/macOS sesja operatora) i zapisać dokładny błąd Godota, jeśli nadal występuje
+
 
 ## Next (Kolejne)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
@@ -32,7 +23,9 @@
     - [x] Kolejny krok po tym: dodać panel „Godot Manual Run” (GUI) z akcjami `compile_gdscript`, `validate`, `preview`, `final_render` dla wybranej idei
     - [x] Krytyczna analiza (2026-02-23): Etap B wdrożony w trybie GUI-first jako panel operatorski; kroki działają ręcznie i zwracają ścieżki/logi bez zapisu do pipeline DB
     - [x] Krytyczna analiza (2026-02-23): podgląd preview/final działa bez DB przez serwowanie plików z `out/manual-godot`; endpoint ograniczony allowlistą katalogu
+    - [x] Test/Smoke (2026-02-23): `scripts/godot-run.py` + lokalny `GODOT_BIN` potwierdza `validate`; `preview/render` kończą się `exit 250` w bieżącym sandboxie (blokada środowiskowa do weryfikacji poza sandboxem)
     - [ ] Ryzyko/uzupełnienie: dodać persystencję rezultatów Etapu B (np. tabela/manual run records lub integracja z `render`/`artifact`), aby preview/final z Godota były widoczne poza sesją UI
+    - [ ] Ryzyko/uzupełnienie: potwierdzić `preview/final_render` z panelu UI poza sandboxem (lokalny terminal/macOS sesja operatora) i zapisać dokładny błąd Godota, jeśli nadal występuje
     - [x] Dodać checklistę manualnego przejścia E2E w UI/README (krok po kroku dla operatora)
     - [x] Krytyczna analiza (2026-02-23): checklista manualnego E2E dodana do `README.md`; stan obecny (hybrydowy legacy/Godot) opisany jawnie, żeby uniknąć mylenia torów
     - [x] Krytyczna analiza (2026-02-23): `AGENTS.md` doprecyzowany — `Now` jest powiązane z branch workflow, a na `main` ma być puste
