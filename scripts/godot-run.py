@@ -26,6 +26,16 @@ def _log_dir(repo_root: Path) -> Path:
     return repo_root / "out" / "godot" / "logs"
 
 
+def _default_godot_bin(repo_root: Path) -> str:
+    env_bin = os.getenv("GODOT_BIN")
+    if env_bin:
+        return env_bin
+    local_bin = repo_root / ".tools" / "godot" / "current" / "Godot.app" / "Contents" / "MacOS" / "Godot"
+    if local_bin.exists() and local_bin.is_file():
+        return str(local_bin)
+    return "godot"
+
+
 def _copy_script(source: Path, dest_dir: Path) -> Path:
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_name = f"llm_{uuid.uuid4().hex}.gd"
@@ -116,7 +126,7 @@ def main() -> int:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"godot-run-{uuid.uuid4().hex}.log"
 
-    godot_bin = os.getenv("GODOT_BIN", "godot")
+    godot_bin = _default_godot_bin(repo_root)
     res_script = f"res://generated/{local_script.name}"
     cmd = [
         godot_bin,

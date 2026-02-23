@@ -1,6 +1,11 @@
 # TODO
 
 ## Now (W toku)
+- [ ] Fix: autodetekcja lokalnej binarki Godot w `scripts/godot-run.py` (branch: fix/godot-bin-autodetect)
+  - [x] Fallback kolejności: `GODOT_BIN` -> `.tools/godot/current/.../Godot` -> `godot` z PATH
+  - [x] Smoke: `scripts/godot-run.py --mode validate` działa bez ręcznego `export GODOT_BIN`
+  - [x] Krytyczna analiza (2026-02-23): fix usuwa zbędny krok ręcznej konfiguracji i lepiej realizuje założenie „Makefile/projekt ogarnia szczegóły lokalnych narzędzi”
+  - [ ] Ryzyko/uzupełnienie: podobną autodetekcję warto ujednolicić w innych skryptach/targetach korzystających z Godota, żeby zachowanie było spójne w całym repo
 
 
 ## Next (Kolejne)
