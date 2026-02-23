@@ -1,12 +1,7 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Fix: ujednolicenie autodetekcji lokalnej binarki Godot (branch: fix/godot-bin-autodetect-everywhere)
-  - [x] Ujednolicić autodetekcję w `Makefile` i `scripts/godot-verify-cli.sh`
-  - [x] Zaktualizować README (brak ręcznego `GODOT_BIN` jako domyślny przypadek)
-  - [x] Smoke: `make godot-validate` bez ręcznego `GODOT_BIN`
-  - [x] Krytyczna analiza (2026-02-23): zachowanie jest teraz spójne dla `make godot-*`, `scripts/godot-run.py` i `scripts/godot-verify-cli.sh`; użytkownik nie musi znać ścieżki binarki przy standardowym setupie
-  - [ ] Ryzyko/uzupełnienie: sprawdzić czy wszystkie inne miejsca uruchamiania Godota (jeśli dojdą nowe skrypty) korzystają z tej samej kolejności fallbacku
+
 
 
 
@@ -32,6 +27,7 @@
     - [x] Krytyczna analiza (2026-02-23): podgląd preview/final działa bez DB przez serwowanie plików z `out/manual-godot`; endpoint ograniczony allowlistą katalogu
     - [x] Test/Smoke (2026-02-23): `scripts/godot-run.py` + lokalny `GODOT_BIN` potwierdza `validate`; `preview/render` kończą się `exit 250` w bieżącym sandboxie (blokada środowiskowa do weryfikacji poza sandboxem)
     - [x] Usprawnienie (2026-02-23): `scripts/godot-run.py` automatycznie wykrywa lokalną binarkę z `.tools/godot/current/...` (bez ręcznego `export GODOT_BIN`)
+    - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot w `Makefile` i `scripts/godot-verify-cli.sh`; `make godot-validate` działa bez ręcznego `GODOT_BIN`
     - [ ] Ryzyko/uzupełnienie: dodać persystencję rezultatów Etapu B (np. tabela/manual run records lub integracja z `render`/`artifact`), aby preview/final z Godota były widoczne poza sesją UI
     - [ ] Ryzyko/uzupełnienie: potwierdzić `preview/final_render` z panelu UI poza sandboxem (lokalny terminal/macOS sesja operatora) i zapisać dokładny błąd Godota, jeśli nadal występuje
     - [ ] Ryzyko/uzupełnienie: ujednolicić autodetekcję lokalnej binarki Godot we wszystkich skryptach/targetach korzystających z Godota
