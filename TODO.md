@@ -1,13 +1,7 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Fix UX: Godot Manual Run (domyślne `out_path` do `out/manual-godot` + czytelne błędy API) (branch: fix/godot-manual-run-ux)
-  - [x] Backend: domyślny `out_path` dla `preview/render` w `out/manual-godot/...`
-  - [x] UI: czytelne formatowanie błędów API z `detail` (zamiast `[object Object]`)
-  - [x] Testy API: regresja default `out_path` dla `preview` + brak regresji istniejących endpointów
-  - [x] Smoke lokalny: Validate/Preview/Render po zmianie domyślnego `out_path` (2026-02-23: success lokalnie na macOS; `validate`, `preview`, `render` = exit 0)
-  - [x] Krytyczna analiza (2026-02-23): fix usuwa dwa problemy UX naraz — błędy są czytelne, a domyślne pliki preview/final trafiają do katalogu obsługiwanego przez endpoint `GET /godot/manual-file`; test lokalny potwierdził działanie Etapu B poza sandboxem
-  - [ ] Ryzyko/uzupełnienie: przetestować w UI, czy istniejące artefakty w `renderer/godot/examples/` nie mylą operatora (warto rozważyć komunikat/cleanup)
+
 
 
 
@@ -36,8 +30,10 @@
     - [x] Usprawnienie (2026-02-23): `scripts/godot-run.py` automatycznie wykrywa lokalną binarkę z `.tools/godot/current/...` (bez ręcznego `export GODOT_BIN`)
     - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot w `Makefile` i `scripts/godot-verify-cli.sh`; `make godot-validate` działa bez ręcznego `GODOT_BIN`
     - [ ] Ryzyko/uzupełnienie: dodać persystencję rezultatów Etapu B (np. tabela/manual run records lub integracja z `render`/`artifact`), aby preview/final z Godota były widoczne poza sesją UI
-    - [ ] Ryzyko/uzupełnienie: potwierdzić `preview/final_render` z panelu UI poza sandboxem (lokalny terminal/macOS sesja operatora) i zapisać dokładny błąd Godota, jeśli nadal występuje
-    - [ ] Ryzyko/uzupełnienie: ujednolicić autodetekcję lokalnej binarki Godot we wszystkich skryptach/targetach korzystających z Godota
+    - [x] Test/Smoke (2026-02-23): potwierdzono `preview/final_render` z panelu UI poza sandboxem (lokalny macOS) — `validate`, `preview`, `render` zakończone sukcesem (`exit 0`)
+    - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot we wszystkich głównych skryptach/targetach korzystających z Godota
+    - [x] Usprawnienie (2026-02-23): UX Etapu B — domyślne `out_path` dla `preview/render` trafia do `out/manual-godot/...`, a UI pokazuje czytelny błąd API zamiast `[object Object]`
+    - [ ] Ryzyko/uzupełnienie: przetestować w UI, czy istniejące artefakty w `renderer/godot/examples/` nie mylą operatora (warto rozważyć komunikat/cleanup)
     - [x] Dodać checklistę manualnego przejścia E2E w UI/README (krok po kroku dla operatora)
     - [x] Krytyczna analiza (2026-02-23): checklista manualnego E2E dodana do `README.md`; stan obecny (hybrydowy legacy/Godot) opisany jawnie, żeby uniknąć mylenia torów
     - [x] Krytyczna analiza (2026-02-23): `AGENTS.md` doprecyzowany — `Now` jest powiązane z branch workflow, a na `main` ma być puste
