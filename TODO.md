@@ -1,11 +1,7 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Fix: autodetekcja lokalnej binarki Godot w `scripts/godot-run.py` (branch: fix/godot-bin-autodetect)
-  - [x] Fallback kolejności: `GODOT_BIN` -> `.tools/godot/current/.../Godot` -> `godot` z PATH
-  - [x] Smoke: `scripts/godot-run.py --mode validate` działa bez ręcznego `export GODOT_BIN`
-  - [x] Krytyczna analiza (2026-02-23): fix usuwa zbędny krok ręcznej konfiguracji i lepiej realizuje założenie „Makefile/projekt ogarnia szczegóły lokalnych narzędzi”
-  - [ ] Ryzyko/uzupełnienie: podobną autodetekcję warto ujednolicić w innych skryptach/targetach korzystających z Godota, żeby zachowanie było spójne w całym repo
+
 
 
 ## Next (Kolejne)
@@ -29,8 +25,10 @@
     - [x] Krytyczna analiza (2026-02-23): Etap B wdrożony w trybie GUI-first jako panel operatorski; kroki działają ręcznie i zwracają ścieżki/logi bez zapisu do pipeline DB
     - [x] Krytyczna analiza (2026-02-23): podgląd preview/final działa bez DB przez serwowanie plików z `out/manual-godot`; endpoint ograniczony allowlistą katalogu
     - [x] Test/Smoke (2026-02-23): `scripts/godot-run.py` + lokalny `GODOT_BIN` potwierdza `validate`; `preview/render` kończą się `exit 250` w bieżącym sandboxie (blokada środowiskowa do weryfikacji poza sandboxem)
+    - [x] Usprawnienie (2026-02-23): `scripts/godot-run.py` automatycznie wykrywa lokalną binarkę z `.tools/godot/current/...` (bez ręcznego `export GODOT_BIN`)
     - [ ] Ryzyko/uzupełnienie: dodać persystencję rezultatów Etapu B (np. tabela/manual run records lub integracja z `render`/`artifact`), aby preview/final z Godota były widoczne poza sesją UI
     - [ ] Ryzyko/uzupełnienie: potwierdzić `preview/final_render` z panelu UI poza sandboxem (lokalny terminal/macOS sesja operatora) i zapisać dokładny błąd Godota, jeśli nadal występuje
+    - [ ] Ryzyko/uzupełnienie: ujednolicić autodetekcję lokalnej binarki Godot we wszystkich skryptach/targetach korzystających z Godota
     - [x] Dodać checklistę manualnego przejścia E2E w UI/README (krok po kroku dla operatora)
     - [x] Krytyczna analiza (2026-02-23): checklista manualnego E2E dodana do `README.md`; stan obecny (hybrydowy legacy/Godot) opisany jawnie, żeby uniknąć mylenia torów
     - [x] Krytyczna analiza (2026-02-23): `AGENTS.md` doprecyzowany — `Now` jest powiązane z branch workflow, a na `main` ma być puste
