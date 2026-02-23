@@ -55,6 +55,22 @@ type Artifact = {
   created_at?: string | null
 }
 
+type GodotManualStepResult = {
+  ok?: boolean
+  mode?: 'validate' | 'preview' | 'render'
+  script_path?: string
+  out_path?: string
+  out_exists?: boolean
+  log_file?: string | null
+  stdout?: string
+  stderr?: string
+  exit_code?: number
+  script_hash?: string
+  script_exists?: boolean
+  compiler_meta?: Record<string, unknown>
+  validation_report?: Record<string, unknown>
+}
+
 type IdeaCandidate = {
   id: string
   idea_batch_id?: string | null
@@ -222,6 +238,11 @@ function parseTokenBudgets(raw?: string | null): TokenBudgetConfig | null {
   } catch {
     return null
   }
+}
+
+function manualGodotFileUrl(path?: string | null): string | null {
+  if (!path) return null
+  return `${API_BASE}/godot/manual-file?path=${encodeURIComponent(path)}`
 }
 
 type SettingsResponse = {
@@ -436,6 +457,15 @@ function App() {
   const [manualPipelineLoading, setManualPipelineLoading] = useState(false)
   const [manualPipelineMessage, setManualPipelineMessage] = useState<string | null>(null)
   const [manualPipelineError, setManualPipelineError] = useState<string | null>(null)
+  const [godotScriptPath, setGodotScriptPath] = useState('')
+  const [godotSeconds, setGodotSeconds] = useState('2')
+  const [godotFps, setGodotFps] = useState('12')
+  const [godotMaxNodes, setGodotMaxNodes] = useState('200')
+  const [godotPreviewScale, setGodotPreviewScale] = useState('0.5')
+  const [godotStepLoading, setGodotStepLoading] = useState<Record<string, boolean>>({})
+  const [godotStepStatus, setGodotStepStatus] = useState<Record<string, 'idle' | 'success' | 'fail'>>({})
+  const [godotStepError, setGodotStepError] = useState<Record<string, string | null>>({})
+  const [godotStepResult, setGodotStepResult] = useState<Record<string, GodotManualStepResult | null>>({})
 
   const [settings, setSettings] = useState<SettingsResponse | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
@@ -969,6 +999,97 @@ function App() {
       setManualPipelineError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setManualPipelineLoading(false)
+    }
+  }
+
+  const setGodotStepLoadingState = (step: string, loading: boolean) => {
+    setGodotStepLoading((prev) => ({ ...prev, [step]: loading }))
+  }
+
+  const setGodotStepOutcome = (
+    step: string,
+    status: 'idle' | 'success' | 'fail',
+    error: string | null,
+    result?: GodotManualStepResult | null,
+  ) => {
+    setGodotStepStatus((prev) => ({ ...prev, [step]: status }))
+    setGodotStepError((prev) => ({ ...prev, [step]: error }))
+    if (result !== undefined) {
+      setGodotStepResult((prev) => ({ ...prev, [step]: result }))
+    }
+  }
+
+  const parseNumberInput = (raw: string, fallback: number) => {
+    const value = Number(raw)
+    return Number.isFinite(value) ? value : fallback
+  }
+
+  const handleGodotCompile = async () => {
+    const step = 'compile'
+    setGodotStepLoadingState(step, true)
+    setGodotStepOutcome(step, 'idle', null)
+    try {
+      if (!manualIdeaId.trim()) {
+        throw new Error('Podaj idea_id do kompilacji GDScript.')
+      }
+      const response = await fetch(`${API_BASE}/ops/godot/compile-gdscript`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          idea_id: manualIdeaId.trim(),
+          validate: false,
+          max_attempts: 3,
+          max_repairs: 2,
+          max_nodes: Math.max(10, Math.floor(parseNumberInput(godotMaxNodes, 200))),
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as GodotManualStepResult
+      if (payload.script_path) {
+        setGodotScriptPath(payload.script_path)
+      }
+      setGodotStepOutcome(step, 'success', null, payload)
+      fetchAuditEvents()
+    } catch (err) {
+      setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Unknown error', null)
+    } finally {
+      setGodotStepLoadingState(step, false)
+    }
+  }
+
+  const handleGodotRunStep = async (step: 'validate' | 'preview' | 'render') => {
+    setGodotStepLoadingState(step, true)
+    setGodotStepOutcome(step, 'idle', null)
+    try {
+      if (!godotScriptPath.trim()) {
+        throw new Error('Najpierw skompiluj GDScript albo podaj ścieżkę skryptu.')
+      }
+      const body: Record<string, unknown> = {
+        script_path: godotScriptPath.trim(),
+        seconds: Math.max(0.1, parseNumberInput(godotSeconds, 2)),
+        fps: Math.max(1, Math.floor(parseNumberInput(godotFps, 12))),
+        max_nodes: Math.max(10, Math.floor(parseNumberInput(godotMaxNodes, 200))),
+      }
+      if (step === 'preview') {
+        body.scale = Math.max(0.1, parseNumberInput(godotPreviewScale, 0.5))
+      }
+      const response = await fetch(`${API_BASE}/ops/godot/${step}`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as GodotManualStepResult
+      setGodotStepOutcome(step, 'success', null, payload)
+      fetchAuditEvents()
+    } catch (err) {
+      setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Unknown error', null)
+    } finally {
+      setGodotStepLoadingState(step, false)
     }
   }
 
@@ -2016,13 +2137,169 @@ function App() {
                 {manualPipelineError}
               </div>
             ) : null}
+
+            <div className="mt-5 rounded-2xl border border-sky-200/80 bg-sky-50/40 p-4">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-stone-900">Godot Manual Run (Etap B)</div>
+                  <div className="text-xs text-stone-600">
+                    Krok po kroku: compile_gdscript → validate → preview → final_render.
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  GDScript path
+                  <input
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    placeholder="out/manual-godot/idea-.../script.gd"
+                    value={godotScriptPath}
+                    onChange={(event) => setGodotScriptPath(event.target.value)}
+                  />
+                </label>
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Seconds
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={godotSeconds}
+                      onChange={(event) => setGodotSeconds(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    FPS
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={godotFps}
+                      onChange={(event) => setGodotFps(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Max nodes
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={godotMaxNodes}
+                      onChange={(event) => setGodotMaxNodes(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Preview scale
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={godotPreviewScale}
+                      onChange={(event) => setGodotPreviewScale(event.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Button className="rounded-full" onClick={handleGodotCompile} disabled={!!godotStepLoading.compile}>
+                  {godotStepLoading.compile ? 'Compiling…' : '1. Compile GDScript'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => handleGodotRunStep('validate')}
+                  disabled={!!godotStepLoading.validate}
+                >
+                  {godotStepLoading.validate ? 'Validating…' : '2. Validate'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => handleGodotRunStep('preview')}
+                  disabled={!!godotStepLoading.preview}
+                >
+                  {godotStepLoading.preview ? 'Rendering preview…' : '3. Preview'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => handleGodotRunStep('render')}
+                  disabled={!!godotStepLoading.render}
+                >
+                  {godotStepLoading.render ? 'Rendering final…' : '4. Final render'}
+                </Button>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                {(['compile', 'validate', 'preview', 'render'] as const).map((step) => {
+                  const result = godotStepResult[step]
+                  const error = godotStepError[step]
+                  const status = godotStepStatus[step] ?? 'idle'
+                  return (
+                    <div key={step} className="rounded-xl border border-stone-200 bg-white/80 p-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-stone-900 uppercase tracking-[0.15em]">{step}</div>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'border',
+                            status === 'success'
+                              ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
+                              : status === 'fail'
+                                ? 'border-rose-200 bg-rose-100 text-rose-900'
+                                : 'border-stone-200 bg-stone-100 text-stone-700',
+                          )}
+                        >
+                          {status}
+                        </Badge>
+                      </div>
+                      {error ? <div className="mt-2 text-rose-700">{error}</div> : null}
+                      {result ? (
+                        <div className="mt-2 space-y-1 text-stone-600">
+                          {'script_path' in result && result.script_path ? (
+                            <div><span className="font-semibold text-stone-800">script:</span> {result.script_path}</div>
+                          ) : null}
+                          {'out_path' in result && result.out_path ? (
+                            <div><span className="font-semibold text-stone-800">out:</span> {result.out_path}</div>
+                          ) : null}
+                          {result.log_file ? (
+                            <div><span className="font-semibold text-stone-800">log:</span> {result.log_file}</div>
+                          ) : null}
+                          {typeof result.exit_code === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">exit:</span> {result.exit_code}</div>
+                          ) : null}
+                          {(step === 'preview' || step === 'render') &&
+                          result.out_exists &&
+                          result.out_path &&
+                          result.out_path.includes('/out/manual-godot/') ? (
+                            <div className="mt-2 overflow-hidden rounded-lg border border-stone-200 bg-stone-900">
+                              <video
+                                className="max-h-56 w-full object-contain"
+                                controls
+                                src={manualGodotFileUrl(result.out_path) ?? undefined}
+                              />
+                            </div>
+                          ) : null}
+                          {result.stdout ? (
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-stone-500">stdout</summary>
+                              <pre className="mt-1 max-h-32 overflow-auto rounded-lg bg-stone-100 p-2 whitespace-pre-wrap">{result.stdout}</pre>
+                            </details>
+                          ) : null}
+                          {result.stderr ? (
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-stone-500">stderr</summary>
+                              <pre className="mt-1 max-h-32 overflow-auto rounded-lg bg-rose-50 p-2 whitespace-pre-wrap text-rose-800">{result.stderr}</pre>
+                            </details>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
           <div className="rounded-2xl border border-amber-200/70 bg-white/70 p-4 text-xs text-stone-600">
             <div className="font-semibold text-stone-900">Tryb manualny</div>
             <ul className="mt-2 list-disc space-y-2 pl-4">
               <li>Brak automatycznego enqueue po Idea Gate.</li>
               <li>Weryfikacja i kompilacja uruchamiane ręcznie.</li>
-              <li>Render można powtórzyć w panelu Operations.</li>
+              <li>Etap B: Godot Manual Run pozwala uruchamiać compile/validate/preview/render z GUI.</li>
             </ul>
           </div>
         </div>

@@ -4,6 +4,8 @@ from datetime import date, datetime, timedelta, timezone
 import hashlib
 from os import getenv
 from pathlib import Path
+import subprocess
+import sys
 from typing import List, Optional, Literal
 from uuid import UUID
 from uuid import uuid4
@@ -44,6 +46,7 @@ from ideas.capability import (
     verify_idea_capability,
 )
 from ideas.compiler import compile_idea_to_dsl
+from ideas.godot_compiler import compile_idea_to_gdscript
 from ideas.generator import IdeaDraft, generate_ideas, save_ideas
 from ideas.parser import parse_ideas_text
 from llm import get_mediator
@@ -88,6 +91,10 @@ def _require_operator(x_operator_token: str | None = Header(default=None)) -> No
 def _artifact_base_dir() -> Path:
     base_dir = getenv("ARTIFACTS_BASE_DIR", "out")
     return Path(base_dir).expanduser().resolve()
+
+
+def _manual_godot_root() -> Path:
+    return Path(getenv("MANUAL_GODOT_OUT_ROOT", "out/manual-godot")).expanduser().resolve()
 
 
 def _utc_now() -> datetime:
@@ -141,6 +148,86 @@ def _apply_publish_status(animation: Animation, status: str) -> None:
         animation.pipeline_stage = "metrics"
         return
     raise ValueError(f"unsupported_publish_status:{status}")
+
+
+def _audit_event(session, *, event_type: str, payload: dict, actor_user_id: UUID | None = None) -> None:
+    session.add(
+        AuditEvent(
+            event_type=event_type,
+            source="ui",
+            actor_user_id=actor_user_id,
+            occurred_at=_utc_now(),
+            payload=payload,
+        )
+    )
+
+
+def _latest_godot_log_file(before: set[Path] | None = None) -> Path | None:
+    log_dir = (Path(__file__).resolve().parents[1] / "out" / "godot" / "logs").resolve()
+    if not log_dir.exists():
+        return None
+    files = sorted(log_dir.glob("godot-run-*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        return None
+    if before is None:
+        return files[0]
+    for file in files:
+        if file not in before:
+            return file
+    return files[0]
+
+
+def _run_godot_manual_step(
+    *,
+    mode: Literal["validate", "preview", "render"],
+    script_path: Path,
+    seconds: float,
+    fps: int,
+    max_nodes: int,
+    out_path: Path | None = None,
+    scale: float | None = None,
+) -> dict:
+    repo_root = Path(__file__).resolve().parents[1]
+    cmd = [
+        sys.executable,
+        str(repo_root / "scripts" / "godot-run.py"),
+        "--mode",
+        mode,
+        "--script",
+        str(script_path.resolve()),
+        "--seconds",
+        str(seconds),
+        "--fps",
+        str(fps),
+        "--max-nodes",
+        str(max_nodes),
+    ]
+    if out_path is not None:
+        cmd.extend(["--out", str(out_path.resolve())])
+    if scale is not None:
+        cmd.extend(["--scale", str(scale)])
+
+    before_logs = set()
+    latest_before = _latest_godot_log_file()
+    if latest_before is not None:
+        log_dir = latest_before.parent
+        if log_dir.exists():
+            before_logs = set(log_dir.glob("godot-run-*.log"))
+    completed = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    latest_log = _latest_godot_log_file(before_logs or None)
+    payload = {
+        "mode": mode,
+        "script_path": str(script_path.resolve()),
+        "exit_code": completed.returncode,
+        "stdout": (completed.stdout or "").strip()[-8000:],
+        "stderr": (completed.stderr or "").strip()[-8000:],
+        "log_file": str(latest_log) if latest_log else None,
+    }
+    if out_path is not None:
+        payload["out_path"] = str(out_path.resolve())
+        payload["out_exists"] = out_path.exists()
+    payload["ok"] = completed.returncode == 0
+    return payload
 
 
 def _worker_state() -> dict:
@@ -340,6 +427,27 @@ class PublishRecordCreateRequest(BaseModel):
     scheduled_for: datetime | None = Field(default=None)
     published_at: datetime | None = Field(default=None)
     error: str | None = Field(default=None)
+    actor: UUID | None = Field(default=None)
+
+
+class GodotManualCompileRequest(BaseModel):
+    idea_id: UUID
+    out_root: str = Field(default="out/manual-godot")
+    max_attempts: int = Field(default=3, ge=1, le=10)
+    max_repairs: int = Field(default=2, ge=0, le=10)
+    validate_after_compile: bool = Field(default=False, alias="validate")
+    validate_seconds: float = Field(default=2.0, ge=0.1, le=30.0)
+    max_nodes: int = Field(default=200, ge=10, le=5000)
+    actor: UUID | None = Field(default=None)
+
+
+class GodotManualRunRequest(BaseModel):
+    script_path: str
+    seconds: float = Field(default=2.0, ge=0.1, le=30.0)
+    fps: int = Field(default=12, ge=1, le=120)
+    max_nodes: int = Field(default=200, ge=10, le=5000)
+    out_path: str | None = Field(default=None)
+    scale: float | None = Field(default=None, ge=0.1, le=2.0)
     actor: UUID | None = Field(default=None)
 
 
@@ -1513,6 +1621,32 @@ def get_artifact_file(artifact_id: UUID):
         session.close()
 
 
+@app.get("/godot/manual-file")
+def get_manual_godot_file(path: str = Query(..., min_length=1)):
+    file_path = Path(path).expanduser().resolve()
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="file_not_found")
+    base_dir = _manual_godot_root()
+    try:
+        file_path.relative_to(base_dir)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="file_outside_manual_godot_root")
+
+    suffix = file_path.suffix.lower()
+    media_type = None
+    if suffix == ".mp4":
+        media_type = "video/mp4"
+    elif suffix == ".ogv":
+        media_type = "video/ogg"
+    elif suffix == ".avi":
+        media_type = "video/x-msvideo"
+    elif suffix == ".json":
+        media_type = "application/json"
+    elif suffix == ".log":
+        media_type = "text/plain; charset=utf-8"
+    return FileResponse(path=str(file_path), media_type=media_type)
+
+
 @app.post("/ops/enqueue")
 def ops_enqueue(request: EnqueueRequest, _guard: None = Depends(_require_operator)) -> dict:
     from pipeline.queue import enqueue_pipeline
@@ -1684,5 +1818,157 @@ def ops_publish_record(
     except Exception as exc:
         session.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
+    finally:
+        session.close()
+
+
+@app.post("/ops/godot/compile-gdscript")
+def ops_godot_compile_gdscript(
+    request: GodotManualCompileRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        idea = session.get(Idea, request.idea_id)
+        if idea is None:
+            raise HTTPException(status_code=404, detail="idea_not_found")
+        out_dir = Path(request.out_root).expanduser().resolve() / f"idea-{idea.id}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        script_path = out_dir / "script.gd"
+        result = compile_idea_to_gdscript(
+            idea=idea,
+            target_path=script_path,
+            max_attempts=request.max_attempts,
+            max_repairs=request.max_repairs,
+            validate=request.validate_after_compile,
+            validate_seconds=request.validate_seconds,
+            max_nodes=request.max_nodes,
+        )
+        payload = {
+            "idea_id": idea.id,
+            "script_path": str(script_path),
+            "script_exists": script_path.exists(),
+            "script_hash": result.script_hash,
+            "compiler_meta": result.compiler_meta,
+            "validation_report": result.validation_report,
+        }
+        _audit_event(
+            session,
+            event_type="godot_manual_compile",
+            actor_user_id=request.actor,
+            payload={
+                "idea_id": str(idea.id),
+                "script_path": str(script_path),
+                "script_hash": result.script_hash,
+            },
+        )
+        session.commit()
+        return jsonable_encoder(payload)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    finally:
+        session.close()
+
+
+def _ops_godot_run_mode(
+    *,
+    mode: Literal["validate", "preview", "render"],
+    request: GodotManualRunRequest,
+) -> dict:
+    script_path = Path(request.script_path).expanduser().resolve()
+    if not script_path.exists():
+        raise HTTPException(status_code=404, detail="script_not_found")
+    if script_path.suffix != ".gd":
+        raise HTTPException(status_code=400, detail="script_must_be_gd")
+
+    out_path: Path | None = None
+    if mode in {"preview", "render"}:
+        if request.out_path:
+            out_path = Path(request.out_path).expanduser().resolve()
+        else:
+            base_dir = script_path.parent
+            out_path = base_dir / ("preview.mp4" if mode == "preview" else "final.mp4")
+
+    result = _run_godot_manual_step(
+        mode=mode,
+        script_path=script_path,
+        seconds=request.seconds,
+        fps=request.fps,
+        max_nodes=request.max_nodes,
+        out_path=out_path,
+        scale=request.scale if mode == "preview" else None,
+    )
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result)
+    return result
+
+
+@app.post("/ops/godot/validate")
+def ops_godot_validate(
+    request: GodotManualRunRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        result = _ops_godot_run_mode(mode="validate", request=request)
+        _audit_event(
+            session,
+            event_type="godot_manual_validate",
+            actor_user_id=request.actor,
+            payload={"script_path": result["script_path"], "log_file": result.get("log_file")},
+        )
+        session.commit()
+        return jsonable_encoder(result)
+    finally:
+        session.close()
+
+
+@app.post("/ops/godot/preview")
+def ops_godot_preview(
+    request: GodotManualRunRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        result = _ops_godot_run_mode(mode="preview", request=request)
+        _audit_event(
+            session,
+            event_type="godot_manual_preview",
+            actor_user_id=request.actor,
+            payload={
+                "script_path": result["script_path"],
+                "out_path": result.get("out_path"),
+                "log_file": result.get("log_file"),
+            },
+        )
+        session.commit()
+        return jsonable_encoder(result)
+    finally:
+        session.close()
+
+
+@app.post("/ops/godot/render")
+def ops_godot_render(
+    request: GodotManualRunRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        result = _ops_godot_run_mode(mode="render", request=request)
+        _audit_event(
+            session,
+            event_type="godot_manual_render",
+            actor_user_id=request.actor,
+            payload={
+                "script_path": result["script_path"],
+                "out_path": result.get("out_path"),
+                "log_file": result.get("log_file"),
+            },
+        )
+        session.commit()
+        return jsonable_encoder(result)
     finally:
         session.close()
