@@ -1,6 +1,8 @@
 # TODO
 
 ## Now (W toku)
+- [ ] Brak aktywnego zadania na `main` (sekcja `Now` pozostaje pusta między branchami)
+## Next (Kolejne)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
   - [x] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM
  - [x] [P1] Zdefiniować ograniczoną pulę node/shape + Godot 4.x only (ban API 3.x)
@@ -21,7 +23,6 @@
     - [x] Dodać checklistę manualnego przejścia E2E w UI/README (krok po kroku dla operatora)
     - [x] Krytyczna analiza (2026-02-23): checklista manualnego E2E dodana do `README.md`; stan obecny (hybrydowy legacy/Godot) opisany jawnie, żeby uniknąć mylenia torów
     - [x] Krytyczna analiza (2026-02-23): `AGENTS.md` doprecyzowany — `Now` jest powiązane z branch workflow, a na `main` ma być puste
-## Next (Kolejne)
 - [ ] Godot pipeline v0 (branch: chore/godot-pipeline-v0)
   - [x] [P1] Walidacja skryptu: parse + load + tick fizyki (smoke test)
   - [x] [P1] Retry loop: LLM repair z limitem prób i timeoutem
