@@ -114,6 +114,31 @@ Uwaga: ponizsze komendy dotycza legacy sciezki DSL. Nowy pipeline Godot/GDScript
 - Render finalny -> QC -> publikacja -> metryki.
 - Komendy i API dla nowego toru zostana dodane w ramach migracji.
 
+### Manualny E2E (GUI-first) – checklista operatora
+Docelowo caly przeplyw ma byc wykonywany krok po kroku z GUI (bez CLI). Na obecnym etapie:
+
+1. Uruchom środowisko:
+   - `make infra-up`
+   - `make run-dev`
+2. Otwórz UI (`http://localhost:5173`) i przejdź do widoku `Flow`.
+3. Wygeneruj kandydatów (sekcja generatora / Idea Repository), następnie zweryfikuj że kandydaci są `feasible`.
+4. W `Idea Gate` wybierz dokładnie jednego kandydata (`picked`) i zapisz decyzję.
+5. Uruchom render (obecnie legacy/manual ops zależnie od etapu migracji) i poczekaj aż animacja pojawi się na liście `Animations`.
+6. W `Animations` wybierz animację i sprawdź:
+   - podgląd wideo,
+   - artefakty,
+   - status renderu i stage.
+7. W panelu szczegółów animacji zapisz decyzję `QC` (`accepted` / `rejected` / `regenerate`) wraz z notatką, jeśli potrzebna.
+8. Jeśli `QC=accepted`, zapisz `Publish Record (manual)` dla platformy (`youtube`/`tiktok`) i ustaw status (najczęściej `manual_confirmed` albo `published`).
+9. Zweryfikuj w UI:
+   - zmianę statusu animacji (`published`) i etapu (`metrics`) po publikacji,
+   - wpisy w `Audit log` (`qc_decision`, `publish_record`).
+10. Jeśli coś nie działa, zanotuj błąd i dodaj podpunkt ryzyka/korekty do `TODO.md` (zgodnie z `AGENTS.md`).
+
+Uwagi:
+- Na tym etapie automatyzacje i pełny tor Godot (`compile_gdscript -> validate -> preview -> final_render`) są rozwijane krok po kroku.
+- Dla etapu Godot można lokalnie weryfikować runner CLI przez `make godot-verify-cli`, `make godot-preview`, `make godot-render`.
+
 ### Godot CLI (lokalna weryfikacja)
 Do testu flag Godota (headless + write-movie):
 ```bash

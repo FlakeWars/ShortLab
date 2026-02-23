@@ -64,3 +64,34 @@ Poniżej nowy, uproszczony przeplyw oparty o pelny skrypt GDScript generowany pr
 ## Wazne uwagi
 - Skrypt GDScript jest glownym kontraktem; brak osobnego DSL w MVP.
 - Legacy DSL pipeline pozostaje w repo, ale nie jest kierunkiem rozwojowym.
+
+## Plan wdrozenia GUI-first (manual, bez automatyzacji)
+
+Celem najblizszych iteracji jest przejscie calego procesu E2E w panelu operatora krok po kroku, zanim wlaczymy automatyzacje.
+
+### Etap A (domkniecie koncowki E2E w GUI) - najpilniejsze
+- Dodac akcje GUI + endpointy HTTP dla:
+  - QC: `accept / reject / regenerate`
+  - Publish: utworzenie `publish_record` (co najmniej `youtube`, `tiktok`, `manual_confirmed`)
+- Powod: UI juz pokazuje animacje/render/QC statusy, ale operator nadal musi schodzic do CLI, zeby zamknac proces po renderze.
+
+### Etap B (manualny tor Godot w GUI)
+- Dla wybranej idei (lub kandydata) dodac jawne akcje uruchamiane recznie:
+  1. `compile_gdscript`
+  2. `validate` (smoke test)
+  3. `preview` (krotki klip)
+  4. `final_render`
+- Kazdy krok powinien pokazywac:
+  - status (`idle/running/success/fail`)
+  - log/skrot bledu
+  - artefakt wyjsciowy (np. sciezka do skryptu, video preview)
+
+### Etap C (stepper operatora / jeden ekran Flow)
+- Jeden widok procesu: `Idea Gate -> GDScript -> Validate -> Preview -> Render -> QC -> Publish`
+- Widok ma prowadzic operatora tylko do nastepnego kroku i pokazywac blokady.
+- Automatyzacje (retry, auto-enqueue, scheduler) zostaja wylaczone lub ukryte w tym etapie prac.
+
+### Kryterium "manual E2E dziala"
+- Operator bez CLI przechodzi przez wszystkie kroki od wyboru idei do zapisu publikacji.
+- Kazdy krok zapisuje audit event i czytelny status w UI.
+- Bledy sa widoczne w kontekście kroku, bez potrzeby szukania w logach systemowych.

@@ -371,6 +371,19 @@ function App() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [artifactsError, setArtifactsError] = useState<string | null>(null)
   const [artifactsLoading, setArtifactsLoading] = useState(false)
+  const [reviewActionMessage, setReviewActionMessage] = useState<string | null>(null)
+  const [reviewActionError, setReviewActionError] = useState<string | null>(null)
+  const [qcActionLoading, setQcActionLoading] = useState(false)
+  const [publishActionLoading, setPublishActionLoading] = useState(false)
+  const [qcResultInput, setQcResultInput] = useState<'accepted' | 'rejected' | 'regenerate'>('accepted')
+  const [qcNotesInput, setQcNotesInput] = useState('')
+  const [publishPlatformInput, setPublishPlatformInput] = useState<'youtube' | 'tiktok'>('youtube')
+  const [publishStatusInput, setPublishStatusInput] = useState<
+    'queued' | 'uploading' | 'published' | 'failed' | 'manual_confirmed'
+  >('manual_confirmed')
+  const [publishContentIdInput, setPublishContentIdInput] = useState('')
+  const [publishUrlInput, setPublishUrlInput] = useState('')
+  const [publishErrorInput, setPublishErrorInput] = useState('')
 
   const [ideaCandidates, setIdeaCandidates] = useState<IdeaCandidate[]>([])
   const [ideaError, setIdeaError] = useState<string | null>(null)
@@ -539,9 +552,11 @@ function App() {
       const payload = (await response.json()) as AnimationRow[]
       setAnimationData(payload)
       setAnimationUpdatedAt(new Date())
-      if (payload.length && !selectedAnimation) {
-        setSelectedAnimation(payload[0])
-      }
+      setSelectedAnimation((prev) => {
+        if (payload.length === 0) return null
+        if (!prev) return payload[0]
+        return payload.find((row) => row.id === prev.id) ?? payload[0]
+      })
     } catch (err) {
       setAnimationError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -1008,6 +1023,74 @@ function App() {
     }
   }
 
+  const handleQcDecision = async () => {
+    setQcActionLoading(true)
+    setReviewActionError(null)
+    setReviewActionMessage(null)
+    try {
+      if (!selectedAnimation?.id) {
+        throw new Error('Wybierz animację do decyzji QC.')
+      }
+      const response = await fetch(`${API_BASE}/ops/qc-decide`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          animation_id: selectedAnimation.id,
+          result: qcResultInput,
+          notes: qcNotesInput.trim() || undefined,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setReviewActionMessage(`QC zapisane: ${JSON.stringify(payload)}`)
+      await fetchAnimations()
+      fetchSystemStatus()
+      fetchAuditEvents()
+    } catch (err) {
+      setReviewActionError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setQcActionLoading(false)
+    }
+  }
+
+  const handlePublishRecord = async () => {
+    setPublishActionLoading(true)
+    setReviewActionError(null)
+    setReviewActionMessage(null)
+    try {
+      const renderId = selectedAnimation?.render?.id
+      if (!renderId) {
+        throw new Error('Wybrana animacja nie ma renderu do publikacji.')
+      }
+      const response = await fetch(`${API_BASE}/ops/publish-record`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          render_id: renderId,
+          platform: publishPlatformInput,
+          status: publishStatusInput,
+          content_id: publishContentIdInput.trim() || undefined,
+          url: publishUrlInput.trim() || undefined,
+          error: publishErrorInput.trim() || undefined,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setReviewActionMessage(`Publish zapisany: ${JSON.stringify(payload)}`)
+      await fetchAnimations()
+      fetchSystemStatus()
+      fetchAuditEvents()
+    } catch (err) {
+      setReviewActionError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setPublishActionLoading(false)
+    }
+  }
+
   const fetchSettings = async () => {
     setSettingsLoading(true)
     setSettingsError(null)
@@ -1338,6 +1421,11 @@ function App() {
   useEffect(() => {
     fetchArtifacts(selectedAnimation?.render?.id ?? null)
   }, [selectedAnimation?.render?.id])
+
+  useEffect(() => {
+    setReviewActionError(null)
+    setReviewActionMessage(null)
+  }, [selectedAnimation?.id])
 
   const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
   const services = useMemo(() => systemStatus?.service_status ?? [], [systemStatus])
@@ -3289,6 +3377,139 @@ function App() {
                       ))}
                     </ul>
                   )}
+                </div>
+
+                {reviewActionMessage ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-xs text-emerald-800">
+                    {reviewActionMessage}
+                  </div>
+                ) : null}
+                {reviewActionError ? (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-3 text-xs text-rose-700">
+                    {reviewActionError}
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3">
+                  <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                      QC Action
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                        Result
+                        <select
+                          className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                          value={qcResultInput}
+                          onChange={(event) =>
+                            setQcResultInput(event.target.value as 'accepted' | 'rejected' | 'regenerate')
+                          }
+                        >
+                          <option value="accepted">accepted</option>
+                          <option value="rejected">rejected</option>
+                          <option value="regenerate">regenerate</option>
+                        </select>
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                        Notes
+                        <textarea
+                          className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                          rows={3}
+                          value={qcNotesInput}
+                          onChange={(event) => setQcNotesInput(event.target.value)}
+                          placeholder="Opcjonalna notatka QC"
+                        />
+                      </label>
+                      <Button
+                        className="rounded-full"
+                        onClick={handleQcDecision}
+                        disabled={qcActionLoading}
+                      >
+                        {qcActionLoading ? 'Zapisywanie QC…' : 'Zapisz QC'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
+                      Publish Record (manual)
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                          Platform
+                          <select
+                            className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                            value={publishPlatformInput}
+                            onChange={(event) =>
+                              setPublishPlatformInput(event.target.value as 'youtube' | 'tiktok')
+                            }
+                          >
+                            <option value="youtube">youtube</option>
+                            <option value="tiktok">tiktok</option>
+                          </select>
+                        </label>
+                        <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                          Status
+                          <select
+                            className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                            value={publishStatusInput}
+                            onChange={(event) =>
+                              setPublishStatusInput(
+                                event.target.value as
+                                  | 'queued'
+                                  | 'uploading'
+                                  | 'published'
+                                  | 'failed'
+                                  | 'manual_confirmed',
+                              )
+                            }
+                          >
+                            <option value="manual_confirmed">manual_confirmed</option>
+                            <option value="published">published</option>
+                            <option value="queued">queued</option>
+                            <option value="uploading">uploading</option>
+                            <option value="failed">failed</option>
+                          </select>
+                        </label>
+                      </div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                        Content ID
+                        <input
+                          className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                          value={publishContentIdInput}
+                          onChange={(event) => setPublishContentIdInput(event.target.value)}
+                          placeholder="yt/tiktok content id"
+                        />
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                        URL
+                        <input
+                          className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                          value={publishUrlInput}
+                          onChange={(event) => setPublishUrlInput(event.target.value)}
+                          placeholder="https://..."
+                        />
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                        Error (optional)
+                        <input
+                          className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                          value={publishErrorInput}
+                          onChange={(event) => setPublishErrorInput(event.target.value)}
+                          placeholder="Opis błędu (dla status=failed)"
+                        />
+                      </label>
+                      <Button
+                        variant="outline"
+                        className="rounded-full"
+                        onClick={handlePublishRecord}
+                        disabled={publishActionLoading || !selectedAnimation.render?.id}
+                      >
+                        {publishActionLoading ? 'Zapisywanie publish…' : 'Zapisz Publish Record'}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

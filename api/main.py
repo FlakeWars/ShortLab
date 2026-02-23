@@ -30,6 +30,8 @@ from db.models import (
     IdeaGapLink,
     IdeaBatch,
     MetricsDaily,
+    PublishRecord,
+    QCChecklistVersion,
     QCDecision,
     Render,
     Job,
@@ -86,6 +88,59 @@ def _require_operator(x_operator_token: str | None = Header(default=None)) -> No
 def _artifact_base_dir() -> Path:
     base_dir = getenv("ARTIFACTS_BASE_DIR", "out")
     return Path(base_dir).expanduser().resolve()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _get_or_create_qc_checklist(session) -> QCChecklistVersion:
+    existing = session.execute(
+        select(QCChecklistVersion).where(
+            QCChecklistVersion.name == "mvp",
+            QCChecklistVersion.version == "v1",
+        )
+    ).scalars().first()
+    if existing is not None:
+        return existing
+    checklist = QCChecklistVersion(
+        name="mvp",
+        version="v1",
+        is_active=True,
+        created_at=_utc_now(),
+    )
+    session.add(checklist)
+    session.flush()
+    return checklist
+
+
+def _apply_qc_result(animation: Animation, result: str) -> None:
+    if result == "accepted":
+        animation.status = "accepted"
+        animation.pipeline_stage = "publish"
+        return
+    if result == "rejected":
+        animation.status = "rejected"
+        animation.pipeline_stage = "done"
+        return
+    if result == "regenerate":
+        animation.status = "queued"
+        animation.pipeline_stage = "render"
+        return
+    raise ValueError(f"unsupported_qc_result:{result}")
+
+
+def _apply_publish_status(animation: Animation, status: str) -> None:
+    if status in {"queued", "uploading", "failed"}:
+        animation.pipeline_stage = "publish"
+        if animation.status not in {"accepted", "published"}:
+            animation.status = "accepted"
+        return
+    if status in {"published", "manual_confirmed"}:
+        animation.status = "published"
+        animation.pipeline_stage = "metrics"
+        return
+    raise ValueError(f"unsupported_publish_status:{status}")
 
 
 def _worker_state() -> dict:
@@ -264,6 +319,28 @@ class IdeaCandidateGenerateRequest(BaseModel):
     preview: str | None = Field(default=None)
     file_name: str | None = Field(default=None)
     file_content: str | None = Field(default=None)
+
+
+class QcDecisionCreateRequest(BaseModel):
+    animation_id: UUID
+    result: Literal["accepted", "rejected", "regenerate"]
+    notes: str | None = Field(default=None)
+    decided_by: UUID | None = Field(default=None)
+    decision_payload: dict | None = Field(default=None)
+
+
+class PublishRecordCreateRequest(BaseModel):
+    render_id: UUID
+    platform: Literal["youtube", "tiktok"]
+    status: Literal["queued", "uploading", "published", "failed", "manual_confirmed"] = Field(
+        default="manual_confirmed"
+    )
+    content_id: str | None = Field(default=None)
+    url: str | None = Field(default=None)
+    scheduled_for: datetime | None = Field(default=None)
+    published_at: datetime | None = Field(default=None)
+    error: str | None = Field(default=None)
+    actor: UUID | None = Field(default=None)
 
 
 @app.get("/health")
@@ -1474,5 +1551,138 @@ def ops_cleanup_jobs(request: CleanupRequest, _guard: None = Depends(_require_op
             session.add(job)
         session.commit()
         return {"marked_failed": len(jobs)}
+    finally:
+        session.close()
+
+
+@app.post("/ops/qc-decide")
+def ops_qc_decide(
+    request: QcDecisionCreateRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        animation = session.get(Animation, request.animation_id)
+        if animation is None:
+            raise HTTPException(status_code=404, detail="animation_not_found")
+
+        checklist = _get_or_create_qc_checklist(session)
+        now = _utc_now()
+        decision = QCDecision(
+            animation_id=animation.id,
+            checklist_version_id=checklist.id,
+            result=request.result,
+            decision_payload=request.decision_payload,
+            notes=(request.notes or "").strip() or None,
+            decided_by=request.decided_by,
+            decided_at=now,
+            created_at=now,
+        )
+        session.add(decision)
+        session.flush()
+
+        _apply_qc_result(animation, request.result)
+        animation.updated_at = now
+        session.add(animation)
+
+        session.add(
+            AuditEvent(
+                event_type="qc_decision",
+                source="ui",
+                actor_user_id=request.decided_by,
+                occurred_at=now,
+                payload={
+                    "animation_id": str(animation.id),
+                    "qc_decision_id": str(decision.id),
+                    "result": request.result,
+                    "notes": (request.notes or "").strip() or None,
+                },
+            )
+        )
+        session.commit()
+        return jsonable_encoder(
+            {
+                "animation_id": animation.id,
+                "qc_decision_id": decision.id,
+                "result": decision.result,
+                "animation_status": animation.status,
+                "pipeline_stage": animation.pipeline_stage,
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    finally:
+        session.close()
+
+
+@app.post("/ops/publish-record")
+def ops_publish_record(
+    request: PublishRecordCreateRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        render = session.get(Render, request.render_id)
+        if render is None:
+            raise HTTPException(status_code=404, detail="render_not_found")
+        animation = session.get(Animation, render.animation_id)
+        if animation is None:
+            raise HTTPException(status_code=404, detail="animation_not_found")
+
+        now = _utc_now()
+        record = PublishRecord(
+            render_id=render.id,
+            platform_type=request.platform,
+            status=request.status,
+            content_id=(request.content_id or "").strip() or None,
+            url=(request.url or "").strip() or None,
+            scheduled_for=request.scheduled_for,
+            published_at=request.published_at,
+            error_payload={"message": request.error} if request.error else None,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(record)
+        session.flush()
+
+        _apply_publish_status(animation, request.status)
+        animation.updated_at = now
+        session.add(animation)
+
+        session.add(
+            AuditEvent(
+                event_type="publish_record",
+                source="ui",
+                actor_user_id=request.actor,
+                occurred_at=now,
+                payload={
+                    "render_id": str(render.id),
+                    "animation_id": str(animation.id),
+                    "publish_record_id": str(record.id),
+                    "platform": request.platform,
+                    "status": request.status,
+                },
+            )
+        )
+        session.commit()
+        return jsonable_encoder(
+            {
+                "publish_record_id": record.id,
+                "render_id": render.id,
+                "animation_id": animation.id,
+                "platform": record.platform_type,
+                "status": record.status,
+                "animation_status": animation.status,
+                "pipeline_stage": animation.pipeline_stage,
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
     finally:
         session.close()

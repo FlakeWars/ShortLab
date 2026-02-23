@@ -6,6 +6,21 @@
  - [x] [P1] Zdefiniować ograniczoną pulę node/shape + Godot 4.x only (ban API 3.x)
  - [x] [P2] Ustalić format logów błędów dla pętli naprawy LLM (ścieżka -> expected -> got)
   - [x] [P2] Zdefiniować limit prób naprawy i fallback przy fail
+  - [ ] [P1] GUI-first manual E2E (Godot): rozpiska etapów i wdrażanie po jednym kroku (bez automatyzacji)
+    - [x] Krytyczna analiza (2026-02-23): UI/API dobrze pokrywa Idea Repository/Idea Gate, listy animacji, podgląd renderu, audit log i operacje `enqueue/rerun/cleanup` (legacy)
+    - [x] Krytyczna analiza (2026-02-23): backend ma lokalny runner Godot (`scripts/godot-run.py`) i kompilator GDScript (`ideas/godot_compiler.py`), ale brak ręcznych endpointów HTTP dla etapów `compile_gdscript -> validate -> preview -> final_render`
+    - [x] Krytyczna analiza (2026-02-23): UI pokazuje status QC/publish, ale brak akcji GUI zapisujących `qc_decision` i `publish_record` (obecnie głównie CLI)
+    - [x] Krytyczna analiza (2026-02-23): Flow w UI miesza kroki legacy DSL i docelowy tor Godot; potrzebny jawny stepper operatora dla trybu manualnego
+    - [x] Następny krok implementacyjny: dodać ręczne akcje QC + Publish w API i GUI (domknięcie końcówki E2E bez CLI)
+    - [x] Krytyczna analiza (2026-02-23): dodano endpointy `POST /ops/qc-decide` i `POST /ops/publish-record` oraz formularze akcji w panelu szczegółów animacji (GUI)
+    - [x] Krytyczna analiza (2026-02-23): `publish_record` aktualizuje teraz status/stage animacji (`published` -> `metrics`) dla statusów `published/manual_confirmed`, co domyka ręczny flow w UI
+    - [x] Krytyczna analiza (2026-02-23): usunięto konflikt zasad branch workflow w `AGENTS.md` i dodano obowiązkową checklistę branch workflow
+    - [ ] Ryzyko/uzupełnienie: dodać widoczność historii publikacji per animacja/render (lista `publish_record`) w panelu szczegółów, bo obecnie operator widzi tylko efekt po statusie/audicie
+    - [ ] Ryzyko/uzupełnienie: dodać walidację pól formularza Publish w UI (np. wymagany `content_id/url` dla statusu `published/manual_confirmed`)
+    - [ ] Kolejny krok po tym: dodać panel „Godot Manual Run” (GUI) z akcjami `compile_gdscript`, `validate`, `preview`, `final_render` dla wybranej idei
+    - [x] Dodać checklistę manualnego przejścia E2E w UI/README (krok po kroku dla operatora)
+    - [x] Krytyczna analiza (2026-02-23): checklista manualnego E2E dodana do `README.md`; stan obecny (hybrydowy legacy/Godot) opisany jawnie, żeby uniknąć mylenia torów
+    - [x] Krytyczna analiza (2026-02-23): `AGENTS.md` doprecyzowany — `Now` jest powiązane z branch workflow, a na `main` ma być puste
 ## Next (Kolejne)
 - [ ] Godot pipeline v0 (branch: chore/godot-pipeline-v0)
   - [x] [P1] Walidacja skryptu: parse + load + tick fizyki (smoke test)
