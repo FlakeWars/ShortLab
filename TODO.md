@@ -34,6 +34,7 @@
     - [x] Krytyczna analiza (2026-02-23): `AGENTS.md` doprecyzowany — `Now` jest powiązane z branch workflow, a na `main` ma być puste
     - [x] Post-merge review (2026-02-23): zmiany UI/API (QC+Publish manual) oraz zasady procesu/README zsynchronizowane na `main`; `Now` na `main` pozostaje puste
     - [x] Post-merge review (2026-02-23): Etap B (Godot Manual Run panel + endpointy + lokalny podgląd plików) scalony do `main`; nowe priorytety bez zmian, kolejnym krokiem pozostaje weryfikacja `preview/final_render` poza sandboxem i persystencja wyników
+    - [x] Post-merge review (2026-02-23): fix autodetekcji `GODOT_BIN` scalony do `main`; poprawia ergonomię testów/operatora bez zmiany architektury (natywny Godot nadal zarządzany przez projekt)
 - [ ] Godot pipeline v0 (branch: chore/godot-pipeline-v0)
   - [x] [P1] Walidacja skryptu: parse + load + tick fizyki (smoke test)
   - [x] [P1] Retry loop: LLM repair z limitem prób i timeoutem
