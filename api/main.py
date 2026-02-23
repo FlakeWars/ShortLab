@@ -1889,7 +1889,12 @@ def _ops_godot_run_mode(
         if request.out_path:
             out_path = Path(request.out_path).expanduser().resolve()
         else:
-            base_dir = script_path.parent
+            manual_root = _manual_godot_root()
+            try:
+                script_path.parent.relative_to(manual_root)
+                base_dir = script_path.parent
+            except ValueError:
+                base_dir = manual_root / script_path.stem
             out_path = base_dir / ("preview.mp4" if mode == "preview" else "final.mp4")
 
     result = _run_godot_manual_step(

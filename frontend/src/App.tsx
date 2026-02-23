@@ -517,10 +517,24 @@ function App() {
     try {
       const payload = await response.json()
       if (payload && typeof payload === 'object') {
-        detail =
-          (payload as { detail?: string; message?: string }).detail ||
-          (payload as { detail?: string; message?: string }).message ||
-          JSON.stringify(payload)
+        const detailValue = (payload as { detail?: unknown; message?: unknown }).detail
+        const messageValue = (payload as { detail?: unknown; message?: unknown }).message
+        if (typeof detailValue === 'string') {
+          detail = detailValue
+        } else if (detailValue && typeof detailValue === 'object') {
+          const d = detailValue as Record<string, unknown>
+          const parts = [
+            typeof d.exit_code === 'number' ? `exit=${d.exit_code}` : null,
+            typeof d.log_file === 'string' ? `log=${d.log_file}` : null,
+            typeof d.stderr === 'string' && d.stderr ? `stderr=${d.stderr}` : null,
+            typeof d.stdout === 'string' && d.stdout ? `stdout=${d.stdout}` : null,
+          ].filter(Boolean)
+          detail = parts.join(' | ') || JSON.stringify(detailValue)
+        } else if (typeof messageValue === 'string') {
+          detail = messageValue
+        } else {
+          detail = JSON.stringify(payload)
+        }
       }
     } catch {
       try {

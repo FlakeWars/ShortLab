@@ -271,3 +271,41 @@ def test_get_manual_godot_file_restricts_to_manual_root(monkeypatch, tmp_path: P
         raise AssertionError("expected HTTPException")
     except HTTPException as exc:
         assert exc.status_code == 403
+
+
+def test_ops_godot_preview_defaults_out_path_to_manual_root(monkeypatch, tmp_path: Path) -> None:
+    script = tmp_path / "example.gd"
+    script.write_text("extends Node2D\n")
+    manual_root = tmp_path / "manual-godot"
+    fake_session = _FakeSession()
+
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+    monkeypatch.setattr(api_main, "_manual_godot_root", lambda: manual_root.resolve())
+
+    captured: dict[str, object] = {}
+
+    def _fake_run(**kwargs):
+        captured.update(kwargs)
+        out_path = kwargs.get("out_path")
+        return {
+            "ok": True,
+            "mode": "preview",
+            "script_path": str(script),
+            "out_path": str(out_path) if out_path else None,
+            "out_exists": False,
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": "",
+            "log_file": None,
+        }
+
+    monkeypatch.setattr(api_main, "_run_godot_manual_step", _fake_run)
+
+    payload = api_main.ops_godot_preview(
+        api_main.GodotManualRunRequest(script_path=str(script)),
+        _guard=None,
+    )
+
+    expected_out = manual_root / "example" / "preview.mp4"
+    assert payload["out_path"] == str(expected_out.resolve())
+    assert str(captured["out_path"]) == str(expected_out.resolve())

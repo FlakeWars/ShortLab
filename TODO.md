@@ -1,6 +1,13 @@
 # TODO
 
 ## Now (W toku)
+- [ ] Fix UX: Godot Manual Run (domyślne `out_path` do `out/manual-godot` + czytelne błędy API) (branch: fix/godot-manual-run-ux)
+  - [x] Backend: domyślny `out_path` dla `preview/render` w `out/manual-godot/...`
+  - [x] UI: czytelne formatowanie błędów API z `detail` (zamiast `[object Object]`)
+  - [x] Testy API: regresja default `out_path` dla `preview` + brak regresji istniejących endpointów
+  - [x] Smoke lokalny: Validate/Preview/Render po zmianie domyślnego `out_path` (2026-02-23: success lokalnie na macOS; `validate`, `preview`, `render` = exit 0)
+  - [x] Krytyczna analiza (2026-02-23): fix usuwa dwa problemy UX naraz — błędy są czytelne, a domyślne pliki preview/final trafiają do katalogu obsługiwanego przez endpoint `GET /godot/manual-file`; test lokalny potwierdził działanie Etapu B poza sandboxem
+  - [ ] Ryzyko/uzupełnienie: przetestować w UI, czy istniejące artefakty w `renderer/godot/examples/` nie mylą operatora (warto rozważyć komunikat/cleanup)
 
 
 
