@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 import hashlib
+import json
 from os import getenv
 from pathlib import Path
 import subprocess
@@ -95,6 +96,69 @@ def _artifact_base_dir() -> Path:
 
 def _manual_godot_root() -> Path:
     return Path(getenv("MANUAL_GODOT_OUT_ROOT", "out/manual-godot")).expanduser().resolve()
+
+
+def _manual_godot_history_file() -> Path:
+    return _manual_godot_root() / "_history" / "manual-runs.jsonl"
+
+
+def _manual_godot_history_record(
+    *,
+    step: Literal["compile", "validate", "preview", "render"],
+    ok: bool,
+    actor_user_id: UUID | None = None,
+    idea_id: UUID | None = None,
+    payload: dict | None = None,
+    error: str | None = None,
+) -> dict:
+    payload = payload or {}
+    return {
+        "id": str(uuid4()),
+        "recorded_at": _utc_now().isoformat(),
+        "step": step,
+        "ok": bool(ok),
+        "actor_user_id": str(actor_user_id) if actor_user_id else None,
+        "idea_id": str(idea_id) if idea_id else None,
+        "script_path": payload.get("script_path"),
+        "out_path": payload.get("out_path"),
+        "out_exists": payload.get("out_exists"),
+        "log_file": payload.get("log_file"),
+        "exit_code": payload.get("exit_code"),
+        "script_hash": payload.get("script_hash"),
+        "error": error,
+    }
+
+
+def _append_manual_godot_history(record: dict) -> None:
+    path = _manual_godot_history_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=True))
+        handle.write("\n")
+
+
+def _read_manual_godot_history(*, limit: int = 20, step: str | None = None, script_path: str | None = None) -> list[dict]:
+    path = _manual_godot_history_file()
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        if step and str(row.get("step")) != step:
+            continue
+        if script_path and str(row.get("script_path")) != script_path:
+            continue
+        rows.append(row)
+    rows.sort(key=lambda item: str(item.get("recorded_at") or ""), reverse=True)
+    return rows[: max(1, min(limit, 100))]
 
 
 def _utc_now() -> datetime:
@@ -1647,6 +1711,19 @@ def get_manual_godot_file(path: str = Query(..., min_length=1)):
     return FileResponse(path=str(file_path), media_type=media_type)
 
 
+@app.get("/ops/godot/manual-runs")
+def list_godot_manual_runs(
+    limit: int = Query(20, ge=1, le=100),
+    step: Literal["compile", "validate", "preview", "render"] | None = Query(default=None),
+    script_path: str | None = Query(default=None),
+    _guard: None = Depends(_require_operator),
+) -> list[dict]:
+    normalized_script = None
+    if script_path:
+        normalized_script = str(Path(script_path).expanduser().resolve())
+    return _read_manual_godot_history(limit=limit, step=step, script_path=normalized_script)
+
+
 @app.post("/ops/enqueue")
 def ops_enqueue(request: EnqueueRequest, _guard: None = Depends(_require_operator)) -> dict:
     from pipeline.queue import enqueue_pipeline
@@ -1862,12 +1939,40 @@ def ops_godot_compile_gdscript(
                 "script_hash": result.script_hash,
             },
         )
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="compile",
+                ok=True,
+                actor_user_id=request.actor,
+                idea_id=idea.id,
+                payload=payload,
+            )
+        )
         session.commit()
         return jsonable_encoder(payload)
-    except HTTPException:
+    except HTTPException as exc:
+        session.rollback()
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="compile",
+                ok=False,
+                actor_user_id=request.actor,
+                idea_id=request.idea_id,
+                error=str(exc.detail),
+            )
+        )
         raise
     except Exception as exc:
         session.rollback()
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="compile",
+                ok=False,
+                actor_user_id=request.actor,
+                idea_id=request.idea_id,
+                error=str(exc),
+            )
+        )
         raise HTTPException(status_code=400, detail=str(exc))
     finally:
         session.close()
@@ -1925,8 +2030,29 @@ def ops_godot_validate(
             actor_user_id=request.actor,
             payload={"script_path": result["script_path"], "log_file": result.get("log_file")},
         )
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="validate",
+                ok=True,
+                actor_user_id=request.actor,
+                payload=result,
+            )
+        )
         session.commit()
         return jsonable_encoder(result)
+    except HTTPException as exc:
+        session.rollback()
+        detail = exc.detail if isinstance(exc.detail, dict) else None
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="validate",
+                ok=False,
+                actor_user_id=request.actor,
+                payload=detail,
+                error=None if detail else str(exc.detail),
+            )
+        )
+        raise
     finally:
         session.close()
 
@@ -1949,8 +2075,29 @@ def ops_godot_preview(
                 "log_file": result.get("log_file"),
             },
         )
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="preview",
+                ok=True,
+                actor_user_id=request.actor,
+                payload=result,
+            )
+        )
         session.commit()
         return jsonable_encoder(result)
+    except HTTPException as exc:
+        session.rollback()
+        detail = exc.detail if isinstance(exc.detail, dict) else None
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="preview",
+                ok=False,
+                actor_user_id=request.actor,
+                payload=detail,
+                error=None if detail else str(exc.detail),
+            )
+        )
+        raise
     finally:
         session.close()
 
@@ -1973,7 +2120,28 @@ def ops_godot_render(
                 "log_file": result.get("log_file"),
             },
         )
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="render",
+                ok=True,
+                actor_user_id=request.actor,
+                payload=result,
+            )
+        )
         session.commit()
         return jsonable_encoder(result)
+    except HTTPException as exc:
+        session.rollback()
+        detail = exc.detail if isinstance(exc.detail, dict) else None
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="render",
+                ok=False,
+                actor_user_id=request.actor,
+                payload=detail,
+                error=None if detail else str(exc.detail),
+            )
+        )
+        raise
     finally:
         session.close()

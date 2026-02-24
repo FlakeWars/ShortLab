@@ -1,6 +1,14 @@
 # TODO
 
 ## Now (W toku)
+- [ ] Etap B: persystencja rezultatów manual run (preview/final/logi) poza sesją UI (branch: feat/godot-manual-run-history)
+  - [x] Backend: zapisać historię kroków manualnych Godot (compile/validate/preview/render) do trwałego store bez migracji DB
+  - [x] API/UI: dodać odczyt listy ostatnich runów w panelu `Godot Manual Run`
+  - [x] Testy API dla persystencji i listowania historii
+  - [x] Smoke UI lokalny: potwierdzono odświeżanie historii po `validate/preview` oraz zapis `preview.mp4` do `out/manual-godot/...` (2026-02-24, macOS operator)
+  - [x] Krytyczna analiza (2026-02-24): JSONL w `out/manual-godot/_history/manual-runs.jsonl` pozwala szybko domknąć persystencję Etapu B bez migracji DB; endpoint `GET /ops/godot/manual-runs` utrzymuje historię poza sesją UI i daje operatorowi szybki podgląd ostatnich kroków. Lokalny smoke potwierdził też poprawny domyślny zapis preview do katalogu obsługiwanego przez UI (`out/manual-godot/...`)
+  - [ ] Ryzyko/uzupełnienie: dodać prostą rotację/przycinanie historii JSONL (np. max N rekordów lub rozmiar pliku), żeby uniknąć degradacji po długim używaniu
+  - [ ] Ryzyko/uzupełnienie: rozważyć migrację historii do DB po ustabilizowaniu kontraktu pól
 
 
 

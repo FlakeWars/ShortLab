@@ -309,3 +309,78 @@ def test_ops_godot_preview_defaults_out_path_to_manual_root(monkeypatch, tmp_pat
     expected_out = manual_root / "example" / "preview.mp4"
     assert payload["out_path"] == str(expected_out.resolve())
     assert str(captured["out_path"]) == str(expected_out.resolve())
+
+
+def test_ops_godot_validate_persists_manual_history(monkeypatch, tmp_path: Path) -> None:
+    script = tmp_path / "script.gd"
+    script.write_text("extends Node2D\n")
+    fake_session = _FakeSession()
+    history_file = tmp_path / "manual-godot" / "_history" / "manual-runs.jsonl"
+    now = datetime(2026, 2, 23, 15, 0, tzinfo=UTC)
+
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+    monkeypatch.setattr(api_main, "_utc_now", lambda: now)
+    monkeypatch.setattr(api_main, "_manual_godot_history_file", lambda: history_file)
+    monkeypatch.setattr(
+        api_main,
+        "_run_godot_manual_step",
+        lambda **kwargs: {
+            "ok": True,
+            "mode": "validate",
+            "script_path": str(script.resolve()),
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": "",
+            "log_file": str(tmp_path / "godot.log"),
+        },
+    )
+
+    api_main.ops_godot_validate(api_main.GodotManualRunRequest(script_path=str(script)), _guard=None)
+
+    lines = history_file.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    row = api_main.json.loads(lines[0])
+    assert row["step"] == "validate"
+    assert row["ok"] is True
+    assert row["script_path"] == str(script.resolve())
+    assert row["exit_code"] == 0
+
+
+def test_list_godot_manual_runs_reads_jsonl_and_filters(monkeypatch, tmp_path: Path) -> None:
+    history_file = tmp_path / "manual-godot" / "_history" / "manual-runs.jsonl"
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    script_a = str((tmp_path / "a.gd").resolve())
+    script_b = str((tmp_path / "b.gd").resolve())
+    history_file.write_text(
+        "\n".join(
+            [
+                api_main.json.dumps(
+                    {
+                        "id": "1",
+                        "recorded_at": "2026-02-23T12:00:00+00:00",
+                        "step": "preview",
+                        "ok": True,
+                        "script_path": script_a,
+                    }
+                ),
+                api_main.json.dumps(
+                    {
+                        "id": "2",
+                        "recorded_at": "2026-02-23T13:00:00+00:00",
+                        "step": "render",
+                        "ok": False,
+                        "script_path": script_b,
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api_main, "_manual_godot_history_file", lambda: history_file)
+
+    rows = api_main.list_godot_manual_runs(limit=10, step="render", script_path=script_b, _guard=None)
+
+    assert len(rows) == 1
+    assert rows[0]["id"] == "2"
+    assert rows[0]["step"] == "render"

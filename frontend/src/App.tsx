@@ -71,6 +71,22 @@ type GodotManualStepResult = {
   validation_report?: Record<string, unknown>
 }
 
+type GodotManualHistoryRow = {
+  id: string
+  recorded_at?: string | null
+  step?: 'compile' | 'validate' | 'preview' | 'render' | string | null
+  ok?: boolean | null
+  actor_user_id?: string | null
+  idea_id?: string | null
+  script_path?: string | null
+  out_path?: string | null
+  out_exists?: boolean | null
+  log_file?: string | null
+  exit_code?: number | null
+  script_hash?: string | null
+  error?: string | null
+}
+
 type IdeaCandidate = {
   id: string
   idea_batch_id?: string | null
@@ -466,6 +482,9 @@ function App() {
   const [godotStepStatus, setGodotStepStatus] = useState<Record<string, 'idle' | 'success' | 'fail'>>({})
   const [godotStepError, setGodotStepError] = useState<Record<string, string | null>>({})
   const [godotStepResult, setGodotStepResult] = useState<Record<string, GodotManualStepResult | null>>({})
+  const [godotHistoryRows, setGodotHistoryRows] = useState<GodotManualHistoryRow[]>([])
+  const [godotHistoryLoading, setGodotHistoryLoading] = useState(false)
+  const [godotHistoryError, setGodotHistoryError] = useState<string | null>(null)
 
   const [settings, setSettings] = useState<SettingsResponse | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
@@ -626,6 +645,31 @@ function App() {
       setArtifactsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setArtifactsLoading(false)
+    }
+  }
+
+  const fetchGodotManualRuns = async () => {
+    if (!manualFlowEnabled) return
+    setGodotHistoryLoading(true)
+    setGodotHistoryError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '12')
+      if (godotScriptPath.trim()) {
+        params.set('script_path', godotScriptPath.trim())
+      }
+      const response = await fetch(`${API_BASE}/ops/godot/manual-runs?${params.toString()}`, {
+        headers: opsHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as GodotManualHistoryRow[]
+      setGodotHistoryRows(payload)
+    } catch (err) {
+      setGodotHistoryError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setGodotHistoryLoading(false)
     }
   }
 
@@ -1070,6 +1114,7 @@ function App() {
       setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Unknown error', null)
     } finally {
       setGodotStepLoadingState(step, false)
+      fetchGodotManualRuns()
     }
   }
 
@@ -1104,6 +1149,7 @@ function App() {
       setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Unknown error', null)
     } finally {
       setGodotStepLoadingState(step, false)
+      fetchGodotManualRuns()
     }
   }
 
@@ -1526,6 +1572,12 @@ function App() {
     if (activeView !== 'flow') return
     fetchManualPickCandidates()
   }, [activeView, manualFlowEnabled])
+
+  useEffect(() => {
+    if (!manualFlowEnabled) return
+    if (activeView !== 'flow') return
+    fetchGodotManualRuns()
+  }, [activeView, manualFlowEnabled, godotScriptPath])
 
   useEffect(() => {
     fetchAuditEvents()
@@ -2305,6 +2357,58 @@ function App() {
                     </div>
                   )
                 })}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-stone-200 bg-white/80 p-3 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-semibold uppercase tracking-[0.15em] text-stone-900">recent manual runs</div>
+                  <Button
+                    variant="outline"
+                    className="h-7 rounded-full px-3 text-[11px]"
+                    onClick={fetchGodotManualRuns}
+                    disabled={godotHistoryLoading}
+                  >
+                    {godotHistoryLoading ? 'Loading…' : 'Refresh'}
+                  </Button>
+                </div>
+                {godotHistoryError ? <div className="mt-2 text-rose-700">{godotHistoryError}</div> : null}
+                {godotHistoryRows.length === 0 && !godotHistoryLoading && !godotHistoryError ? (
+                  <div className="mt-2 text-stone-500">No persisted runs yet.</div>
+                ) : null}
+                <div className="mt-2 space-y-2">
+                  {godotHistoryRows.map((row) => (
+                    <div key={row.id} className="rounded-lg border border-stone-200 bg-stone-50/60 p-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'border',
+                            row.ok ? 'border-emerald-200 bg-emerald-100 text-emerald-900' : 'border-rose-200 bg-rose-100 text-rose-900',
+                          )}
+                        >
+                          {row.ok ? 'success' : 'fail'}
+                        </Badge>
+                        <span className="font-semibold uppercase tracking-[0.15em] text-stone-700">{row.step ?? 'unknown'}</span>
+                        <span className="text-stone-500">{row.recorded_at ? new Date(row.recorded_at).toLocaleString() : '—'}</span>
+                        {typeof row.exit_code === 'number' ? <span className="text-stone-500">exit={row.exit_code}</span> : null}
+                      </div>
+                      <div className="mt-1 space-y-1 text-stone-600">
+                        {row.script_path ? <div><span className="font-semibold text-stone-800">script:</span> {row.script_path}</div> : null}
+                        {row.out_path ? <div><span className="font-semibold text-stone-800">out:</span> {row.out_path}</div> : null}
+                        {row.log_file ? <div><span className="font-semibold text-stone-800">log:</span> {row.log_file}</div> : null}
+                        {row.error ? <div className="text-rose-700"><span className="font-semibold">error:</span> {row.error}</div> : null}
+                        {(row.step === 'preview' || row.step === 'render') &&
+                        row.out_exists &&
+                        row.out_path &&
+                        row.out_path.includes('/out/manual-godot/') ? (
+                          <div className="mt-2 overflow-hidden rounded-lg border border-stone-200 bg-stone-900">
+                            <video className="max-h-40 w-full object-contain" controls src={manualGodotFileUrl(row.out_path) ?? undefined} />
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
