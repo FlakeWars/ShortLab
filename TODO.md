@@ -1,14 +1,7 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Etap B: persystencja rezultatów manual run (preview/final/logi) poza sesją UI (branch: feat/godot-manual-run-history)
-  - [x] Backend: zapisać historię kroków manualnych Godot (compile/validate/preview/render) do trwałego store bez migracji DB
-  - [x] API/UI: dodać odczyt listy ostatnich runów w panelu `Godot Manual Run`
-  - [x] Testy API dla persystencji i listowania historii
-  - [x] Smoke UI lokalny: potwierdzono odświeżanie historii po `validate/preview` oraz zapis `preview.mp4` do `out/manual-godot/...` (2026-02-24, macOS operator)
-  - [x] Krytyczna analiza (2026-02-24): JSONL w `out/manual-godot/_history/manual-runs.jsonl` pozwala szybko domknąć persystencję Etapu B bez migracji DB; endpoint `GET /ops/godot/manual-runs` utrzymuje historię poza sesją UI i daje operatorowi szybki podgląd ostatnich kroków. Lokalny smoke potwierdził też poprawny domyślny zapis preview do katalogu obsługiwanego przez UI (`out/manual-godot/...`)
-  - [ ] Ryzyko/uzupełnienie: dodać prostą rotację/przycinanie historii JSONL (np. max N rekordów lub rozmiar pliku), żeby uniknąć degradacji po długim używaniu
-  - [ ] Ryzyko/uzupełnienie: rozważyć migrację historii do DB po ustabilizowaniu kontraktu pól
+
 
 
 
@@ -37,7 +30,10 @@
     - [x] Test/Smoke (2026-02-23): `scripts/godot-run.py` + lokalny `GODOT_BIN` potwierdza `validate`; `preview/render` kończą się `exit 250` w bieżącym sandboxie (blokada środowiskowa do weryfikacji poza sandboxem)
     - [x] Usprawnienie (2026-02-23): `scripts/godot-run.py` automatycznie wykrywa lokalną binarkę z `.tools/godot/current/...` (bez ręcznego `export GODOT_BIN`)
     - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot w `Makefile` i `scripts/godot-verify-cli.sh`; `make godot-validate` działa bez ręcznego `GODOT_BIN`
-    - [ ] Ryzyko/uzupełnienie: dodać persystencję rezultatów Etapu B (np. tabela/manual run records lub integracja z `render`/`artifact`), aby preview/final z Godota były widoczne poza sesją UI
+    - [x] Usprawnienie (2026-02-24): dodano persystencję rezultatów Etapu B (historia JSONL w `out/manual-godot/_history/manual-runs.jsonl`) + endpoint `GET /ops/godot/manual-runs` + panel `Recent manual runs` w UI
+    - [x] Test/Smoke (2026-02-24): lokalnie potwierdzono odświeżanie historii po `validate/preview` oraz zapis preview do `out/manual-godot/...` (macOS operator)
+    - [ ] Ryzyko/uzupełnienie: dodać prostą rotację/przycinanie historii JSONL (np. max N rekordów lub rozmiar pliku), żeby uniknąć degradacji po długim używaniu
+    - [ ] Ryzyko/uzupełnienie: rozważyć migrację historii Etapu B do DB po ustabilizowaniu kontraktu pól (np. tabela `manual_run_record`)
     - [x] Test/Smoke (2026-02-23): potwierdzono `preview/final_render` z panelu UI poza sandboxem (lokalny macOS) — `validate`, `preview`, `render` zakończone sukcesem (`exit 0`)
     - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot we wszystkich głównych skryptach/targetach korzystających z Godota
     - [x] Usprawnienie (2026-02-23): UX Etapu B — domyślne `out_path` dla `preview/render` trafia do `out/manual-godot/...`, a UI pokazuje czytelny błąd API zamiast `[object Object]`
