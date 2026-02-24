@@ -69,6 +69,24 @@ type PublishRecordRow = {
   updated_at?: string | null
 }
 
+type MetricsDailyRow = {
+  id: string
+  platform_type?: 'youtube' | 'tiktok' | string | null
+  content_id?: string | null
+  publish_record_id?: string | null
+  render_id?: string | null
+  date?: string | null
+  views?: number | null
+  likes?: number | null
+  comments?: number | null
+  shares?: number | null
+  watch_time_seconds?: number | null
+  avg_view_percentage?: number | null
+  avg_view_duration_seconds?: number | null
+  extra_metrics?: Record<string, unknown> | null
+  created_at?: string | null
+}
+
 type GodotManualStepResult = {
   ok?: boolean
   mode?: 'validate' | 'preview' | 'render'
@@ -425,6 +443,12 @@ function App() {
   const [publishRecords, setPublishRecords] = useState<PublishRecordRow[]>([])
   const [publishRecordsError, setPublishRecordsError] = useState<string | null>(null)
   const [publishRecordsLoading, setPublishRecordsLoading] = useState(false)
+  const [planPublishRecords, setPlanPublishRecords] = useState<PublishRecordRow[]>([])
+  const [planPublishRecordsError, setPlanPublishRecordsError] = useState<string | null>(null)
+  const [planPublishRecordsLoading, setPlanPublishRecordsLoading] = useState(false)
+  const [planMetricsRows, setPlanMetricsRows] = useState<MetricsDailyRow[]>([])
+  const [planMetricsError, setPlanMetricsError] = useState<string | null>(null)
+  const [planMetricsLoading, setPlanMetricsLoading] = useState(false)
   const [reviewActionMessage, setReviewActionMessage] = useState<string | null>(null)
   const [reviewActionError, setReviewActionError] = useState<string | null>(null)
   const [qcActionLoading, setQcActionLoading] = useState(false)
@@ -687,6 +711,44 @@ function App() {
       setPublishRecordsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setPublishRecordsLoading(false)
+    }
+  }
+
+  const fetchPlanPublishRecords = async () => {
+    setPlanPublishRecordsLoading(true)
+    setPlanPublishRecordsError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '50')
+      const response = await fetch(`${API_BASE}/publish-records?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as PublishRecordRow[]
+      setPlanPublishRecords(payload)
+    } catch (err) {
+      setPlanPublishRecordsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setPlanPublishRecordsLoading(false)
+    }
+  }
+
+  const fetchPlanMetrics = async () => {
+    setPlanMetricsLoading(true)
+    setPlanMetricsError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '100')
+      const response = await fetch(`${API_BASE}/metrics-daily?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as MetricsDailyRow[]
+      setPlanMetricsRows(payload)
+    } catch (err) {
+      setPlanMetricsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setPlanMetricsLoading(false)
     }
   }
 
@@ -1626,6 +1688,12 @@ function App() {
   }, [activeView, manualFlowEnabled])
 
   useEffect(() => {
+    if (activeView !== 'plan') return
+    fetchPlanPublishRecords()
+    fetchPlanMetrics()
+  }, [activeView])
+
+  useEffect(() => {
     if (!manualFlowEnabled) return
     if (activeView !== 'flow') return
     fetchGodotManualRuns()
@@ -1680,6 +1748,42 @@ function App() {
     return entries.sort(([a], [b]) => (priority.get(a) ?? 99) - (priority.get(b) ?? 99))
   }, [repoCards])
   const worker = useMemo(() => summaryData?.worker, [summaryData])
+  const planPublishStatusCounts = useMemo(() => {
+    return planPublishRecords.reduce<Record<string, number>>((acc, row) => {
+      const key = row.status || 'unknown'
+      acc[key] = (acc[key] ?? 0) + 1
+      return acc
+    }, {})
+  }, [planPublishRecords])
+  const planLatestMetricsByContent = useMemo(() => {
+    const map = new Map<string, MetricsDailyRow>()
+    for (const row of planMetricsRows) {
+      const platform = row.platform_type || 'unknown'
+      const content = row.content_id || 'unknown'
+      const key = `${platform}::${content}`
+      const current = map.get(key)
+      const currentDate = current?.date ? new Date(current.date).getTime() : 0
+      const nextDate = row.date ? new Date(row.date).getTime() : 0
+      if (!current || nextDate >= currentDate) {
+        map.set(key, row)
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      const aTime = a.date ? new Date(a.date).getTime() : 0
+      const bTime = b.date ? new Date(b.date).getTime() : 0
+      return bTime - aTime
+    })
+  }, [planMetricsRows])
+  const planMetricsTotals = useMemo(() => {
+    return planLatestMetricsByContent.reduce(
+      (acc, row) => {
+        acc.views += Number(row.views ?? 0)
+        acc.likes += Number(row.likes ?? 0)
+        return acc
+      },
+      { views: 0, likes: 0 },
+    )
+  }, [planLatestMetricsByContent])
   const llmRouteRows = useMemo(() => {
     const routes = llmMetrics?.routes ?? {}
     return Object.entries(routes)
@@ -2076,9 +2180,17 @@ function App() {
               Widok operacyjny: co gotowe, co zablokowane i co czeka na decyzję.
             </p>
           </div>
+          <div className="flex flex-wrap gap-2">
           <Button variant="outline" className="rounded-full" onClick={fetchAnimations}>
             Odśwież plan
           </Button>
+          <Button variant="outline" className="rounded-full" onClick={() => {
+            fetchPlanPublishRecords()
+            fetchPlanMetrics()
+          }}>
+            Odśwież publikacje/metryki
+          </Button>
+          </div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
@@ -2089,22 +2201,118 @@ function App() {
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">In production</div>
-              <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.status === 'queued' || a.status === 'running').length}</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Published/manual confirmed</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{(planPublishStatusCounts.published ?? 0) + (planPublishStatusCounts.manual_confirmed ?? 0)}</div>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Needs QC</div>
-              <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.pipeline_stage === 'qc').length}</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Queued/uploading</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{(planPublishStatusCounts.queued ?? 0) + (planPublishStatusCounts.uploading ?? 0)}</div>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Blocked candidates</div>
-              <div className="mt-2 text-2xl font-semibold text-stone-900">{blockedCandidatesCount}</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Latest metrics views (snapshot)</div>
+              <div className="mt-2 text-2xl font-semibold text-stone-900">{planMetricsTotals.views}</div>
+              <div className="text-xs text-stone-500">likes: {planMetricsTotals.likes}</div>
             </CardContent>
           </Card>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-2xl border border-stone-200 bg-white/80 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-stone-900">Recent publish records</div>
+                <div className="text-xs text-stone-500">Status publikacji i ręczne potwierdzenia (YouTube/TikTok)</div>
+              </div>
+              <div className="text-xs text-stone-500">{planPublishRecords.length} rows</div>
+            </div>
+            {planPublishRecordsLoading ? (
+              <div className="mt-3 text-sm text-stone-600">Loading publish records…</div>
+            ) : planPublishRecordsError ? (
+              <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">{planPublishRecordsError}</div>
+            ) : planPublishRecords.length === 0 ? (
+              <div className="mt-3 rounded-xl border border-dashed border-stone-200 bg-stone-50/60 p-4 text-sm text-stone-600">
+                Brak publikacji w historii. Użyj `Publish Record (manual)` w widoku Flow.
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {planPublishRecords.slice(0, 12).map((row) => (
+                  <div key={row.id} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-stone-800">{row.platform_type ?? 'unknown'}</span>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'border',
+                          row.status === 'published' || row.status === 'manual_confirmed'
+                            ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
+                            : row.status === 'failed'
+                              ? 'border-rose-200 bg-rose-100 text-rose-900'
+                              : 'border-stone-200 bg-stone-100 text-stone-700',
+                        )}
+                      >
+                        {row.status ?? 'unknown'}
+                      </Badge>
+                      <span className="text-stone-500">
+                        {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
+                      </span>
+                    </div>
+                    <div className="mt-1 grid gap-1 text-stone-600">
+                      {row.content_id ? <div><span className="font-semibold text-stone-800">content:</span> {row.content_id}</div> : null}
+                      {row.url ? <div className="truncate"><span className="font-semibold text-stone-800">url:</span> {row.url}</div> : null}
+                      {row.scheduled_for ? <div><span className="font-semibold text-stone-800">scheduled:</span> {new Date(row.scheduled_for).toLocaleString()}</div> : null}
+                      {row.published_at ? <div><span className="font-semibold text-stone-800">published_at:</span> {new Date(row.published_at).toLocaleString()}</div> : null}
+                      {row.error_payload && typeof row.error_payload === 'object' && 'message' in row.error_payload ? (
+                        <div className="text-rose-700">
+                          <span className="font-semibold">error:</span> {String((row.error_payload as { message?: unknown }).message ?? '')}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="rounded-2xl border border-stone-200 bg-white/80 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-stone-900">Latest metrics snapshot</div>
+                <div className="text-xs text-stone-500">Najnowszy wpis `metrics_daily` per platform/content</div>
+              </div>
+              <div className="text-xs text-stone-500">{planLatestMetricsByContent.length} items</div>
+            </div>
+            {planMetricsLoading ? (
+              <div className="mt-3 text-sm text-stone-600">Loading metrics…</div>
+            ) : planMetricsError ? (
+              <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">{planMetricsError}</div>
+            ) : planLatestMetricsByContent.length === 0 ? (
+              <div className="mt-3 rounded-xl border border-dashed border-stone-200 bg-stone-50/60 p-4 text-sm text-stone-600">
+                Brak danych `metrics_daily`. To OK na etapie manualnym, dopóki nie działa pull metryk.
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                {planLatestMetricsByContent.slice(0, 12).map((row) => (
+                  <div key={row.id} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-stone-800">{row.platform_type ?? 'unknown'}</span>
+                      <span className="text-stone-500">{row.content_id ?? 'unknown-content'}</span>
+                      <span className="text-stone-500">{row.date ?? '—'}</span>
+                    </div>
+                    <div className="mt-1 grid grid-cols-2 gap-1 text-stone-600">
+                      <div>views: <span className="font-semibold text-stone-800">{row.views ?? 0}</span></div>
+                      <div>likes: <span className="font-semibold text-stone-800">{row.likes ?? 0}</span></div>
+                      <div>comments: <span className="font-semibold text-stone-800">{row.comments ?? 0}</span></div>
+                      <div>shares: <span className="font-semibold text-stone-800">{row.shares ?? 0}</span></div>
+                      <div>avg %: <span className="font-semibold text-stone-800">{row.avg_view_percentage ?? '—'}</span></div>
+                      <div>avg dur: <span className="font-semibold text-stone-800">{row.avg_view_duration_seconds ?? '—'}</span>s</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button className="rounded-full" onClick={() => setActiveView('flow')}>Przejdź do Flow</Button>

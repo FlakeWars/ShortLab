@@ -8,6 +8,7 @@
 
 
 
+
 ## Next (Kolejne)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
   - [x] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM
@@ -155,6 +156,9 @@
 - [ ] UX IA v2: Control Tower / Plan / Flow (branch: feat/ui-ia-v2)
   - [ ] `Home / Control Tower`: health + KPI + "co teraz" + alerty z CTA
   - [ ] `Plan / Calendar`: tydzień publikacji, backlog gotowych animacji, statusy `planned/ready/blocked/published`
+  - [x] Usprawnienie (2026-02-24): `Plan / Calendar` pokazuje realne publikacje (`publish_record`) i snapshot `metrics_daily` zamiast samych liczników
+  - [ ] Ryzyko/uzupełnienie: dodać filtry w UI Plan (platforma/status/zakres dat), bo przy większej historii lista stanie się zbyt długa
+  - [ ] Ryzyko/uzupełnienie: dodać prostą konfigurację harmonogramu dziennego (MVP: settings + UI), aby spełnić wymaganie PRD 1 animacja dziennie
   - [ ] `Flow`: stepper operatora `Idea Gate -> Validate Script -> Preview -> Render -> QC -> Publish`
   - [ ] W `Flow` pokazywać tylko aktywną ścieżkę i następny krok; automatyzacje w tle
   - [ ] `Repositories`: osobny obszar analityczno-administracyjny (bez mieszania z flow)

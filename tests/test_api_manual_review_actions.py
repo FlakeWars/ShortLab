@@ -476,3 +476,26 @@ def test_list_publish_records_returns_rows(monkeypatch) -> None:
     assert len(rows) == 1
     assert rows[0]["id"] == str(record.id)
     assert rows[0]["platform_type"] == "youtube"
+
+
+def test_list_publish_records_allows_global_list_without_render_or_animation(monkeypatch) -> None:
+    now = datetime(2026, 2, 24, 10, 0, tzinfo=UTC)
+    record = PublishRecord(
+        id=uuid4(),
+        render_id=uuid4(),
+        platform_type="tiktok",
+        status="failed",
+        content_id=None,
+        url=None,
+        error_payload={"message": "upload failed"},
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session = _FakeSession()
+    fake_session.execute_item = [record]
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+
+    rows = api_main.list_publish_records(limit=10, offset=0)
+
+    assert len(rows) == 1
+    assert rows[0]["status"] == "failed"

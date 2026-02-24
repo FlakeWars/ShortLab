@@ -1691,11 +1691,11 @@ def list_render_artifacts(render_id: UUID) -> List[dict]:
 def list_publish_records(
     render_id: UUID | None = None,
     animation_id: UUID | None = None,
+    platform_type: Literal["youtube", "tiktok"] | None = None,
+    status: Literal["queued", "uploading", "published", "failed", "manual_confirmed"] | None = None,
     limit: int = Query(20, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> List[dict]:
-    if not render_id and not animation_id:
-        raise HTTPException(status_code=400, detail="render_id_or_animation_id_required")
     limit, offset = _paginate(limit, offset)
     session = SessionLocal()
     try:
@@ -1704,6 +1704,10 @@ def list_publish_records(
             stmt = stmt.join(Render, Render.id == PublishRecord.render_id).where(Render.animation_id == animation_id)
         if render_id:
             stmt = stmt.where(PublishRecord.render_id == render_id)
+        if platform_type:
+            stmt = stmt.where(PublishRecord.platform_type == platform_type)
+        if status:
+            stmt = stmt.where(PublishRecord.status == status)
         stmt = stmt.order_by(desc(PublishRecord.created_at)).limit(limit).offset(offset)
         rows = session.execute(stmt).scalars().all()
         return jsonable_encoder(rows)
