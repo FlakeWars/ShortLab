@@ -11,6 +11,7 @@
 
 
 
+
 ## Next (Kolejne)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
   - [x] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM
@@ -161,12 +162,15 @@
   - [x] Usprawnienie (2026-02-24): `Plan / Calendar` pokazuje realne publikacje (`publish_record`) i snapshot `metrics_daily` zamiast samych liczników
   - [x] Usprawnienie (2026-02-24): `Plan / Calendar` ma konfigurowalny harmonogram dzienny (timezone/godzina/okno/target) + licznik realizacji celu 1/dzień na podstawie `publish_record`
   - [x] Usprawnienie (2026-02-24): `Plan / Calendar` umożliwia ręczny import metryk platform do `metrics_daily` (manual-first) i odświeża snapshot metryk po zapisie
+  - [x] Usprawnienie (2026-02-24): `Plan / Calendar` ma scheduler MVP (`planner/status` + `planner/tick`) z ręcznym triggerem z GUI i oceną gotowości wg okna publikacji/targetu dziennego
   - [ ] Ryzyko/uzupełnienie: dodać filtry w UI Plan (platforma/status/zakres dat), bo przy większej historii lista stanie się zbyt długa
   - [x] Usprawnienie (2026-02-24): dodano prostą konfigurację harmonogramu dziennego (MVP: settings + UI), co spełnia bazowe wymaganie PRD 1 animacja dziennie na poziomie planowania i monitoringu
   - [ ] Ryzyko/uzupełnienie: DST i walidacja stref czasowych w UI (obecnie backend waliduje, UI przyjmuje dowolny string)
-  - [ ] Ryzyko/uzupełnienie: brak automatycznego job schedulera używającego ustawień planera (na razie plan = konfiguracja + monitoring)
+  - [x] Usprawnienie (2026-02-24): dodano manual-first scheduler tick używający ustawień planera (na razie bez cyklicznego joba/cron)
   - [ ] Smoke UI lokalny (uzupełnienie): ręczny import metryk z `Plan / Calendar` + potwierdzenie aktualizacji snapshotu
   - [ ] Ryzyko/uzupełnienie: dodać walidację jednostek/formatu w UI (np. `avg_view_percentage` z przecinkiem vs kropką)
+  - [ ] Smoke UI lokalny (uzupełnienie): `Run planner tick` w `Plan` (skip poza oknem / enqueue w oknie lub force)
+  - [ ] Ryzyko/uzupełnienie: dodać mocniejszą idempotencję schedulera (np. `pipeline_run` dedupe per dzień/okno) zamiast heurystyki pending jobs
   - [ ] `Flow`: stepper operatora `Idea Gate -> Validate Script -> Preview -> Render -> QC -> Publish`
   - [ ] W `Flow` pokazywać tylko aktywną ścieżkę i następny krok; automatyzacje w tle
   - [ ] `Repositories`: osobny obszar analityczno-administracyjny (bez mieszania z flow)

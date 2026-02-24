@@ -34,6 +34,12 @@ class _FakeExecuteResult:
     def scalars(self):
         return _FakeScalarResult(self._item)
 
+    def scalar_one(self):
+        return self._item
+
+    def scalar_one_or_none(self):
+        return self._item
+
 
 class _FakeSession:
     def __init__(
@@ -632,3 +638,75 @@ def test_ops_metrics_daily_manual_upsert_validates_publish_record_ref(monkeypatc
     except HTTPException as exc:
         assert exc.status_code == 404
         assert exc.detail == "publish_record_not_found"
+
+
+def test_get_planner_status_uses_snapshot(monkeypatch) -> None:
+    fake_session = _FakeSession()
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+    monkeypatch.setattr(
+        api_main,
+        "_planner_status_snapshot",
+        lambda _session: {
+            "timezone": "UTC",
+            "local_day": "2026-02-24",
+            "in_window": True,
+            "should_enqueue": True,
+            "reason": "ready",
+        },
+    )
+    payload = api_main.get_planner_status()
+    assert payload["should_enqueue"] is True
+    assert payload["reason"] == "ready"
+
+
+def test_planner_tick_skips_when_not_ready(monkeypatch) -> None:
+    fake_session = _FakeSession()
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+    monkeypatch.setattr(
+        api_main,
+        "_planner_status_snapshot",
+        lambda _session: {
+            "timezone": "UTC",
+            "local_day": "2026-02-24",
+            "in_window": False,
+            "should_enqueue": False,
+            "reason": "outside_window",
+        },
+    )
+    payload = api_main.planner_tick(api_main.PlannerTickRequest(), _guard=None)
+    assert payload["triggered"] is False
+    assert payload["reason"] == "outside_window"
+
+
+def test_planner_tick_enqueues_when_ready(monkeypatch) -> None:
+    fake_session = _FakeSession()
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+
+    calls = {"n": 0}
+
+    def _snapshot(_session):
+        calls["n"] += 1
+        return {
+            "timezone": "UTC",
+            "local_day": "2026-02-24",
+            "in_window": True,
+            "should_enqueue": True,
+            "reason": "ready",
+        }
+
+    monkeypatch.setattr(api_main, "_planner_status_snapshot", _snapshot)
+    import pipeline.queue as queue_mod
+
+    monkeypatch.setattr(
+        queue_mod,
+        "enqueue_pipeline",
+        lambda dsl_template, out_root, idea_gate, idea_id: {
+            "animation_id": uuid4(),
+            "rq_generate_id": "rq-gen",
+            "rq_render_id": "rq-render",
+        },
+    )
+    payload = api_main.planner_tick(api_main.PlannerTickRequest(), _guard=None)
+    assert payload["triggered"] is True
+    assert payload["reason"] == "enqueued"
+    assert payload["enqueue_result"]["rq_generate_id"] == "rq-gen"

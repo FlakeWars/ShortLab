@@ -135,6 +135,79 @@ def _save_planner_settings(payload: dict) -> dict:
     return payload
 
 
+def _planner_status_snapshot(session) -> dict:
+    cfg = _load_planner_settings()
+    tz_name = str(cfg.get("timezone") or "UTC")
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        tz = ZoneInfo("UTC")
+        tz_name = "UTC"
+        cfg["timezone"] = "UTC"
+
+    now_utc = _utc_now()
+    now_local = now_utc.astimezone(tz)
+    hour = int(cfg.get("daily_publish_hour", 18))
+    minute = int(cfg.get("daily_publish_minute", 0))
+    window_minutes = int(cfg.get("publish_window_minutes", 120))
+    target_per_day = int(cfg.get("target_per_day", 1))
+    window_start_local = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    window_end_local = window_start_local + timedelta(minutes=window_minutes)
+    in_window = window_start_local <= now_local <= window_end_local
+    local_day = now_local.date()
+
+    recent_publish = session.execute(
+        select(PublishRecord).where(PublishRecord.created_at >= now_utc - timedelta(days=3))
+    ).scalars().all()
+    published_today = 0
+    for row in recent_publish:
+        if row.status not in {"published", "manual_confirmed"}:
+            continue
+        source_ts = row.published_at or row.created_at
+        if source_ts is None:
+            continue
+        if source_ts.astimezone(tz).date() == local_day:
+            published_today += 1
+
+    pending_jobs_today = session.execute(
+        select(func.count())
+        .select_from(Job)
+        .where(
+            and_(
+                Job.status.in_(["queued", "running"]),
+                Job.job_type.in_(["generate_dsl", "render"]),
+                Job.created_at >= now_utc - timedelta(days=1),
+            )
+        )
+    ).scalar_one()
+
+    should_enqueue = in_window and published_today < target_per_day and int(pending_jobs_today or 0) == 0
+    reason = "ready"
+    if not in_window:
+        reason = "outside_window"
+    elif published_today >= target_per_day:
+        reason = "target_reached"
+    elif int(pending_jobs_today or 0) > 0:
+        reason = "pending_jobs"
+
+    return {
+        "timezone": tz_name,
+        "now_utc": now_utc,
+        "now_local": now_local.isoformat(),
+        "local_day": str(local_day),
+        "window_start_local": window_start_local.isoformat(),
+        "window_end_local": window_end_local.isoformat(),
+        "window_minutes": window_minutes,
+        "target_per_day": target_per_day,
+        "published_today": published_today,
+        "pending_jobs_today": int(pending_jobs_today or 0),
+        "in_window": in_window,
+        "should_enqueue": should_enqueue,
+        "reason": reason,
+        "settings": cfg,
+    }
+
+
 def _manual_godot_history_file() -> Path:
     return _manual_godot_root() / "_history" / "manual-runs.jsonl"
 
@@ -608,6 +681,13 @@ class PlannerSettingsUpdateRequest(BaseModel):
     target_per_day: int = Field(default=1, ge=1, le=20)
 
 
+class PlannerTickRequest(BaseModel):
+    force: bool = Field(default=False)
+    dsl_template: str = Field(default=".ai/examples/dsl-v1-happy.yaml")
+    out_root: str = Field(default="out/pipeline")
+    idea_gate: bool = Field(default=False)
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -748,6 +828,72 @@ def set_planner_settings(
     except ZoneInfoNotFoundError:
         raise HTTPException(status_code=400, detail="planner_timezone_invalid")
     return jsonable_encoder(_save_planner_settings(request.model_dump()))
+
+
+@app.get("/planner/status")
+def get_planner_status() -> dict:
+    session = SessionLocal()
+    try:
+        snapshot = _planner_status_snapshot(session)
+        return jsonable_encoder(snapshot)
+    finally:
+        session.close()
+
+
+@app.post("/ops/planner/tick")
+def planner_tick(
+    request: PlannerTickRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    from pipeline.queue import enqueue_pipeline
+
+    session = SessionLocal()
+    try:
+        snapshot = _planner_status_snapshot(session)
+        will_enqueue = bool(snapshot["should_enqueue"]) or request.force
+        result = None
+        if will_enqueue:
+            result = enqueue_pipeline(
+                request.dsl_template,
+                request.out_root,
+                request.idea_gate,
+                None,
+            )
+            _audit_event(
+                session,
+                event_type="planner_tick_enqueue",
+                payload={
+                    "forced": request.force,
+                    "reason": snapshot["reason"],
+                    "window_day": snapshot["local_day"],
+                    "animation_id": str(result.get("animation_id")) if isinstance(result, dict) else None,
+                },
+            )
+            session.commit()
+            snapshot = _planner_status_snapshot(session)
+        else:
+            _audit_event(
+                session,
+                event_type="planner_tick_skip",
+                payload={
+                    "forced": request.force,
+                    "reason": snapshot["reason"],
+                    "window_day": snapshot["local_day"],
+                },
+            )
+            session.commit()
+
+        return jsonable_encoder(
+            {
+                "triggered": will_enqueue,
+                "forced": request.force,
+                "reason": snapshot["reason"] if not will_enqueue else "enqueued",
+                "planner_status": snapshot,
+                "enqueue_result": result,
+            }
+        )
+    finally:
+        session.close()
 
 
 @app.get("/debug/llm-routes")

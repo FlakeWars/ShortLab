@@ -95,6 +95,23 @@ type PlannerSettings = {
   target_per_day?: number
 }
 
+type PlannerStatusResponse = {
+  timezone?: string
+  now_utc?: string
+  now_local?: string
+  local_day?: string
+  window_start_local?: string
+  window_end_local?: string
+  window_minutes?: number
+  target_per_day?: number
+  published_today?: number
+  pending_jobs_today?: number
+  in_window?: boolean
+  should_enqueue?: boolean
+  reason?: string
+  settings?: PlannerSettings
+}
+
 type GodotManualStepResult = {
   ok?: boolean
   mode?: 'validate' | 'preview' | 'render'
@@ -477,6 +494,12 @@ function App() {
   const [plannerMinuteInput, setPlannerMinuteInput] = useState('00')
   const [plannerWindowInput, setPlannerWindowInput] = useState('120')
   const [plannerTargetInput, setPlannerTargetInput] = useState('1')
+  const [plannerStatus, setPlannerStatus] = useState<PlannerStatusResponse | null>(null)
+  const [plannerStatusLoading, setPlannerStatusLoading] = useState(false)
+  const [plannerStatusError, setPlannerStatusError] = useState<string | null>(null)
+  const [plannerTickLoading, setPlannerTickLoading] = useState(false)
+  const [plannerTickMessage, setPlannerTickMessage] = useState<string | null>(null)
+  const [plannerTickError, setPlannerTickError] = useState<string | null>(null)
   const [metricsImportLoading, setMetricsImportLoading] = useState(false)
   const [metricsImportMessage, setMetricsImportMessage] = useState<string | null>(null)
   const [metricsImportError, setMetricsImportError] = useState<string | null>(null)
@@ -819,6 +842,23 @@ function App() {
     }
   }
 
+  const fetchPlannerStatus = async () => {
+    setPlannerStatusLoading(true)
+    setPlannerStatusError(null)
+    try {
+      const response = await fetch(`${API_BASE}/planner/status`)
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as PlannerStatusResponse
+      setPlannerStatus(payload)
+    } catch (err) {
+      setPlannerStatusError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setPlannerStatusLoading(false)
+    }
+  }
+
   const savePlannerSettings = async () => {
     setPlannerSettingsLoading(true)
     setPlannerSettingsError(null)
@@ -843,10 +883,37 @@ function App() {
       setPlannerSettings(payload)
       applyPlannerSettingsToInputs(payload)
       setPlannerSettingsMessage('Zapisano ustawienia planera.')
+      fetchPlannerStatus()
     } catch (err) {
       setPlannerSettingsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setPlannerSettingsLoading(false)
+    }
+  }
+
+  const runPlannerTick = async (force = false) => {
+    setPlannerTickLoading(true)
+    setPlannerTickError(null)
+    setPlannerTickMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/ops/planner/tick`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({ force }),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setPlannerTickMessage(`Planner tick: ${JSON.stringify(payload)}`)
+      fetchPlannerStatus()
+      fetchSummary()
+      fetchAnimations()
+      fetchAuditEvents()
+    } catch (err) {
+      setPlannerTickError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setPlannerTickLoading(false)
     }
   }
 
@@ -1852,6 +1919,7 @@ function App() {
     fetchPlanPublishRecords()
     fetchPlanMetrics()
     fetchPlannerSettings()
+    fetchPlannerStatus()
   }, [activeView])
 
   useEffect(() => {
@@ -2478,6 +2546,52 @@ function App() {
               {' '}({plannerSettings.publish_window_minutes ?? 120} min window), target {plannerSettings.target_per_day ?? 1}/day
             </div>
           ) : null}
+          <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-semibold text-stone-900">Planner scheduler status (MVP)</div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  className="h-7 rounded-full px-3 text-[11px]"
+                  onClick={fetchPlannerStatus}
+                  disabled={plannerStatusLoading}
+                >
+                  {plannerStatusLoading ? 'Loading…' : 'Refresh status'}
+                </Button>
+                <Button
+                  className="h-7 rounded-full px-3 text-[11px]"
+                  onClick={() => runPlannerTick(false)}
+                  disabled={plannerTickLoading}
+                >
+                  {plannerTickLoading ? 'Tick…' : 'Run planner tick'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-7 rounded-full px-3 text-[11px]"
+                  onClick={() => runPlannerTick(true)}
+                  disabled={plannerTickLoading}
+                >
+                  Force tick
+                </Button>
+              </div>
+            </div>
+            {plannerStatusError ? <div className="mt-2 text-rose-700">{plannerStatusError}</div> : null}
+            {plannerTickError ? <div className="mt-2 text-rose-700">{plannerTickError}</div> : null}
+            {plannerTickMessage ? <div className="mt-2 text-emerald-700">{plannerTickMessage}</div> : null}
+            {plannerStatus ? (
+              <div className="mt-2 grid gap-1 text-stone-600 sm:grid-cols-2">
+                <div>local day: <span className="font-semibold text-stone-800">{plannerStatus.local_day ?? '—'}</span></div>
+                <div>timezone: <span className="font-semibold text-stone-800">{plannerStatus.timezone ?? '—'}</span></div>
+                <div>window: <span className="font-semibold text-stone-800">{plannerStatus.window_start_local ? new Date(plannerStatus.window_start_local).toLocaleString() : '—'}</span></div>
+                <div>window end: <span className="font-semibold text-stone-800">{plannerStatus.window_end_local ? new Date(plannerStatus.window_end_local).toLocaleString() : '—'}</span></div>
+                <div>published today: <span className="font-semibold text-stone-800">{plannerStatus.published_today ?? 0}</span></div>
+                <div>pending jobs: <span className="font-semibold text-stone-800">{plannerStatus.pending_jobs_today ?? 0}</span></div>
+                <div>in window: <span className="font-semibold text-stone-800">{String(plannerStatus.in_window ?? false)}</span></div>
+                <div>should enqueue: <span className="font-semibold text-stone-800">{String(plannerStatus.should_enqueue ?? false)}</span></div>
+                <div className="sm:col-span-2">reason: <span className="font-semibold text-stone-800">{plannerStatus.reason ?? '—'}</span></div>
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-2xl border border-stone-200 bg-white/80 p-4">
