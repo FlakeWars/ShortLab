@@ -88,6 +88,7 @@
   - [x] Usprawnienie (2026-02-24): `token_budget_exceeded` przełącza mediator na kolejny model z fallbacku zamiast przerywać task (np. `gpt-5.2-codex` -> `gpt-5.1-codex-mini`)
   - [x] Usprawnienie (2026-02-24): dodano pre-request rezerwację tokenów (payload upper-bound + `max_tokens` + margines) dla twardszego respektowania limitów i uniknięcia wywołań modelu po przekroczeniu limitu
   - [ ] Ryzyko/uzupełnienie: rezerwacja tokenów jest konserwatywna (upper-bound), więc fallback może zadziałać wcześniej niż faktyczne wykorzystanie; wymaga kalibracji `LLM_TOKEN_BUDGET_RESERVATION_MARGIN` po smoke E2E
+  - [x] Post-merge review (2026-02-24): uproszczona konfiguracja iteracyjnego toru `idea+GDScript` i fallback po limitach tokenów działają z testami regresji; priorytet bez zmian, pozostaje kalibracja marginesu rezerwacji po realnym E2E
   - [ ] Dodać test integracyjny mapowania profili na realnych providerach (OpenRouter/Groq/LiteLLM) poza mockami
   - [ ] Opcja provider `codex_cli` (abonament) dla kompilatora: JSON-RPC bridge + konfiguracja
 - [ ] UI: układ i nawigacja (branch: feat/ui-layout)
