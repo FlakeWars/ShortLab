@@ -87,6 +87,14 @@ type MetricsDailyRow = {
   created_at?: string | null
 }
 
+type PlannerSettings = {
+  timezone?: string
+  daily_publish_hour?: number
+  daily_publish_minute?: number
+  publish_window_minutes?: number
+  target_per_day?: number
+}
+
 type GodotManualStepResult = {
   ok?: boolean
   mode?: 'validate' | 'preview' | 'render'
@@ -293,6 +301,17 @@ function manualGodotFileUrl(path?: string | null): string | null {
   return `${API_BASE}/godot/manual-file?path=${encodeURIComponent(path)}`
 }
 
+function dateKeyInTimezone(value: string | Date, timeZone: string): string {
+  const date = value instanceof Date ? value : new Date(value)
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  return formatter.format(date)
+}
+
 type SettingsResponse = {
   database_url?: string
   redis_url?: string
@@ -449,6 +468,15 @@ function App() {
   const [planMetricsRows, setPlanMetricsRows] = useState<MetricsDailyRow[]>([])
   const [planMetricsError, setPlanMetricsError] = useState<string | null>(null)
   const [planMetricsLoading, setPlanMetricsLoading] = useState(false)
+  const [plannerSettings, setPlannerSettings] = useState<PlannerSettings | null>(null)
+  const [plannerSettingsLoading, setPlannerSettingsLoading] = useState(false)
+  const [plannerSettingsError, setPlannerSettingsError] = useState<string | null>(null)
+  const [plannerSettingsMessage, setPlannerSettingsMessage] = useState<string | null>(null)
+  const [plannerTimezoneInput, setPlannerTimezoneInput] = useState('UTC')
+  const [plannerHourInput, setPlannerHourInput] = useState('18')
+  const [plannerMinuteInput, setPlannerMinuteInput] = useState('00')
+  const [plannerWindowInput, setPlannerWindowInput] = useState('120')
+  const [plannerTargetInput, setPlannerTargetInput] = useState('1')
   const [reviewActionMessage, setReviewActionMessage] = useState<string | null>(null)
   const [reviewActionError, setReviewActionError] = useState<string | null>(null)
   const [qcActionLoading, setQcActionLoading] = useState(false)
@@ -749,6 +777,63 @@ function App() {
       setPlanMetricsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setPlanMetricsLoading(false)
+    }
+  }
+
+  const applyPlannerSettingsToInputs = (payload: PlannerSettings) => {
+    setPlannerTimezoneInput(payload.timezone ?? 'UTC')
+    setPlannerHourInput(String(payload.daily_publish_hour ?? 18))
+    setPlannerMinuteInput(String(payload.daily_publish_minute ?? 0).padStart(2, '0'))
+    setPlannerWindowInput(String(payload.publish_window_minutes ?? 120))
+    setPlannerTargetInput(String(payload.target_per_day ?? 1))
+  }
+
+  const fetchPlannerSettings = async () => {
+    setPlannerSettingsLoading(true)
+    setPlannerSettingsError(null)
+    try {
+      const response = await fetch(`${API_BASE}/planner/settings`)
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as PlannerSettings
+      setPlannerSettings(payload)
+      applyPlannerSettingsToInputs(payload)
+    } catch (err) {
+      setPlannerSettingsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setPlannerSettingsLoading(false)
+    }
+  }
+
+  const savePlannerSettings = async () => {
+    setPlannerSettingsLoading(true)
+    setPlannerSettingsError(null)
+    setPlannerSettingsMessage(null)
+    try {
+      const body = {
+        timezone: plannerTimezoneInput.trim() || 'UTC',
+        daily_publish_hour: Math.max(0, Math.min(23, Math.floor(parseNumberInput(plannerHourInput, 18)))),
+        daily_publish_minute: Math.max(0, Math.min(59, Math.floor(parseNumberInput(plannerMinuteInput, 0)))),
+        publish_window_minutes: Math.max(15, Math.min(1440, Math.floor(parseNumberInput(plannerWindowInput, 120)))),
+        target_per_day: Math.max(1, Math.min(20, Math.floor(parseNumberInput(plannerTargetInput, 1)))),
+      }
+      const response = await fetch(`${API_BASE}/ops/planner/settings`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as PlannerSettings
+      setPlannerSettings(payload)
+      applyPlannerSettingsToInputs(payload)
+      setPlannerSettingsMessage('Zapisano ustawienia planera.')
+    } catch (err) {
+      setPlannerSettingsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setPlannerSettingsLoading(false)
     }
   }
 
@@ -1691,6 +1776,7 @@ function App() {
     if (activeView !== 'plan') return
     fetchPlanPublishRecords()
     fetchPlanMetrics()
+    fetchPlannerSettings()
   }, [activeView])
 
   useEffect(() => {
@@ -1784,6 +1870,20 @@ function App() {
       { views: 0, likes: 0 },
     )
   }, [planLatestMetricsByContent])
+  const plannerTimezone = plannerSettings?.timezone || plannerTimezoneInput || 'UTC'
+  const todayPlanKey = useMemo(() => dateKeyInTimezone(new Date(), plannerTimezone), [plannerTimezone])
+  const planPublishedTodayCount = useMemo(() => {
+    return planPublishRecords.filter((row) => {
+      if (!(row.status === 'published' || row.status === 'manual_confirmed')) return false
+      const sourceTs = row.published_at || row.created_at
+      if (!sourceTs) return false
+      try {
+        return dateKeyInTimezone(sourceTs, plannerTimezone) === todayPlanKey
+      } catch {
+        return false
+      }
+    }).length
+  }, [planPublishRecords, plannerTimezone, todayPlanKey])
   const llmRouteRows = useMemo(() => {
     const routes = llmMetrics?.routes ?? {}
     return Object.entries(routes)
@@ -2218,6 +2318,91 @@ function App() {
               <div className="text-xs text-stone-500">likes: {planMetricsTotals.likes}</div>
             </CardContent>
           </Card>
+        </div>
+        <div className="mt-4 rounded-2xl border border-stone-200 bg-white/80 p-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold text-stone-900">Daily publish schedule (MVP)</div>
+              <div className="text-xs text-stone-500">
+                Konfiguracja okna publikacji i celu dziennego w widoku Plan. Automatyczny scheduler jobów jeszcze nie jest włączony.
+              </div>
+            </div>
+            <Badge
+              variant="outline"
+              className={cn(
+                'border',
+                planPublishedTodayCount >= Number(plannerTargetInput || 1)
+                  ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
+                  : 'border-amber-200 bg-amber-100 text-amber-900',
+              )}
+            >
+              Today {planPublishedTodayCount}/{Number(plannerTargetInput || 1)} ({plannerTimezone})
+            </Badge>
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_repeat(4,minmax(0,1fr))]">
+            <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Timezone
+              <input
+                className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                value={plannerTimezoneInput}
+                onChange={(event) => setPlannerTimezoneInput(event.target.value)}
+                placeholder="Europe/Warsaw / UTC"
+              />
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Hour
+              <input
+                className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                value={plannerHourInput}
+                onChange={(event) => setPlannerHourInput(event.target.value)}
+                inputMode="numeric"
+              />
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Minute
+              <input
+                className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                value={plannerMinuteInput}
+                onChange={(event) => setPlannerMinuteInput(event.target.value)}
+                inputMode="numeric"
+              />
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Window (min)
+              <input
+                className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                value={plannerWindowInput}
+                onChange={(event) => setPlannerWindowInput(event.target.value)}
+                inputMode="numeric"
+              />
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Target / day
+              <input
+                className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                value={plannerTargetInput}
+                onChange={(event) => setPlannerTargetInput(event.target.value)}
+                inputMode="numeric"
+              />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button className="rounded-full" onClick={savePlannerSettings} disabled={plannerSettingsLoading}>
+              {plannerSettingsLoading ? 'Zapisywanie…' : 'Zapisz harmonogram'}
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={fetchPlannerSettings} disabled={plannerSettingsLoading}>
+              Odśwież ustawienia
+            </Button>
+            {plannerSettingsMessage ? <span className="text-xs text-emerald-700">{plannerSettingsMessage}</span> : null}
+            {plannerSettingsError ? <span className="text-xs text-rose-700">{plannerSettingsError}</span> : null}
+          </div>
+          {plannerSettings ? (
+            <div className="mt-2 text-xs text-stone-500">
+              Saved: {String(plannerSettings.daily_publish_hour ?? 18).padStart(2, '0')}:
+              {String(plannerSettings.daily_publish_minute ?? 0).padStart(2, '0')}
+              {' '}({plannerSettings.publish_window_minutes ?? 120} min window), target {plannerSettings.target_per_day ?? 1}/day
+            </div>
+          ) : null}
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-2xl border border-stone-200 bg-white/80 p-4">

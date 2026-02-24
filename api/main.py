@@ -10,6 +10,8 @@ import sys
 from typing import List, Optional, Literal
 from uuid import UUID
 from uuid import uuid4
+from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfoNotFoundError
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -96,6 +98,41 @@ def _artifact_base_dir() -> Path:
 
 def _manual_godot_root() -> Path:
     return Path(getenv("MANUAL_GODOT_OUT_ROOT", "out/manual-godot")).expanduser().resolve()
+
+
+def _planner_settings_file() -> Path:
+    return (Path(getenv("PLANNER_SETTINGS_FILE", "out/planner/settings.json")).expanduser().resolve())
+
+
+def _planner_settings_defaults() -> dict:
+    return {
+        "timezone": getenv("PLANNER_TIMEZONE", "UTC"),
+        "daily_publish_hour": int(getenv("PLANNER_DAILY_HOUR", "18")),
+        "daily_publish_minute": int(getenv("PLANNER_DAILY_MINUTE", "0")),
+        "publish_window_minutes": int(getenv("PLANNER_WINDOW_MINUTES", "120")),
+        "target_per_day": int(getenv("PLANNER_TARGET_PER_DAY", "1")),
+    }
+
+
+def _load_planner_settings() -> dict:
+    path = _planner_settings_file()
+    payload = _planner_settings_defaults()
+    if not path.exists():
+        return payload
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return payload
+    if isinstance(raw, dict):
+        payload.update({k: raw[k] for k in payload.keys() if k in raw})
+    return payload
+
+
+def _save_planner_settings(payload: dict) -> dict:
+    path = _planner_settings_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    return payload
 
 
 def _manual_godot_history_file() -> Path:
@@ -546,6 +583,14 @@ class GodotManualRunRequest(BaseModel):
     actor: UUID | None = Field(default=None)
 
 
+class PlannerSettingsUpdateRequest(BaseModel):
+    timezone: str = Field(default="UTC", min_length=1, max_length=64)
+    daily_publish_hour: int = Field(default=18, ge=0, le=23)
+    daily_publish_minute: int = Field(default=0, ge=0, le=59)
+    publish_window_minutes: int = Field(default=120, ge=15, le=1440)
+    target_per_day: int = Field(default=1, ge=1, le=20)
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -663,6 +708,29 @@ def get_settings() -> dict:
         "openai_max_output_tokens": flag("OPENAI_MAX_OUTPUT_TOKENS", "800"),
         "llm_token_budgets": flag("LLM_TOKEN_BUDGETS", ""),
     }
+
+
+@app.get("/planner/settings")
+def get_planner_settings() -> dict:
+    payload = _load_planner_settings()
+    tz_name = str(payload.get("timezone") or "UTC")
+    try:
+        ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        payload["timezone"] = "UTC"
+    return payload
+
+
+@app.post("/ops/planner/settings")
+def set_planner_settings(
+    request: PlannerSettingsUpdateRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    try:
+        ZoneInfo(request.timezone)
+    except ZoneInfoNotFoundError:
+        raise HTTPException(status_code=400, detail="planner_timezone_invalid")
+    return jsonable_encoder(_save_planner_settings(request.model_dump()))
 
 
 @app.get("/debug/llm-routes")

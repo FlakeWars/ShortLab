@@ -499,3 +499,45 @@ def test_list_publish_records_allows_global_list_without_render_or_animation(mon
 
     assert len(rows) == 1
     assert rows[0]["status"] == "failed"
+
+
+def test_planner_settings_roundtrip_and_invalid_timezone(monkeypatch, tmp_path: Path) -> None:
+    settings_file = tmp_path / "planner" / "settings.json"
+    monkeypatch.setattr(api_main, "_planner_settings_file", lambda: settings_file)
+
+    default_payload = api_main.get_planner_settings()
+    assert default_payload["target_per_day"] >= 1
+
+    saved = api_main.set_planner_settings(
+        api_main.PlannerSettingsUpdateRequest(
+            timezone="UTC",
+            daily_publish_hour=19,
+            daily_publish_minute=30,
+            publish_window_minutes=90,
+            target_per_day=1,
+        ),
+        _guard=None,
+    )
+    assert saved["daily_publish_hour"] == 19
+    assert saved["daily_publish_minute"] == 30
+    assert settings_file.exists()
+
+    roundtrip = api_main.get_planner_settings()
+    assert roundtrip["daily_publish_hour"] == 19
+    assert roundtrip["timezone"] == "UTC"
+
+    try:
+        api_main.set_planner_settings(
+            api_main.PlannerSettingsUpdateRequest(
+                timezone="Not/A_Timezone",
+                daily_publish_hour=18,
+                daily_publish_minute=0,
+                publish_window_minutes=120,
+                target_per_day=1,
+            ),
+            _guard=None,
+        )
+        raise AssertionError("expected HTTPException")
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert exc.detail == "planner_timezone_invalid"
