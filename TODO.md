@@ -46,6 +46,7 @@
     - [x] Post-merge review (2026-02-23): fix autodetekcji `GODOT_BIN` scalony do `main`; poprawia ergonomię testów/operatora bez zmiany architektury (natywny Godot nadal zarządzany przez projekt)
     - [x] Post-merge review (2026-02-23): ujednolicono autodetekcję Godota w `Makefile` + `scripts/godot-verify-cli.sh` + README; domyślna ścieżka projektu działa bez ręcznej konfiguracji `GODOT_BIN`
     - [x] Post-merge review (2026-02-23): UX Etapu B dopracowany (`out/manual-godot` jako domyślny zapis preview/final, czytelne błędy API w UI); lokalny smoke operatora na macOS potwierdził `validate/preview/render` (`exit 0`), więc priorytet przechodzi na persystencję wyników i cleanup ergonomii artefaktów
+    - [x] Post-merge review (2026-02-24): dodano persystencję historii Etapu B poza sesją UI (JSONL + `GET /ops/godot/manual-runs` + panel `Recent manual runs`); priorytet bez zmian, kolejne usprawnienie to rotacja historii JSONL lub migracja do DB po ustaleniu kontraktu
 - [ ] Godot pipeline v0 (branch: chore/godot-pipeline-v0)
   - [x] [P1] Walidacja skryptu: parse + load + tick fizyki (smoke test)
   - [x] [P1] Retry loop: LLM repair z limitem prób i timeoutem
