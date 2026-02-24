@@ -1,15 +1,7 @@
 # TODO
 
 ## Now (W toku)
-- [ ] Manual E2E hardening (GUI-first): historia publikacji + walidacja publish + rotacja historii Etapu B (branch: feat/manual-e2e-publish-history-hardening)
-  - [x] API: lista `publish_record` per `render_id` / `animation_id` dla panelu szczegółów
-  - [x] UI: widoczność historii publikacji w panelu animacji
-  - [x] UI: walidacja formularza Publish (wymagane pola dla statusów `published/manual_confirmed`; `failed` wymaga opisu błędu)
-  - [x] Backend: prosta rotacja/przycinanie `out/manual-godot/_history/manual-runs.jsonl`
-  - [x] Testy API + smoke statyczny frontend (`pytest`: `13 passed`, `frontend build`: OK)
-  - [ ] Smoke UI lokalny: panel `Publish history` odświeża się po zapisie `Publish Record`
-  - [x] Krytyczna analiza (2026-02-24): domknięto brakujący wgląd operatora w historię publikacji bez zmiany schematu DB (reuse `publish_record`) i dodano walidację po obu stronach (UI+API); rotacja JSONL zmniejsza ryzyko degradacji przy długim używaniu Etapu B
-  - [ ] Ryzyko/uzupełnienie: endpoint `/publish-records` może wymagać paginacji/filtrów po platformie/statusie przy większej skali
+
 
 
 
@@ -31,8 +23,8 @@
     - [x] Krytyczna analiza (2026-02-23): dodano endpointy `POST /ops/qc-decide` i `POST /ops/publish-record` oraz formularze akcji w panelu szczegółów animacji (GUI)
     - [x] Krytyczna analiza (2026-02-23): `publish_record` aktualizuje teraz status/stage animacji (`published` -> `metrics`) dla statusów `published/manual_confirmed`, co domyka ręczny flow w UI
     - [x] Krytyczna analiza (2026-02-23): usunięto konflikt zasad branch workflow w `AGENTS.md` i dodano obowiązkową checklistę branch workflow
-    - [ ] Ryzyko/uzupełnienie: dodać widoczność historii publikacji per animacja/render (lista `publish_record`) w panelu szczegółów, bo obecnie operator widzi tylko efekt po statusie/audicie
-    - [ ] Ryzyko/uzupełnienie: dodać walidację pól formularza Publish w UI (np. wymagany `content_id/url` dla statusu `published/manual_confirmed`)
+    - [x] Usprawnienie (2026-02-24): dodano widoczność historii publikacji per animacja/render (endpoint `GET /publish-records` + panel `Publish history` w szczegółach animacji)
+    - [x] Usprawnienie (2026-02-24): dodano walidację formularza Publish w UI oraz walidację API (`published/manual_confirmed` wymagają `content_id` lub `url`; `failed` wymaga opisu błędu)
     - [x] Kolejny krok po tym: dodać panel „Godot Manual Run” (GUI) z akcjami `compile_gdscript`, `validate`, `preview`, `final_render` dla wybranej idei
     - [x] Krytyczna analiza (2026-02-23): Etap B wdrożony w trybie GUI-first jako panel operatorski; kroki działają ręcznie i zwracają ścieżki/logi bez zapisu do pipeline DB
     - [x] Krytyczna analiza (2026-02-23): podgląd preview/final działa bez DB przez serwowanie plików z `out/manual-godot`; endpoint ograniczony allowlistą katalogu
@@ -41,8 +33,10 @@
     - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot w `Makefile` i `scripts/godot-verify-cli.sh`; `make godot-validate` działa bez ręcznego `GODOT_BIN`
     - [x] Usprawnienie (2026-02-24): dodano persystencję rezultatów Etapu B (historia JSONL w `out/manual-godot/_history/manual-runs.jsonl`) + endpoint `GET /ops/godot/manual-runs` + panel `Recent manual runs` w UI
     - [x] Test/Smoke (2026-02-24): lokalnie potwierdzono odświeżanie historii po `validate/preview` oraz zapis preview do `out/manual-godot/...` (macOS operator)
-    - [ ] Ryzyko/uzupełnienie: dodać prostą rotację/przycinanie historii JSONL (np. max N rekordów lub rozmiar pliku), żeby uniknąć degradacji po długim używaniu
+    - [x] Usprawnienie (2026-02-24): dodano prostą rotację/przycinanie historii JSONL Etapu B po liczbie rekordów (`MANUAL_GODOT_HISTORY_MAX_LINES`)
     - [ ] Ryzyko/uzupełnienie: rozważyć migrację historii Etapu B do DB po ustabilizowaniu kontraktu pól (np. tabela `manual_run_record`)
+    - [ ] Smoke UI lokalny (uzupełnienie): potwierdzić, że panel `Publish history` odświeża się po zapisie `Publish Record`
+    - [ ] Ryzyko/uzupełnienie: endpoint `/publish-records` może wymagać paginacji/filtrów po platformie/statusie przy większej skali
     - [x] Test/Smoke (2026-02-23): potwierdzono `preview/final_render` z panelu UI poza sandboxem (lokalny macOS) — `validate`, `preview`, `render` zakończone sukcesem (`exit 0`)
     - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot we wszystkich głównych skryptach/targetach korzystających z Godota
     - [x] Usprawnienie (2026-02-23): UX Etapu B — domyślne `out_path` dla `preview/render` trafia do `out/manual-godot/...`, a UI pokazuje czytelny błąd API zamiast `[object Object]`
