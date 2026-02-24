@@ -178,6 +178,7 @@
   - [x] Post-merge review (2026-02-24): `Plan / Calendar` ma już realne dane publikacji i metryk (PRD-MVP), więc kolejnym priorytetem w tym obszarze jest harmonogram dzienny + filtry widoku planu
   - [x] Post-merge review (2026-02-24): dodano ustawienia harmonogramu dziennego (Plan) i licznik realizacji celu 1/dzień; następny krok w tym obszarze to automatyczny scheduler oraz filtry widoku planu
   - [x] Post-merge review (2026-02-24): dodano ręczny import metryk (`metrics_daily`) z poziomu `Plan / Calendar`, co domyka manual-first PRD flow publikacja -> metryki bez kluczy platform; kolejne kroki to smoke UI i lepsza walidacja formatów/liczb
+  - [x] Post-merge review (2026-02-24): dodano scheduler MVP (`planner/status` + `planner/tick`) z triggerem w UI Plan; najważniejsze otwarte ryzyko to mocniejsza idempotencja (dedupe per dzień/okno) przed automatyzacją cykliczną
 - [ ] UI: QC (branch: feat/ui-qc)
   - [ ] Panel QC w UI + akcja accept/reject/regenerate
 - [ ] UI: publikacja (branch: feat/ui-publish)
