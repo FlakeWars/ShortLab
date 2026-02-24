@@ -81,6 +81,8 @@ Uwaga: ponizsze komendy dotycza legacy sciezki DSL. Nowy pipeline Godot/GDScript
   - resiliency: `LLM_ROUTE_IDEA_GENERATE_TIMEOUT_S`, `..._RETRIES`, `..._BREAKER_*`
   - telemetria/cost estimate: `LLM_PRICE_DEFAULT_INPUT_PER_1K`, `LLM_PRICE_DEFAULT_OUTPUT_PER_1K`
   - safety caps: `LLM_ROUTE_IDEA_GENERATE_MAX_TOKENS`, `..._MAX_COST_USD`, `LLM_DAILY_BUDGET_USD`, `LLM_TOKEN_BUDGETS`
+  - uproszczony routing dla iteracyjnego toru `idea + GDScript`: `LLM_ITERATIVE_ROUTE_TASKS`, `LLM_ITERATIVE_ROUTE_MODELS`, `LLM_ITERATIVE_MODEL_TOKEN_LIMITS`
+  - gdy preferowany model przekroczy limit tokenów, mediator przechodzi do kolejnego modelu z fallbacku (zamiast twardego fail taska)
   - OpenAI responses-only models: `LLM_OPENAI_RESPONSES_MODELS` (comma list)
   - audit log LLM calls: `LLM_AUDIT_LOG=1` (dodaje eventy do `audit_event`)
   - persystencja metryk/budżetu: `LLM_MEDIATOR_PERSIST_BACKEND=db` (fallback: `LLM_MEDIATOR_STATE_FILE`)
@@ -199,10 +201,14 @@ Uwaga: ponizsza lista dotyczy glownie legacy sciezki DSL; nowy tor Godot/GDScrip
 - `CLEANUP_OLDER_MIN` – próg minut dla auto-cleanup `running` przy starcie `make run-dev` (domyślnie 30).
 - `LLM_ROUTE_<TASK>_PROVIDERS` / `LLM_ROUTE_<TASK>_MODELS` – lista providerów/modeli w kolejności fallbacku (np. `gemini,openai` / `gemini-2.5-pro,gpt-5.2-codex`).
 - `LLM_ROUTE_<TASK>_API_KEY_ENVS` / `LLM_ROUTE_<TASK>_API_KEY_HEADERS` – opcjonalne listy kluczy/nagłówków dla powyższych providerów.
-- `LLM_TOKEN_BUDGETS` – JSON limitów tokenów per model lub grupa modeli (sumuje prompt+completion, reset dzienny). Przykład:
+- `LLM_TOKEN_BUDGETS` – JSON limitów tokenów per model lub grupa modeli (sumuje prompt+completion, reset dzienny). Dla iteracyjnego toru `idea + GDScript` można zostawić tu tylko inne modele (np. Gemini), bo limity iteracyjne mają dedykowane zmienne poniżej. Przykład:
   ```
   {"models":{"openai:gpt-5.1-codex-mini":2000000},"groups":{"codex":{"limit":2000000,"members":["openai:gpt-5.1-codex-mini","openai:gpt-5.2-codex"]}}}
   ```
+- `LLM_ITERATIVE_ROUTE_TASKS` – taski objęte uproszczonym routingiem iteracyjnym (domyślnie: `idea_generate,gdscript_generate,gdscript_repair`).
+- `LLM_ITERATIVE_ROUTE_MODELS` – lista modeli (provider:model) dla tych tasków w kolejności preferencji/fallbacku, np. `openai:gpt-5.2-codex,openai:gpt-5.1-codex-mini`. Dla tasków z `LLM_ITERATIVE_ROUTE_TASKS` mediator użyje tej listy zamiast pojedynczego `LLM_ROUTE_<TASK>_MODEL`.
+- `LLM_ITERATIVE_MODEL_TOKEN_LIMITS` – JSON limitów tokenów dla modeli z powyższej listy, np. `{"openai:gpt-5.2-codex":200000,"openai:gpt-5.1-codex-mini":2000000}`. Po wyczerpaniu limitu mediator automatycznie przechodzi do kolejnego modelu z fallbacku.
+- `LLM_TOKEN_BUDGET_RESERVATION_MARGIN` – konserwatywny margines rezerwacji tokenów (prompt upper-bound) używany przed requestem, żeby nie uruchamiać modelu gdy request mógłby przekroczyć limit. Wyższa wartość = twardsza ochrona, ale wcześniejsze przełączanie na fallback.
 
 ## Makefile
 Dostępne cele:

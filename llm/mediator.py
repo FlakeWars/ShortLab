@@ -141,6 +141,8 @@ DEFAULT_TASK_PROFILES: dict[str, str] = {
     "gdscript_repair": "structured",
 }
 
+ITERATIVE_IDEA_GDSCRIPT_TASKS = {"idea_generate", "gdscript_generate", "gdscript_repair"}
+
 
 def _task_profile(task_type: str) -> str | None:
     key = task_type.upper()
@@ -163,6 +165,53 @@ def _split_env_list(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _iterative_task_set() -> set[str]:
+    raw = os.getenv("LLM_ITERATIVE_ROUTE_TASKS", "").strip()
+    if not raw:
+        return set(ITERATIVE_IDEA_GDSCRIPT_TASKS)
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
+def _iterative_route_pairs() -> list[tuple[str, str]]:
+    raw = os.getenv("LLM_ITERATIVE_ROUTE_MODELS", "").strip()
+    if not raw:
+        return []
+    pairs: list[tuple[str, str]] = []
+    default_provider = os.getenv("LLM_ITERATIVE_ROUTE_PROVIDER", "openai").strip().lower() or "openai"
+    for item in [part.strip() for part in raw.split(",") if part.strip()]:
+        if ":" in item:
+            provider, model = item.split(":", 1)
+            pairs.append((provider.strip().lower(), model.strip()))
+        else:
+            pairs.append((default_provider, item))
+    return [(p, m) for p, m in pairs if p and m]
+
+
+def _iterative_route_override(task_type: str) -> list[tuple[str, str]]:
+    if task_type not in _iterative_task_set():
+        return []
+    return _iterative_route_pairs()
+
+
+def _iterative_token_budget_overrides() -> dict[str, int]:
+    raw = os.getenv("LLM_ITERATIVE_MODEL_TOKEN_LIMITS", "").strip()
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    parsed: dict[str, int] = {}
+    for key, value in data.items():
+        try:
+            parsed[str(key)] = int(value)
+        except Exception:
+            continue
+    return parsed
+
+
 def _load_routes(task_type: str) -> list[TaskRoute]:
     key = task_type.upper()
     profile = _task_profile(task_type)
@@ -173,6 +222,11 @@ def _load_routes(task_type: str) -> list[TaskRoute]:
     base_urls = _split_env_list(os.getenv(f"LLM_ROUTE_{key}_BASE_URLS"))
     key_envs = _split_env_list(os.getenv(f"LLM_ROUTE_{key}_API_KEY_ENVS"))
     key_headers = _split_env_list(os.getenv(f"LLM_ROUTE_{key}_API_KEY_HEADERS"))
+
+    iterative_override = _iterative_route_override(task_type)
+    if iterative_override and not providers and not models:
+        providers = [provider for provider, _ in iterative_override]
+        models = [model for _, model in iterative_override]
 
     if providers or models:
         if not providers or not models:
@@ -314,6 +368,10 @@ class LLMMediator:
         self._budget_day = self._today_utc()
         self._token_budget_models: dict[str, int] = {}
         self._token_budget_groups: dict[str, dict[str, Any]] = {}
+        self._token_budget_reserved_models: dict[str, int] = {}
+        self._token_budget_reservation_margin = int(
+            os.getenv("LLM_TOKEN_BUDGET_RESERVATION_MARGIN", "512") or 512
+        )
         self._persist_backend = os.getenv("LLM_MEDIATOR_PERSIST_BACKEND", "db").strip().lower()
         self._state_file = Path(os.getenv("LLM_MEDIATOR_STATE_FILE", ".state/llm-mediator-state.json"))
         self._load_token_budgets()
@@ -398,6 +456,7 @@ class LLMMediator:
             breaker_key = f"{task_type}:{route.provider}:{route.model}"
             if self._breaker_until.get(breaker_key, 0) > now_ts:
                 continue
+            reserved_tokens = 0
             payload = self._build_chat_payload(
                 route=route,
                 system_prompt=system_prompt,
@@ -409,7 +468,12 @@ class LLMMediator:
             )
             start = time.perf_counter()
             try:
-                self._assert_token_budget(task_type=task_type, provider=route.provider, model=route.model)
+                reserved_tokens = self._reserve_token_budget(
+                    task_type=task_type,
+                    provider=route.provider,
+                    model=route.model,
+                    payload=payload,
+                )
                 response = self._call_with_retries(task_type, route, payload)
                 try:
                     content = response["choices"][0]["message"]["content"]
@@ -502,12 +566,19 @@ class LLMMediator:
                     error=str(exc),
                 )
                 last_error = exc
+                if exc.code == "token_budget_exceeded":
+                    continue
                 if exc.code == "invalid_json" and route.provider == "gemini":
                     continue
                 if exc.retryable:
                     continue
                 raise
             finally:
+                self._release_token_budget_reservation(
+                    provider=route.provider,
+                    model=route.model,
+                    reserved_tokens=reserved_tokens,
+                )
                 self._persist_state()
         if last_error is not None:
             raise last_error
@@ -1033,39 +1104,39 @@ class LLMMediator:
 
     def _load_token_budgets(self) -> None:
         raw = os.getenv("LLM_TOKEN_BUDGETS", "").strip()
-        if not raw:
-            return
-        try:
-            data = json.loads(raw)
-        except Exception:
-            return
-        if not isinstance(data, dict):
-            return
-        models = data.get("models")
-        if isinstance(models, dict):
-            for key, limit in models.items():
-                try:
-                    self._token_budget_models[str(key)] = int(limit)
-                except Exception:
-                    continue
-        groups = data.get("groups")
-        if isinstance(groups, dict):
-            for name, payload in groups.items():
-                if isinstance(payload, dict):
-                    limit = payload.get("limit")
-                    members = payload.get("members", [])
-                else:
-                    limit = payload
-                    members = []
-                try:
-                    limit_value = int(limit)
-                except Exception:
-                    continue
-                member_list = [str(m) for m in members if m]
-                self._token_budget_groups[str(name)] = {
-                    "limit": limit_value,
-                    "members": member_list,
-                }
+        if raw:
+            try:
+                data = json.loads(raw)
+            except Exception:
+                data = None
+            if isinstance(data, dict):
+                models = data.get("models")
+                if isinstance(models, dict):
+                    for key, limit in models.items():
+                        try:
+                            self._token_budget_models[str(key)] = int(limit)
+                        except Exception:
+                            continue
+                groups = data.get("groups")
+                if isinstance(groups, dict):
+                    for name, payload in groups.items():
+                        if isinstance(payload, dict):
+                            limit = payload.get("limit")
+                            members = payload.get("members", [])
+                        else:
+                            limit = payload
+                            members = []
+                        try:
+                            limit_value = int(limit)
+                        except Exception:
+                            continue
+                        member_list = [str(m) for m in members if m]
+                        self._token_budget_groups[str(name)] = {
+                            "limit": limit_value,
+                            "members": member_list,
+                        }
+        for key, limit in _iterative_token_budget_overrides().items():
+            self._token_budget_models[str(key)] = int(limit)
 
     def _tokens_used_for_model(self, *, provider: str, model: str) -> float:
         total = 0.0
@@ -1076,6 +1147,9 @@ class LLMMediator:
                 total += float(bucket.get("completion_tokens_total", 0.0) or 0.0)
         return total
 
+    def _reserved_tokens_for_model(self, *, provider: str, model: str) -> int:
+        return int(self._token_budget_reserved_models.get(f"{provider}:{model}", 0) or 0)
+
     def _tokens_used_for_group(self, *, members: list[str]) -> float:
         total = 0.0
         for member in members:
@@ -1085,12 +1159,62 @@ class LLMMediator:
             total += self._tokens_used_for_model(provider=provider, model=model)
         return total
 
-    def _assert_token_budget(self, *, task_type: str, provider: str, model: str) -> None:
+    def _estimate_reserved_request_tokens(self, *, payload: dict[str, Any]) -> int:
+        try:
+            payload_bytes = len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+        except Exception:
+            payload_bytes = 0
+        completion_max = int(payload.get("max_tokens", 0) or 0)
+        # Conservative upper-bound reservation: payload bytes + completion cap + fixed margin.
+        return max(1, payload_bytes + completion_max + self._token_budget_reservation_margin)
+
+    def _reserve_token_budget(
+        self,
+        *,
+        task_type: str,
+        provider: str,
+        model: str,
+        payload: dict[str, Any],
+    ) -> int:
+        reserve_tokens = self._estimate_reserved_request_tokens(payload=payload)
+        self._assert_token_budget(
+            task_type=task_type,
+            provider=provider,
+            model=model,
+            reserve_tokens=reserve_tokens,
+        )
+        model_key = f"{provider}:{model}"
+        self._token_budget_reserved_models[model_key] = (
+            self._token_budget_reserved_models.get(model_key, 0) + reserve_tokens
+        )
+        return reserve_tokens
+
+    def _release_token_budget_reservation(self, *, provider: str, model: str, reserved_tokens: int) -> None:
+        if reserved_tokens <= 0:
+            return
+        model_key = f"{provider}:{model}"
+        current = int(self._token_budget_reserved_models.get(model_key, 0) or 0)
+        next_value = max(0, current - reserved_tokens)
+        if next_value == 0:
+            self._token_budget_reserved_models.pop(model_key, None)
+        else:
+            self._token_budget_reserved_models[model_key] = next_value
+
+    def _assert_token_budget(
+        self,
+        *,
+        task_type: str,
+        provider: str,
+        model: str,
+        reserve_tokens: int = 0,
+    ) -> None:
         model_key = f"{provider}:{model}"
         limit = self._token_budget_models.get(model_key)
         if limit is not None:
             used = self._tokens_used_for_model(provider=provider, model=model)
-            if used >= limit:
+            reserved = self._reserved_tokens_for_model(provider=provider, model=model)
+            projected = used + reserved + max(0, reserve_tokens)
+            if projected > limit:
                 self.log_event(
                     "model_token_budget_exceeded",
                     payload={
@@ -1099,6 +1223,9 @@ class LLMMediator:
                         "model": model,
                         "limit": limit,
                         "used": int(used),
+                        "reserved": int(reserved),
+                        "requested_reserve": int(max(0, reserve_tokens)),
+                        "projected": int(projected),
                     },
                 )
                 raise LLMError(
@@ -1115,7 +1242,14 @@ class LLMMediator:
             if group_limit <= 0:
                 continue
             used = self._tokens_used_for_group(members=members)
-            if used >= group_limit:
+            reserved = 0
+            for member in members:
+                if ":" not in member:
+                    continue
+                member_provider, member_model = member.split(":", 1)
+                reserved += self._reserved_tokens_for_model(provider=member_provider, model=member_model)
+            projected = used + reserved + (max(0, reserve_tokens) if model_key in members else 0)
+            if projected > group_limit:
                 self.log_event(
                     "group_token_budget_exceeded",
                     payload={
@@ -1123,6 +1257,9 @@ class LLMMediator:
                         "group": group_name,
                         "limit": group_limit,
                         "used": int(used),
+                        "reserved": int(reserved),
+                        "requested_reserve": int(max(0, reserve_tokens)),
+                        "projected": int(projected),
                     },
                 )
                 raise LLMError(

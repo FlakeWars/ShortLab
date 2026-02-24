@@ -1,16 +1,15 @@
 # TODO
 
 ## Now (W toku)
-
-
-
-
-
-
-
-
-
-
+- [ ] LLM task profiles: uprościć konfigurację iteracyjnego flow `idea + GDScript` i wymusić preferencję/fallback modeli z limitami tokenów (branch: feat/llm-iterative-route-budgets)
+  - [x] Dodać uproszczone zmienne `LLM_ITERATIVE_ROUTE_TASKS`, `LLM_ITERATIVE_ROUTE_MODELS`, `LLM_ITERATIVE_MODEL_TOKEN_LIMITS`
+  - [x] Wymusić fallback na kolejny model po `token_budget_exceeded` zamiast przerywania tasku
+  - [x] Dodać pre-request rezerwację tokenów (prompt upper-bound + max completion), żeby nie odpalać modelu gdy request mógłby przekroczyć limit
+  - [x] Dodać testy fallbacku i blokady na etapie rezerwacji (bez wywołania modelu preferowanego)
+  - [x] Zaktualizować `.env` / `.env.example` / `README.md`, aby konfiguracja iteracyjna była czytelna i jawna
+  - [x] Testy: `tests/test_llm_mediator.py`, `tests/test_llm_task_profiles.py`, regresja API (`tests/test_api_manual_review_actions.py`, `tests/test_api_idea_compile.py`)
+  - [x] Smoke (2026-02-24): potwierdzono pre-request rezerwację tokenów w mediatorze (syntetyczny payload -> dodatnia rezerwacja i brak wywołania modelu w testach przy przekroczeniu limitu)
+  - [ ] Krytyczna analiza po smoke E2E lokalnym: ocenić czy margines `LLM_TOKEN_BUDGET_RESERVATION_MARGIN=512` nie przełącza fallbacku zbyt wcześnie dla dłuższych promptów
 
 ## Next (Kolejne)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
@@ -87,11 +86,16 @@
 - [ ] LLM: ryzyko kosztów po wydłużeniu promptów (branch: chore/llm-prompt-costs)
   - [ ] Zmierz średni koszt tokenów dla verify/compile po zmianach
   - [ ] Rozważyć caching system promptów / skrócenie specyfikacji
+  - [ ] Ryzyko/uzupełnienie: licznik tokenów w mediatorze nadal może przekroczyć limit o koszt jednego requestu (check jest pre-request, księgowanie po odpowiedzi) — potrzebny mechanizm rezerwacji/estymacji dla twardego cap
 - [ ] LLM task profiles (branch: feat/llm-task-profiles)
   - [x] `idea_generate` -> profil kreatywny
   - [x] `idea_verify_capability` -> profil analityczny/skrupulatny
   - [x] `idea_compile_dsl` + `dsl_repair` -> profil structured-output/precyzyjny
   - [x] Konfiguracja domyślnych modeli per profil bez zmian po stronie klientów
+  - [x] Usprawnienie (2026-02-24): dodano uproszczony routing iteracyjny `idea+GDScript` (`LLM_ITERATIVE_ROUTE_TASKS`, `LLM_ITERATIVE_ROUTE_MODELS`, `LLM_ITERATIVE_MODEL_TOKEN_LIMITS`) z preferencją/fallbackiem modeli
+  - [x] Usprawnienie (2026-02-24): `token_budget_exceeded` przełącza mediator na kolejny model z fallbacku zamiast przerywać task (np. `gpt-5.2-codex` -> `gpt-5.1-codex-mini`)
+  - [x] Usprawnienie (2026-02-24): dodano pre-request rezerwację tokenów (payload upper-bound + `max_tokens` + margines) dla twardszego respektowania limitów i uniknięcia wywołań modelu po przekroczeniu limitu
+  - [ ] Ryzyko/uzupełnienie: rezerwacja tokenów jest konserwatywna (upper-bound), więc fallback może zadziałać wcześniej niż faktyczne wykorzystanie; wymaga kalibracji `LLM_TOKEN_BUDGET_RESERVATION_MARGIN` po smoke E2E
   - [ ] Dodać test integracyjny mapowania profili na realnych providerach (OpenRouter/Groq/LiteLLM) poza mockami
   - [ ] Opcja provider `codex_cli` (abonament) dla kompilatora: JSON-RPC bridge + konfiguracja
 - [ ] UI: układ i nawigacja (branch: feat/ui-layout)

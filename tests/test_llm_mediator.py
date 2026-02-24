@@ -222,3 +222,106 @@ def test_db_backend_roundtrip_with_fake_session(monkeypatch, tmp_path: Path) -> 
     assert snap["state_backend"] == "db"
     assert snap["budget"]["spent_usd_total"] == 1.75
     assert snap["routes"]["idea_generate|openai|gpt-4o-mini"]["calls"] == 3.0
+
+
+def test_iterative_token_budget_overrides_loaded(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("LLM_MEDIATOR_PERSIST_BACKEND", "file")
+    monkeypatch.setenv("LLM_MEDIATOR_STATE_FILE", str(tmp_path / "state.json"))
+    monkeypatch.setenv(
+        "LLM_ITERATIVE_MODEL_TOKEN_LIMITS",
+        '{"openai:gpt-5.2-codex":200000,"openai:gpt-5.1-codex-mini":2000000}',
+    )
+    mediator = LLMMediator()
+    assert mediator._token_budget_models["openai:gpt-5.2-codex"] == 200000
+    assert mediator._token_budget_models["openai:gpt-5.1-codex-mini"] == 2000000
+
+
+def test_generate_json_falls_back_on_token_budget_exceeded(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "x-test-key")
+    monkeypatch.setenv("LLM_MEDIATOR_PERSIST_BACKEND", "file")
+    monkeypatch.setenv("LLM_MEDIATOR_STATE_FILE", str(tmp_path / "state.json"))
+    monkeypatch.setenv(
+        "LLM_ITERATIVE_ROUTE_MODELS",
+        "openai:gpt-5.2-codex,openai:gpt-5.1-codex-mini",
+    )
+    monkeypatch.setenv("LLM_ITERATIVE_MODEL_TOKEN_LIMITS", '{"openai:gpt-5.2-codex":1}')
+    monkeypatch.setenv("LLM_ROUTE_IDEA_GENERATE_API_KEY_ENV", "OPENAI_API_KEY")
+    monkeypatch.delenv("LLM_ROUTE_IDEA_GENERATE_PROVIDER", raising=False)
+    monkeypatch.delenv("LLM_ROUTE_IDEA_GENERATE_MODEL", raising=False)
+    monkeypatch.delenv("LLM_ROUTE_IDEA_GENERATE_PROVIDERS", raising=False)
+    monkeypatch.delenv("LLM_ROUTE_IDEA_GENERATE_MODELS", raising=False)
+    mediator = LLMMediator()
+    mediator._metrics = {
+        "idea_generate|openai|gpt-5.2-codex": {
+            "calls": 1.0,
+            "success": 1.0,
+            "errors": 0.0,
+            "retries": 0.0,
+            "latency_ms_total": 0.0,
+            "prompt_tokens_total": 1.0,
+            "completion_tokens_total": 0.0,
+            "estimated_cost_usd_total": 0.0,
+        }
+    }
+
+    def _fake_call(task_type, route, payload):
+        if route.model == "gpt-5.2-codex":
+            raise AssertionError("primary route should be skipped after token budget check")
+        return {
+            "id": "resp-1",
+            "choices": [{"message": {"content": '{"ok": true}'}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+
+    monkeypatch.setattr(mediator, "_call_with_retries", _fake_call)
+    parsed, meta = mediator.generate_json(
+        task_type="idea_generate",
+        system_prompt="sys",
+        user_prompt="usr",
+        json_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
+        max_tokens=100,
+        temperature=0,
+    )
+    assert parsed["ok"] is True
+    assert meta["model"] == "gpt-5.1-codex-mini"
+
+
+def test_generate_json_skips_primary_when_reservation_would_exceed_limit(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "x-test-key")
+    monkeypatch.setenv("LLM_MEDIATOR_PERSIST_BACKEND", "file")
+    monkeypatch.setenv("LLM_MEDIATOR_STATE_FILE", str(tmp_path / "state.json"))
+    monkeypatch.setenv(
+        "LLM_ITERATIVE_ROUTE_MODELS",
+        "openai:gpt-5.2-codex,openai:gpt-5.1-codex-mini",
+    )
+    monkeypatch.setenv("LLM_ITERATIVE_MODEL_TOKEN_LIMITS", '{"openai:gpt-5.2-codex":50}')
+    monkeypatch.setenv("LLM_TOKEN_BUDGET_RESERVATION_MARGIN", "0")
+    monkeypatch.setenv("LLM_ROUTE_IDEA_GENERATE_API_KEY_ENV", "OPENAI_API_KEY")
+    monkeypatch.delenv("LLM_ROUTE_IDEA_GENERATE_PROVIDER", raising=False)
+    monkeypatch.delenv("LLM_ROUTE_IDEA_GENERATE_MODEL", raising=False)
+    monkeypatch.delenv("LLM_ROUTE_IDEA_GENERATE_PROVIDERS", raising=False)
+    monkeypatch.delenv("LLM_ROUTE_IDEA_GENERATE_MODELS", raising=False)
+    mediator = LLMMediator()
+
+    seen_models: list[str] = []
+
+    def _fake_call(task_type, route, payload):
+        seen_models.append(route.model)
+        return {
+            "id": "resp-1",
+            "choices": [{"message": {"content": '{"ok": true}'}}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 5},
+        }
+
+    monkeypatch.setattr(mediator, "_call_with_retries", _fake_call)
+    parsed, meta = mediator.generate_json(
+        task_type="idea_generate",
+        system_prompt="s",
+        user_prompt="u",
+        json_schema={"type": "object", "properties": {"ok": {"type": "boolean"}}},
+        max_tokens=200,  # reservation > model cap, should skip primary route
+        temperature=0,
+    )
+    assert parsed["ok"] is True
+    assert meta["model"] == "gpt-5.1-codex-mini"
+    assert seen_models == ["gpt-5.1-codex-mini"]
