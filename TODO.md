@@ -1,6 +1,15 @@
 # TODO
 
 ## Now (W toku)
+- [ ] Manual E2E hardening (GUI-first): historia publikacji + walidacja publish + rotacja historii Etapu B (branch: feat/manual-e2e-publish-history-hardening)
+  - [x] API: lista `publish_record` per `render_id` / `animation_id` dla panelu szczegółów
+  - [x] UI: widoczność historii publikacji w panelu animacji
+  - [x] UI: walidacja formularza Publish (wymagane pola dla statusów `published/manual_confirmed`; `failed` wymaga opisu błędu)
+  - [x] Backend: prosta rotacja/przycinanie `out/manual-godot/_history/manual-runs.jsonl`
+  - [x] Testy API + smoke statyczny frontend (`pytest`: `13 passed`, `frontend build`: OK)
+  - [ ] Smoke UI lokalny: panel `Publish history` odświeża się po zapisie `Publish Record`
+  - [x] Krytyczna analiza (2026-02-24): domknięto brakujący wgląd operatora w historię publikacji bez zmiany schematu DB (reuse `publish_record`) i dodano walidację po obu stronach (UI+API); rotacja JSONL zmniejsza ryzyko degradacji przy długim używaniu Etapu B
+  - [ ] Ryzyko/uzupełnienie: endpoint `/publish-records` może wymagać paginacji/filtrów po platformie/statusie przy większej skali
 
 
 

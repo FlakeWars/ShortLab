@@ -102,6 +102,15 @@ def _manual_godot_history_file() -> Path:
     return _manual_godot_root() / "_history" / "manual-runs.jsonl"
 
 
+def _manual_godot_history_max_lines() -> int:
+    raw = getenv("MANUAL_GODOT_HISTORY_MAX_LINES", "200")
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 200
+    return max(10, min(value, 5000))
+
+
 def _manual_godot_history_record(
     *,
     step: Literal["compile", "validate", "preview", "render"],
@@ -135,6 +144,14 @@ def _append_manual_godot_history(record: dict) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=True))
         handle.write("\n")
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        max_lines = _manual_godot_history_max_lines()
+        if len(lines) > max_lines:
+            path.write_text("\n".join(lines[-max_lines:]) + "\n", encoding="utf-8")
+    except Exception:
+        # Best-effort rotation; history write should not fail the operator action.
+        return
 
 
 def _read_manual_godot_history(*, limit: int = 20, step: str | None = None, script_path: str | None = None) -> list[dict]:
@@ -212,6 +229,20 @@ def _apply_publish_status(animation: Animation, status: str) -> None:
         animation.pipeline_stage = "metrics"
         return
     raise ValueError(f"unsupported_publish_status:{status}")
+
+
+def _validate_publish_record_request(request: "PublishRecordCreateRequest") -> None:
+    status = request.status
+    content_id = (request.content_id or "").strip()
+    url = (request.url or "").strip()
+    error_text = (request.error or "").strip()
+    if status in {"published", "manual_confirmed"} and not (content_id or url):
+        raise HTTPException(
+            status_code=400,
+            detail="publish_record_requires_content_id_or_url_for_published_status",
+        )
+    if status == "failed" and not error_text:
+        raise HTTPException(status_code=400, detail="publish_record_requires_error_for_failed_status")
 
 
 def _audit_event(session, *, event_type: str, payload: dict, actor_user_id: UUID | None = None) -> None:
@@ -1656,6 +1687,30 @@ def list_render_artifacts(render_id: UUID) -> List[dict]:
         session.close()
 
 
+@app.get("/publish-records")
+def list_publish_records(
+    render_id: UUID | None = None,
+    animation_id: UUID | None = None,
+    limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> List[dict]:
+    if not render_id and not animation_id:
+        raise HTTPException(status_code=400, detail="render_id_or_animation_id_required")
+    limit, offset = _paginate(limit, offset)
+    session = SessionLocal()
+    try:
+        stmt = select(PublishRecord)
+        if animation_id:
+            stmt = stmt.join(Render, Render.id == PublishRecord.render_id).where(Render.animation_id == animation_id)
+        if render_id:
+            stmt = stmt.where(PublishRecord.render_id == render_id)
+        stmt = stmt.order_by(desc(PublishRecord.created_at)).limit(limit).offset(offset)
+        rows = session.execute(stmt).scalars().all()
+        return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
 @app.get("/artifacts/{artifact_id}/file")
 def get_artifact_file(artifact_id: UUID):
     session = SessionLocal()
@@ -1836,6 +1891,7 @@ def ops_publish_record(
 ) -> dict:
     session = SessionLocal()
     try:
+        _validate_publish_record_request(request)
         render = session.get(Render, request.render_id)
         if render is None:
             raise HTTPException(status_code=404, detail="render_not_found")

@@ -55,6 +55,20 @@ type Artifact = {
   created_at?: string | null
 }
 
+type PublishRecordRow = {
+  id: string
+  render_id?: string | null
+  platform_type?: 'youtube' | 'tiktok' | string | null
+  status?: 'queued' | 'uploading' | 'published' | 'failed' | 'manual_confirmed' | string | null
+  content_id?: string | null
+  url?: string | null
+  scheduled_for?: string | null
+  published_at?: string | null
+  error_payload?: Record<string, unknown> | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
 type GodotManualStepResult = {
   ok?: boolean
   mode?: 'validate' | 'preview' | 'render'
@@ -408,6 +422,9 @@ function App() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [artifactsError, setArtifactsError] = useState<string | null>(null)
   const [artifactsLoading, setArtifactsLoading] = useState(false)
+  const [publishRecords, setPublishRecords] = useState<PublishRecordRow[]>([])
+  const [publishRecordsError, setPublishRecordsError] = useState<string | null>(null)
+  const [publishRecordsLoading, setPublishRecordsLoading] = useState(false)
   const [reviewActionMessage, setReviewActionMessage] = useState<string | null>(null)
   const [reviewActionError, setReviewActionError] = useState<string | null>(null)
   const [qcActionLoading, setQcActionLoading] = useState(false)
@@ -645,6 +662,31 @@ function App() {
       setArtifactsError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setArtifactsLoading(false)
+    }
+  }
+
+  const fetchPublishRecords = async (renderId?: string | null, animationId?: string | null) => {
+    if (!renderId && !animationId) {
+      setPublishRecords([])
+      return
+    }
+    setPublishRecordsLoading(true)
+    setPublishRecordsError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('limit', '20')
+      if (renderId) params.set('render_id', renderId)
+      if (animationId) params.set('animation_id', animationId)
+      const response = await fetch(`${API_BASE}/publish-records?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as PublishRecordRow[]
+      setPublishRecords(payload)
+    } catch (err) {
+      setPublishRecordsError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setPublishRecordsLoading(false)
     }
   }
 
@@ -1245,6 +1287,15 @@ function App() {
       if (!renderId) {
         throw new Error('Wybrana animacja nie ma renderu do publikacji.')
       }
+      const contentId = publishContentIdInput.trim()
+      const url = publishUrlInput.trim()
+      const errorText = publishErrorInput.trim()
+      if ((publishStatusInput === 'published' || publishStatusInput === 'manual_confirmed') && !contentId && !url) {
+        throw new Error('Dla statusu published/manual_confirmed podaj Content ID lub URL.')
+      }
+      if (publishStatusInput === 'failed' && !errorText) {
+        throw new Error('Dla statusu failed podaj opis błędu.')
+      }
       const response = await fetch(`${API_BASE}/ops/publish-record`, {
         method: 'POST',
         headers: opsHeaders(),
@@ -1252,9 +1303,9 @@ function App() {
           render_id: renderId,
           platform: publishPlatformInput,
           status: publishStatusInput,
-          content_id: publishContentIdInput.trim() || undefined,
-          url: publishUrlInput.trim() || undefined,
-          error: publishErrorInput.trim() || undefined,
+          content_id: contentId || undefined,
+          url: url || undefined,
+          error: errorText || undefined,
         }),
       })
       if (!response.ok) {
@@ -1263,6 +1314,7 @@ function App() {
       const payload = (await response.json()) as Record<string, unknown>
       setReviewActionMessage(`Publish zapisany: ${JSON.stringify(payload)}`)
       await fetchAnimations()
+      fetchPublishRecords(renderId, selectedAnimation?.id ?? null)
       fetchSystemStatus()
       fetchAuditEvents()
     } catch (err) {
@@ -1452,7 +1504,7 @@ function App() {
         .filter(Boolean)
         .flat()
       if (verifierErrors.length > 0) {
-        setOpsError(verifierErrors[0])
+        setOpsError(verifierErrors[0] ?? null)
       }
       const metas = reports
         .map((report) => report.verifier_meta as Record<string, unknown> | undefined)
@@ -1608,6 +1660,10 @@ function App() {
   useEffect(() => {
     fetchArtifacts(selectedAnimation?.render?.id ?? null)
   }, [selectedAnimation?.render?.id])
+
+  useEffect(() => {
+    fetchPublishRecords(selectedAnimation?.render?.id ?? null, selectedAnimation?.id ?? null)
+  }, [selectedAnimation?.render?.id, selectedAnimation?.id])
 
   useEffect(() => {
     setReviewActionError(null)
@@ -3768,6 +3824,52 @@ function App() {
                           <span className="truncate text-[0.7rem] text-stone-500">
                             {item.storage_path}
                           </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-stone-200 bg-white/80 p-3 text-xs text-stone-600">
+                  <div className="mb-2 text-[0.65rem] uppercase tracking-[0.2em] text-stone-400">
+                    Publish history
+                  </div>
+                  {publishRecordsLoading ? (
+                    <div>Loading publish records…</div>
+                  ) : publishRecordsError ? (
+                    <div className="text-rose-600">{publishRecordsError}</div>
+                  ) : publishRecords.length === 0 ? (
+                    <div>No publish records yet.</div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {publishRecords.map((item) => (
+                        <li key={item.id} className="rounded-lg border border-stone-200 bg-stone-50/70 p-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-stone-700">{item.platform_type ?? 'unknown'}</span>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                'border',
+                                item.status === 'published' || item.status === 'manual_confirmed'
+                                  ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
+                                  : item.status === 'failed'
+                                    ? 'border-rose-200 bg-rose-100 text-rose-900'
+                                    : 'border-stone-200 bg-stone-100 text-stone-700',
+                              )}
+                            >
+                              {item.status ?? 'unknown'}
+                            </Badge>
+                            <span className="text-[0.7rem] text-stone-500">
+                              {item.created_at ? new Date(item.created_at).toLocaleString() : '—'}
+                            </span>
+                          </div>
+                          {item.content_id ? <div className="mt-1 text-[0.75rem]">content_id: {item.content_id}</div> : null}
+                          {item.url ? <div className="truncate text-[0.75rem]">url: {item.url}</div> : null}
+                          {typeof item.error_payload === 'object' && item.error_payload && 'message' in item.error_payload ? (
+                            <div className="text-[0.75rem] text-rose-700">
+                              error: {String((item.error_payload as { message?: unknown }).message ?? '')}
+                            </div>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

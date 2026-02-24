@@ -15,7 +15,16 @@ class _FakeScalarResult:
         self._item = item
 
     def first(self):
+        if isinstance(self._item, list):
+            return self._item[0] if self._item else None
         return self._item
+
+    def all(self):
+        if isinstance(self._item, list):
+            return self._item
+        if self._item is None:
+            return []
+        return [self._item]
 
 
 class _FakeExecuteResult:
@@ -37,6 +46,7 @@ class _FakeSession:
         self.idea = idea
         self.animation = animation
         self.render = render
+        self.execute_item = None
         self.added: list[object] = []
         self.commits = 0
         self.rollbacks = 0
@@ -60,7 +70,7 @@ class _FakeSession:
         self.added.append(obj)
 
     def execute(self, _stmt):
-        return _FakeExecuteResult(None)
+        return _FakeExecuteResult(self.execute_item)
 
     def flush(self):
         self.flushes += 1
@@ -179,6 +189,51 @@ def test_ops_publish_record_manual_confirmed_marks_animation_published(monkeypat
     audits = [obj for obj in fake_session.added if getattr(obj, "event_type", None) == "publish_record"]
     assert len(audits) == 1
     assert audits[0].payload["status"] == "manual_confirmed"
+
+
+def test_ops_publish_record_requires_content_or_url_for_published_status(monkeypatch) -> None:
+    now = datetime(2026, 2, 23, 13, 0, tzinfo=UTC)
+    animation = Animation(
+        id=uuid4(),
+        animation_code="anim-003",
+        status="accepted",
+        pipeline_stage="publish",
+        created_at=now,
+        updated_at=now,
+    )
+    render = Render(
+        id=uuid4(),
+        animation_id=animation.id,
+        status="succeeded",
+        seed=1,
+        dsl_version_id=uuid4(),
+        design_system_version_id=uuid4(),
+        renderer_version="test",
+        duration_ms=1000,
+        width=1080,
+        height=1920,
+        fps=12,
+        params_json={},
+        created_at=now,
+    )
+    fake_session = _FakeSession(animation=animation, render=render)
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+
+    try:
+        api_main.ops_publish_record(
+            api_main.PublishRecordCreateRequest(
+                render_id=render.id,
+                platform="youtube",
+                status="manual_confirmed",
+                content_id="",
+                url="",
+            ),
+            _guard=None,
+        )
+        raise AssertionError("expected HTTPException")
+    except HTTPException as exc:
+        assert exc.status_code == 400
+        assert "content_id_or_url" in str(exc.detail)
 
 
 def test_ops_godot_compile_gdscript_returns_script_path(monkeypatch, tmp_path: Path) -> None:
@@ -346,6 +401,20 @@ def test_ops_godot_validate_persists_manual_history(monkeypatch, tmp_path: Path)
     assert row["exit_code"] == 0
 
 
+def test_append_manual_godot_history_rotates_to_max_lines(monkeypatch, tmp_path: Path) -> None:
+    history_file = tmp_path / "manual-godot" / "_history" / "manual-runs.jsonl"
+    monkeypatch.setattr(api_main, "_manual_godot_history_file", lambda: history_file)
+    monkeypatch.setattr(api_main, "_manual_godot_history_max_lines", lambda: 3)
+
+    for i in range(5):
+        api_main._append_manual_godot_history({"id": str(i), "recorded_at": f"2026-02-23T12:00:0{i}+00:00"})
+
+    lines = history_file.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 3
+    ids = [api_main.json.loads(line)["id"] for line in lines]
+    assert ids == ["2", "3", "4"]
+
+
 def test_list_godot_manual_runs_reads_jsonl_and_filters(monkeypatch, tmp_path: Path) -> None:
     history_file = tmp_path / "manual-godot" / "_history" / "manual-runs.jsonl"
     history_file.parent.mkdir(parents=True, exist_ok=True)
@@ -384,3 +453,26 @@ def test_list_godot_manual_runs_reads_jsonl_and_filters(monkeypatch, tmp_path: P
     assert len(rows) == 1
     assert rows[0]["id"] == "2"
     assert rows[0]["step"] == "render"
+
+
+def test_list_publish_records_returns_rows(monkeypatch) -> None:
+    now = datetime(2026, 2, 24, 9, 0, tzinfo=UTC)
+    record = PublishRecord(
+        id=uuid4(),
+        render_id=uuid4(),
+        platform_type="youtube",
+        status="published",
+        content_id="abc",
+        url="https://example.test/abc",
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session = _FakeSession()
+    fake_session.execute_item = [record]
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+
+    rows = api_main.list_publish_records(render_id=record.render_id, limit=10, offset=0)
+
+    assert len(rows) == 1
+    assert rows[0]["id"] == str(record.id)
+    assert rows[0]["platform_type"] == "youtube"
