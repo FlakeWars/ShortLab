@@ -163,6 +163,7 @@
   - [ ] W `Flow` pokazywać tylko aktywną ścieżkę i następny krok; automatyzacje w tle
   - [ ] `Repositories`: osobny obszar analityczno-administracyjny (bez mieszania z flow)
   - [ ] Definicja stanów pustych/błędów dla każdego widoku (w tym niezgodność API/UI)
+  - [x] Post-merge review (2026-02-24): `Plan / Calendar` ma już realne dane publikacji i metryk (PRD-MVP), więc kolejnym priorytetem w tym obszarze jest harmonogram dzienny + filtry widoku planu
 - [ ] UI: QC (branch: feat/ui-qc)
   - [ ] Panel QC w UI + akcja accept/reject/regenerate
 - [ ] UI: publikacja (branch: feat/ui-publish)
