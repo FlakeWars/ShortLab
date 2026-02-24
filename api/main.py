@@ -562,6 +562,23 @@ class PublishRecordCreateRequest(BaseModel):
     actor: UUID | None = Field(default=None)
 
 
+class MetricsDailyManualUpsertRequest(BaseModel):
+    platform_type: Literal["youtube", "tiktok"]
+    content_id: str = Field(min_length=1, max_length=256)
+    date: date
+    publish_record_id: UUID | None = Field(default=None)
+    render_id: UUID | None = Field(default=None)
+    views: int = Field(default=0, ge=0)
+    likes: int = Field(default=0, ge=0)
+    comments: int = Field(default=0, ge=0)
+    shares: int = Field(default=0, ge=0)
+    watch_time_seconds: int = Field(default=0, ge=0)
+    avg_view_percentage: float | None = Field(default=None, ge=0.0, le=100.0)
+    avg_view_duration_seconds: int | None = Field(default=None, ge=0)
+    extra_metrics: dict | None = Field(default=None)
+    actor: UUID | None = Field(default=None)
+
+
 class GodotManualCompileRequest(BaseModel):
     idea_id: UUID
     out_root: str = Field(default="out/manual-godot")
@@ -827,6 +844,88 @@ def list_metrics_daily(
         stmt = stmt.order_by(desc(MetricsDaily.date)).limit(limit).offset(offset)
         rows = session.execute(stmt).scalars().all()
         return jsonable_encoder(rows)
+    finally:
+        session.close()
+
+
+@app.post("/ops/metrics-daily")
+def upsert_metrics_daily_manual(
+    request: MetricsDailyManualUpsertRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        publish_record: PublishRecord | None = None
+        if request.publish_record_id:
+            publish_record = session.get(PublishRecord, request.publish_record_id)
+            if publish_record is None:
+                raise HTTPException(status_code=404, detail="publish_record_not_found")
+        if request.render_id:
+            render = session.get(Render, request.render_id)
+            if render is None:
+                raise HTTPException(status_code=404, detail="render_not_found")
+
+        content_id = request.content_id.strip()
+        stmt = select(MetricsDaily).where(
+            MetricsDaily.platform_type == request.platform_type,
+            MetricsDaily.content_id == content_id,
+            MetricsDaily.date == request.date,
+        )
+        record = session.execute(stmt).scalars().first()
+        created = record is None
+        if record is None:
+            record = MetricsDaily(
+                platform_type=request.platform_type,
+                content_id=content_id,
+                date=request.date,
+                created_at=_utc_now(),
+            )
+
+        record.publish_record_id = request.publish_record_id
+        record.render_id = request.render_id
+        record.views = request.views
+        record.likes = request.likes
+        record.comments = request.comments
+        record.shares = request.shares
+        record.watch_time_seconds = request.watch_time_seconds
+        record.avg_view_percentage = request.avg_view_percentage
+        record.avg_view_duration_seconds = request.avg_view_duration_seconds
+        record.extra_metrics = request.extra_metrics
+        session.add(record)
+
+        _audit_event(
+            session,
+            event_type="metrics_daily_manual_upsert",
+            actor_user_id=request.actor,
+            payload={
+                "metrics_daily_id": str(record.id) if getattr(record, "id", None) else None,
+                "platform_type": request.platform_type,
+                "content_id": content_id,
+                "date": str(request.date),
+                "created": created,
+                "publish_record_id": str(request.publish_record_id) if request.publish_record_id else None,
+                "render_id": str(request.render_id) if request.render_id else None,
+            },
+        )
+        session.commit()
+        return jsonable_encoder(
+            {
+                "created": created,
+                "metrics_daily_id": record.id,
+                "platform_type": record.platform_type,
+                "content_id": record.content_id,
+                "date": record.date,
+                "views": record.views,
+                "likes": record.likes,
+                "comments": record.comments,
+                "shares": record.shares,
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
     finally:
         session.close()
 

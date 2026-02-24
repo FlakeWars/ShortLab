@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import api.main as api_main
 from fastapi import HTTPException
-from db.models import Animation, Idea, PublishRecord, QCChecklistVersion, QCDecision, Render
+from db.models import Animation, Idea, MetricsDaily, PublishRecord, QCChecklistVersion, QCDecision, Render
 
 
 class _FakeScalarResult:
@@ -42,10 +42,12 @@ class _FakeSession:
         idea: Idea | None = None,
         animation: Animation | None = None,
         render: Render | None = None,
+        publish_record: PublishRecord | None = None,
     ) -> None:
         self.idea = idea
         self.animation = animation
         self.render = render
+        self.publish_record = publish_record
         self.execute_item = None
         self.added: list[object] = []
         self.commits = 0
@@ -59,6 +61,8 @@ class _FakeSession:
             return self.animation
         if model is Render and self.render is not None and self.render.id == key:
             return self.render
+        if model is PublishRecord and self.publish_record is not None and self.publish_record.id == key:
+            return self.publish_record
         return None
 
     def add(self, obj):
@@ -541,3 +545,90 @@ def test_planner_settings_roundtrip_and_invalid_timezone(monkeypatch, tmp_path: 
     except HTTPException as exc:
         assert exc.status_code == 400
         assert exc.detail == "planner_timezone_invalid"
+
+
+def test_ops_metrics_daily_manual_upsert_creates_and_updates(monkeypatch) -> None:
+    now = datetime(2026, 2, 24, 12, 0, tzinfo=UTC)
+    render = Render(
+        id=uuid4(),
+        animation_id=uuid4(),
+        status="succeeded",
+        seed=1,
+        dsl_version_id=uuid4(),
+        design_system_version_id=uuid4(),
+        renderer_version="test",
+        duration_ms=1000,
+        width=1080,
+        height=1920,
+        fps=12,
+        params_json={},
+        created_at=now,
+    )
+    publish = PublishRecord(
+        id=uuid4(),
+        render_id=render.id,
+        platform_type="youtube",
+        status="published",
+        content_id="abc123",
+        url="https://example.test/watch?v=abc123",
+        created_at=now,
+        updated_at=now,
+    )
+    fake_session = _FakeSession(render=render, publish_record=publish)
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+    monkeypatch.setattr(api_main, "_utc_now", lambda: now)
+
+    payload = api_main.upsert_metrics_daily_manual(
+        api_main.MetricsDailyManualUpsertRequest(
+            platform_type="youtube",
+            content_id="abc123",
+            date=now.date(),
+            publish_record_id=publish.id,
+            render_id=render.id,
+            views=100,
+            likes=10,
+        ),
+        _guard=None,
+    )
+
+    assert payload["created"] is True
+    metrics_objs = [obj for obj in fake_session.added if isinstance(obj, MetricsDaily)]
+    assert len(metrics_objs) == 1
+    metrics = metrics_objs[0]
+    assert metrics.views == 100
+    assert metrics.likes == 10
+    fake_session.execute_item = metrics
+
+    payload2 = api_main.upsert_metrics_daily_manual(
+        api_main.MetricsDailyManualUpsertRequest(
+            platform_type="youtube",
+            content_id="abc123",
+            date=now.date(),
+            views=150,
+            likes=12,
+            comments=3,
+        ),
+        _guard=None,
+    )
+    assert payload2["created"] is False
+    assert metrics.views == 150
+    assert metrics.comments == 3
+
+
+def test_ops_metrics_daily_manual_upsert_validates_publish_record_ref(monkeypatch) -> None:
+    fake_session = _FakeSession()
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+    try:
+        api_main.upsert_metrics_daily_manual(
+            api_main.MetricsDailyManualUpsertRequest(
+                platform_type="youtube",
+                content_id="abc",
+                date=datetime(2026, 2, 24, tzinfo=UTC).date(),
+                publish_record_id=uuid4(),
+            ),
+            _guard=None,
+        )
+        raise AssertionError("expected HTTPException")
+    except HTTPException as exc:
+        assert exc.status_code == 404
+        assert exc.detail == "publish_record_not_found"

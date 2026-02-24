@@ -477,6 +477,19 @@ function App() {
   const [plannerMinuteInput, setPlannerMinuteInput] = useState('00')
   const [plannerWindowInput, setPlannerWindowInput] = useState('120')
   const [plannerTargetInput, setPlannerTargetInput] = useState('1')
+  const [metricsImportLoading, setMetricsImportLoading] = useState(false)
+  const [metricsImportMessage, setMetricsImportMessage] = useState<string | null>(null)
+  const [metricsImportError, setMetricsImportError] = useState<string | null>(null)
+  const [metricsImportPlatform, setMetricsImportPlatform] = useState<'youtube' | 'tiktok'>('youtube')
+  const [metricsImportContentId, setMetricsImportContentId] = useState('')
+  const [metricsImportDate, setMetricsImportDate] = useState(new Date().toISOString().slice(0, 10))
+  const [metricsImportViews, setMetricsImportViews] = useState('0')
+  const [metricsImportLikes, setMetricsImportLikes] = useState('0')
+  const [metricsImportComments, setMetricsImportComments] = useState('0')
+  const [metricsImportShares, setMetricsImportShares] = useState('0')
+  const [metricsImportWatchTime, setMetricsImportWatchTime] = useState('0')
+  const [metricsImportAvgPercent, setMetricsImportAvgPercent] = useState('')
+  const [metricsImportAvgDuration, setMetricsImportAvgDuration] = useState('')
   const [reviewActionMessage, setReviewActionMessage] = useState<string | null>(null)
   const [reviewActionError, setReviewActionError] = useState<string | null>(null)
   const [qcActionLoading, setQcActionLoading] = useState(false)
@@ -835,6 +848,68 @@ function App() {
     } finally {
       setPlannerSettingsLoading(false)
     }
+  }
+
+  const handleManualMetricsImport = async () => {
+    setMetricsImportLoading(true)
+    setMetricsImportError(null)
+    setMetricsImportMessage(null)
+    try {
+      const contentId = metricsImportContentId.trim()
+      if (!contentId) {
+        throw new Error('Podaj Content ID dla metryk.')
+      }
+      if (!metricsImportDate) {
+        throw new Error('Podaj datę metryk.')
+      }
+      const body: Record<string, unknown> = {
+        platform_type: metricsImportPlatform,
+        content_id: contentId,
+        date: metricsImportDate,
+        views: Math.max(0, Math.floor(parseNumberInput(metricsImportViews, 0))),
+        likes: Math.max(0, Math.floor(parseNumberInput(metricsImportLikes, 0))),
+        comments: Math.max(0, Math.floor(parseNumberInput(metricsImportComments, 0))),
+        shares: Math.max(0, Math.floor(parseNumberInput(metricsImportShares, 0))),
+        watch_time_seconds: Math.max(0, Math.floor(parseNumberInput(metricsImportWatchTime, 0))),
+      }
+      if (metricsImportAvgPercent.trim()) {
+        body.avg_view_percentage = Math.max(0, Math.min(100, parseNumberInput(metricsImportAvgPercent, 0)))
+      }
+      if (metricsImportAvgDuration.trim()) {
+        body.avg_view_duration_seconds = Math.max(0, Math.floor(parseNumberInput(metricsImportAvgDuration, 0)))
+      }
+      const response = await fetch(`${API_BASE}/ops/metrics-daily`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as Record<string, unknown>
+      setMetricsImportMessage(`Metryki zapisane: ${JSON.stringify(payload)}`)
+      fetchPlanMetrics()
+      fetchAuditEvents()
+    } catch (err) {
+      setMetricsImportError(err instanceof Error ? err.message : 'Unknown error')
+    } finally {
+      setMetricsImportLoading(false)
+    }
+  }
+
+  const prefillMetricsFromPublishRecord = (row: PublishRecordRow) => {
+    if (row.platform_type === 'youtube' || row.platform_type === 'tiktok') {
+      setMetricsImportPlatform(row.platform_type)
+    }
+    if (row.content_id) {
+      setMetricsImportContentId(row.content_id)
+    }
+    const sourceDate = row.published_at || row.created_at
+    if (sourceDate) {
+      setMetricsImportDate(new Date(sourceDate).toISOString().slice(0, 10))
+    }
+    setMetricsImportMessage(null)
+    setMetricsImportError(null)
   }
 
   const fetchGodotManualRuns = async () => {
@@ -2454,6 +2529,17 @@ function App() {
                           <span className="font-semibold">error:</span> {String((row.error_payload as { message?: unknown }).message ?? '')}
                         </div>
                       ) : null}
+                      {(row.status === 'published' || row.status === 'manual_confirmed') && row.content_id ? (
+                        <div className="mt-2">
+                          <Button
+                            variant="outline"
+                            className="h-7 rounded-full px-3 text-[11px]"
+                            onClick={() => prefillMetricsFromPublishRecord(row)}
+                          >
+                            Prefill metrics import
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -2461,6 +2547,78 @@ function App() {
             )}
           </div>
           <div className="rounded-2xl border border-stone-200 bg-white/80 p-4">
+            <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
+              <div className="font-semibold text-stone-900">Manual metrics import (MVP)</div>
+              <div className="mt-1 text-stone-500">
+                Ręczny zapis `metrics_daily` dla opublikowanego contentu (manual-first integracje).
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Platform
+                  <select
+                    className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={metricsImportPlatform}
+                    onChange={(event) => setMetricsImportPlatform(event.target.value as 'youtube' | 'tiktok')}
+                  >
+                    <option value="youtube">youtube</option>
+                    <option value="tiktok">tiktok</option>
+                  </select>
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Date
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={metricsImportDate}
+                    onChange={(event) => setMetricsImportDate(event.target.value)}
+                  />
+                </label>
+                <label className="sm:col-span-2 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Content ID
+                  <input
+                    className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={metricsImportContentId}
+                    onChange={(event) => setMetricsImportContentId(event.target.value)}
+                    placeholder="youtube/tiktok content id"
+                  />
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Views
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportViews} onChange={(e) => setMetricsImportViews(e.target.value)} />
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Likes
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportLikes} onChange={(e) => setMetricsImportLikes(e.target.value)} />
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Comments
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportComments} onChange={(e) => setMetricsImportComments(e.target.value)} />
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Shares
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportShares} onChange={(e) => setMetricsImportShares(e.target.value)} />
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Watch time (s)
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportWatchTime} onChange={(e) => setMetricsImportWatchTime(e.target.value)} />
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Avg view %
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportAvgPercent} onChange={(e) => setMetricsImportAvgPercent(e.target.value)} placeholder="optional" />
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Avg view duration (s)
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportAvgDuration} onChange={(e) => setMetricsImportAvgDuration(e.target.value)} placeholder="optional" />
+                </label>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button className="rounded-full" onClick={handleManualMetricsImport} disabled={metricsImportLoading}>
+                  {metricsImportLoading ? 'Zapisywanie metryk…' : 'Zapisz metryki'}
+                </Button>
+                {metricsImportMessage ? <span className="text-xs text-emerald-700">{metricsImportMessage}</span> : null}
+                {metricsImportError ? <span className="text-xs text-rose-700">{metricsImportError}</span> : null}
+              </div>
+            </div>
             <div className="flex items-center justify-between gap-2">
               <div>
                 <div className="text-sm font-semibold text-stone-900">Latest metrics snapshot</div>
