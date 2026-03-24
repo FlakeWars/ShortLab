@@ -1,0 +1,167 @@
+# Operator Flow v2 (single-video cadence)
+
+Data opracowania: 2026-03-24
+Status: plan wykonawczy do realizacji etapami
+
+## 1) Cel operacyjny
+- Główny use-case: 1 film co 1-2 dni, nie batch N pomysłów.
+- Priorytet: prosty, sekwencyjny flow i minimalna liczba decyzji na krok.
+- Zasada: jeśli krok nie przechodzi, zatrzymujemy flow i naprawiamy tylko ten krok.
+
+## 2) Docelowy flow (kanoniczny)
+1. Pomysł:
+   - Akcja A: wygeneruj 1 nowy pomysł.
+   - Akcja B: wylosuj 1 pomysł z półki (`later`).
+   - Decyzja: `accept` / `later` / `trash`.
+2. Animacja (idea -> script -> validate -> estimate -> preview -> final):
+   - System musi wykazać realizację założenia pomysłu przed finalizacją czasu.
+   - Czas symulacji jest dobierany do momentu realizacji idei, potem skalowany do docelowego runtime (np. 60s).
+3. Postprodukcja:
+   - Dodanie krótkiego tekstu intro (hook) i/lub zasad animacji.
+   - Dodanie audio (SFX + opcjonalny music bed).
+4. QC:
+   - Ocena jakości i zgodności z pomysłem.
+   - Decyzja: `accepted` / `regenerate` / `rejected`.
+5. Publikacja:
+   - YouTube / TikTok (auto jeśli API gotowe, fallback manual_confirmed).
+6. Metryki i analiza:
+   - Snapshot 24h/72h/7d + rolling 14d.
+   - Wnioski do następnego filmu.
+
+## 3) Minimalny UX operatora (bez przeładowania)
+- Widok 1: `Today` (jedna karta "co teraz").
+- Widok 2: `Flow` (jeden aktywny krok, poprzednie zwinięte).
+- Widok 3: `Library` (ideas: later/trash/published).
+- Widok 4: `Insights` (metryki i trend po publikacji).
+
+Wymagania UX:
+- Domyślnie 1 pomysł, nie N.
+- Brak sekcji legacy DSL w domyślnym widoku.
+- Każdy krok ma jasny status: `todo | running | blocked | done`.
+- Jeden główny CTA na ekran.
+
+## 4) Kontrakt jakości treści (film)
+
+### 4.1 Jakość animacji
+- "Kiepski filmik" jest adresowany przez QC, ale część kryteriów musi być automatyczna:
+  - czytelny ruch głównego obiektu,
+  - brak pustych segmentów > X sekund,
+  - spójność z ideą (intent coverage >= próg).
+
+### 4.2 Tekst intro
+- Krótki overlay na początku: 1-2 linie, 1.0-2.0 s, max 90 znaków.
+- Cel: wyjaśnić "co widzę" lub "jaką zasadę oglądam".
+- Tekst nie może zasłaniać kluczowego obiektu.
+
+### 4.3 Audio
+- SFX z events timeline (kolizje/spawn/merge/split).
+- Tło muzyczne opcjonalne (poziom loudness kontrolowany).
+- Standard normalizacji: LUFS docelowe dla short video.
+
+## 5) Model danych i stany (v2)
+
+### 5.1 Idea lifecycle
+- `new` -> `accepted_for_production` -> `produced`.
+- Poboczne: `later`, `trash`.
+
+### 5.2 Animation lifecycle
+- `script_compiled` -> `validated` -> `preview_ready` -> `render_ready` -> `rendered` -> `audio_text_ready` -> `qc_*` -> `published` -> `metrics`.
+
+### 5.3 Nowe byty
+- `intro_overlay_template` + `intro_overlay_instance`.
+- `audio_track` + `audio_mix_job`.
+- `intent_check_report` (czy animacja realizuje pomysł i kiedy).
+
+## 6) Implementacja etapowa (wykonawcza)
+
+### Etap A - UX reset pod 1 film
+- Dodać tryb "single-video cadence" jako domyślny.
+- Ukryć/hard-collapse elementy legacy i nadmiarowe panele.
+- Wdrożyć ekran `Today` + aktywny krok flow.
+
+DoD:
+- Operator przechodzi od pomysłu do renderu bez skakania po zakładkach.
+- Brak konieczności generowania N pomysłów.
+
+### Etap B - Intent coverage + duration scaling
+- Dodać `intent_check` po preview.
+- Jeśli idea realizuje się późno, zwiększyć czas symulacji i przeskalować final do target runtime.
+- Zapisać raport czasu realizacji idei.
+
+DoD:
+- API zwraca `intent_reached_at_s`, `recommended_sim_duration_s`, `target_runtime_s`, `speed_factor`.
+
+### Etap C - Intro text module
+- Generator krótkiego tekstu (LLM + limit znaków + walidacja).
+- Render overlay przez FFmpeg (lub Godot layer) jako osobny krok.
+- Presety pozycji/stylu (bez ręcznego projektowania).
+
+DoD:
+- `POST /ops/overlay/intro` tworzy artefakt i metadata.
+
+### Etap D - Audio module
+- Zdarzenia audio z timeline + mapowanie do biblioteki SFX.
+- Opcjonalny music bed i miks końcowy.
+- Kontrola głośności i clipping.
+
+DoD:
+- `POST /ops/audio/mix` tworzy finalny artefakt A/V.
+
+### Etap E - QC i publish hardening
+- Rozszerzyć QC o kryteria: intent coverage, intro readability, audio quality.
+- Publish connectors: YouTube + TikTok (manual fallback utrzymany).
+
+DoD:
+- Przy `accepted` można publikować bez kroków bocznych.
+
+### Etap F - Metrics & insight loop
+- Pull metryk i dashboard 24h/72h/7d/14d.
+- Prosty raport "what worked" per video.
+
+DoD:
+- `Insights` pokazuje porównanie ostatnich publikacji i rekomendację dla kolejnego filmu.
+
+## 7) Integracje API i MCP (stan + decyzje)
+
+### 7.1 YouTube
+- Upload: YouTube Data API `videos.insert`.
+- Metryki: YouTube Analytics API `reports.query`.
+- Źródła oficjalne:
+  - https://developers.google.com/youtube/v3/docs/videos/insert
+  - https://developers.google.com/youtube/analytics/reference/reports/query
+
+### 7.2 TikTok
+- Publish: Content Posting API (`video.publish` / `video.upload`).
+- Ograniczenia: audyt klienta i limity requestów.
+- Display/odczyt video metadata: Display API (`video.list`).
+- Źródła oficjalne:
+  - https://developers.tiktok.com/doc/content-posting-api-reference-direct-post
+  - https://developers.tiktok.com/doc/content-posting-api-reference-upload-video
+  - https://developers.tiktok.com/doc/display-api-overview
+
+### 7.3 MCP server discovery
+- Katalog referencyjny: https://github.com/modelcontextprotocol/servers
+- Registry: https://registry.modelcontextprotocol.io/
+- Kandydaci do ewaluacji (niezależna weryfikacja bezpieczeństwa wymagana):
+  - YouTube MCP (community variants)
+  - Metricool MCP (cross-platform analytics)
+  - Supadata (YouTube/TikTok data)
+
+Decyzja architektoniczna:
+- Core publish/metrics zostaje na oficjalnych API platform.
+- MCP używamy jako warstwę wspierającą (insights/assist), nie jako jedyne źródło krytycznego publish flow.
+
+## 8) Porządkowanie i usuwanie "nietrafionych" elementów
+- Idea `trash` jest terminalna (domyślnie ukryta w UI, opcjonalny auto-delete po TTL).
+- `later` ma limit wieku; po TTL trafia do review lub cleanup.
+- Zasada repo: nie utrzymujemy martwych paneli i feature flag bez właściciela.
+
+## 9) Kryteria gotowości projektu (quality gate)
+- Operator wykonuje pełny flow bez CLI.
+- Czas obsługi jednego filmu <= 15 min pracy operatora (bez czasu renderu).
+- Każdy film ma: `idea linkage`, `intent report`, `intro`, `audio`, `qc`, `publish record`, `metrics snapshot`.
+
+## 10) Braki do doprecyzowania (wymagają decyzji)
+1. Docelowy runtime filmu: zawsze 60s czy per platforma (np. 30-60s)?
+2. Język intro overlay: PL, EN czy auto per platforma?
+3. Domyślna polityka dla `trash`: hard delete po ilu dniach?

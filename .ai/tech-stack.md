@@ -50,10 +50,22 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 
 ## 7. Integracje publikacji i metryk
 - **YouTube Data API v3**: upload + metryki (daily pull).
+- **YouTube Analytics API**: raporty metryk (`reports.query`) dla dashboardu 24h/72h/7d/14d.
 - **TikTok**:
   - Jeśli API niedostępne: flow półmanualny z potwierdzeniem publikacji.
-  - Gdy możliwe: TikTok Content Posting API (wymaga weryfikacji).
+  - Gdy możliwe: TikTok Content Posting API (`video.publish` / `video.upload`) + Display API (`video.list`/`video.query`).
 - **Worker integracyjny**: osobne zadania "publish" i "metrics_pull" z retry i logami.
+
+## 7a. MCP strategy (integracje wspierające)
+- **Zasada**: krytyczny publish/metrics opiera się o oficjalne API platform; MCP jest warstwą wspierającą.
+- **Discovery**:
+  - katalog: `https://github.com/modelcontextprotocol/servers`
+  - registry: `https://registry.modelcontextprotocol.io/`
+- **Kandydaci do ewaluacji**:
+  - community YouTube MCP (zarządzanie + analytics),
+  - Metricool MCP (cross-platform analytics),
+  - Supadata MCP (YouTube/TikTok enrichment).
+- **Warunek wdrożenia MCP**: audyt bezpieczeństwa, limity, fallback na oficjalne API.
 
 ## 8. QC, audit i wersjonowanie design systemu
 - **Checklisty QC** jako słowniki w DB + wersjonowanie.
@@ -77,6 +89,19 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 - **QC**: backend flow jest dostępny, osobny panel UI jest w backlogu.
 - **Audit log**: historia zdarzeń i filtr po typie.
 - **Ops**: enqueue/rerun/cleanup z guardem operatora.
+- **Tryb operator-first**: pojedynczy aktywny flow (`Today -> Flow -> Insights`) bez narzucania batchu pomysłów.
+
+## 10.2. Postprodukcja (v2)
+- **Intro text overlay**:
+  - generator krótkiego hooka + walidacja długości,
+  - render overlay w dedykowanym kroku.
+- **Audio mix**:
+  - SFX z `events.json`,
+  - opcjonalny music bed,
+  - normalizacja głośności i clipping guard.
+- **Intent coverage**:
+  - raport momentu realizacji idei,
+  - automatyczne skalowanie czasu symulacji do runtime publikacyjnego.
 
 ## 11. Testy i jakość
 - **Pytest**: testy pipeline, walidacji skryptu i stabilnosci renderu (golden tests gdzie to mozliwe).

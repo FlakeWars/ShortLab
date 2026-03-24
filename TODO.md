@@ -10,11 +10,25 @@
   - [x] Testy backend: endpoint estymacji i regresja istniejących endpointów Godot/manual
   - [x] Test/Smoke (2026-03-24): pełny manual flow E2E po API (`idea_generate -> idea_gate(picked) -> compile_gdscript -> validate -> estimate_duration -> preview -> final_render`) przeszedł z artefaktami `preview.mp4` i `final.mp4`
   - [x] Krytyczna analiza (2026-03-24): krok `preview` był blokowany przez parse error w Godot 4.6 (`Warning treated as error`) na inferencji typu `Variant` w `renderer/godot/runner.gd`; naprawiono przez jawne typowanie (`var ...: Variant`)
+  - [x] Dokumentacja (2026-03-24): opracowano plan operator-first `single-video cadence` i modułów `intent coverage + intro + audio + insights` w `.ai/operator-flow-v2.md`
   - [ ] Ryzyko/uzupełnienie: dodać regresyjny smoke test (API/CLI) dla `preview/render`, który failuje przy ostrzeżeniach parsera Godot 4.6 (żeby wychwycić podobne regresje `runner.gd` wcześniej)
   - [ ] Ryzyko/uzupełnienie: dodać gotowość/retry gate do skryptu E2E (`run-dev` cold start), bo pojedynczy health-check zaraz po starcie daje fałszywe negatywy
   - [ ] Krytyczna analiza po smoke lokalnym: skalibrować domyślne `threshold/hold/tail` dla różnych typów animacji
 
 ## Next (Kolejne)
+- [ ] Operator-first v2: prosty flow 1 film co 1-2 dni (branch: feat/operator-flow-v2)
+  - [ ] [P1] UI: tryb `single-video cadence` jako domyślny (`Today -> Flow -> Insights`)
+  - [ ] [P1] UI: generator 1 pomysłu + akcje `accept/later/trash` bez batchu
+  - [ ] [P1] Pipeline: `intent_check` + raport `intent_reached_at_s` + skalowanie czasu do runtime publikacyjnego
+  - [ ] [P1] Postprodukcja: krok `intro overlay` (krótki tekst hook/rules)
+  - [ ] [P1] Postprodukcja: krok `audio mix` (SFX + opcjonalna muzyka)
+  - [ ] [P1] QC: rozszerzyć checklistę o `idea intent`, `intro readability`, `audio quality`
+  - [ ] [P2] Publish connectors: hardening YouTube/TikTok + fallback manual_confirmed
+  - [ ] [P2] Metrics: dashboard 24h/72h/7d/14d + raport rekomendacji dla kolejnego filmu
+  - [ ] [P2] Cleanup: polityka kasowania `trash` i limit wieku `later`
+  - [ ] Ryzyko/uzupełnienie: potwierdzić runtime docelowy (stałe 60s vs per platforma)
+  - [ ] Ryzyko/uzupełnienie: potwierdzić język intro (PL/EN/auto)
+  - [ ] Ryzyko/uzupełnienie: ocenić i wybrać MCP serwer wspierający publish/analytics (po audycie bezpieczeństwa)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
   - [x] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM
  - [x] [P1] Zdefiniować ograniczoną pulę node/shape + Godot 4.x only (ban API 3.x)

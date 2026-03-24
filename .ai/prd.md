@@ -14,6 +14,12 @@
 5. Brakuje: walidator GDScript + pętla naprawy, preview render, pipeline Godot Movie Maker.
 6. Częściowo: UI jest operacyjne, ale nadal nie pokrywa pełnego docelowego przepływu QC/publish/metrics jako głównego UX.
 
+## 1b. Kierunek operator-first (na dzień 24 marca 2026)
+1. Docelowy rytm pracy: 1 film co 1-2 dni (single-video cadence).
+2. Domyślny UX: jeden aktywny flow, bez wymuszania batchy pomysłów.
+3. Kroki obowiązkowe przed publikacją: zgodność animacji z pomysłem, intro tekstowe, audio, QC.
+4. Źródło planu wykonawczego: `.ai/operator-flow-v2.md`.
+
 ## 2. Problem użytkownika
 1. Brak skalowalnego sposobu na codzienną publikację Shorts i systematyczną obserwację wpływu regularności na zasięgi.
 2. Trudność w utrzymaniu spójnego procesu generacji, kontroli jakości i publikacji przy minimalnym udziale człowieka.
@@ -33,6 +39,8 @@
    1.8. MVP korzysta z lokalnych embeddingow (scikit-learn HashingVectorizer) jako papierka lakmusowego; zdalny provider jest opcjonalny.
    1.9. Skrypty sa uruchamiane w ograniczonym srodowisku projektu (bez dostepu do sieci i plikow poza workspace).
    1.10. Jesli po limitach napraw skrypt pozostaje niepoprawny, kandydat jest odrzucany lub generowany od nowa.
+   1.11. System wspiera tryb \"single idea\": wygenerowanie dokładnie jednego pomysłu lub wybór jednego z półki `later`.
+   1.12. Nietrafione pomysły mogą być oznaczone `trash` i usuwane z aktywnego workflow.
 
 2. Rendering i reprodukowalność
    2.1. System renderuje animacje 2D w formacie pionowym (Short) z określoną długością.
@@ -41,6 +49,8 @@
    2.4. System posiada tryb preview (niska rozdzielczosc / krótki klip) przed renderem finalnym.
    2.5. Renderer emituje zdarzenia audio do pliku `events.json` (MVP, opcjonalne).
        - Pola: `t` (czas w sekundach), `type` (np. collision/spawn/merge/split), `payload` opcjonalny.
+   2.6. Pipeline mierzy moment realizacji idei (`intent coverage`) i na tej podstawie dobiera czas symulacji przed skalowaniem do runtime publikacyjnego.
+   2.7. Jeśli realizacja idei następuje zbyt późno, system wydłuża symulację i normalizuje wynik do czasu docelowego materiału.
 3. Design system i warstwa wizualna
    3.1. Warstwa wizualna jest minimalistyczna i oparta o zamrożony Design System MVP.
    3.2. Design System jest wersjonowany i przypisywany do każdej animacji.
@@ -58,6 +68,8 @@
    5.7. Panel zawiera sekcję Idea Gate z propozycjami, wyborem i similarity.
    5.8. Panel udostępnia akcje operacyjne: enqueue, rerun, cleanup jobów.
    5.9. Panel umożliwia przegląd i ręczną akceptację/odrzucenie pomysłów z generatora.
+   5.10. Panel jest zoptymalizowany pod sekwencyjny, jednowątkowy flow operatora (jeden główny CTA na krok).
+   5.11. Panel domyślnie ukrywa lub redukuje elementy legacy nieużywane w trybie operator-first.
 6. Publikacja
    6.1. System umożliwia półautomatyczny upload na YouTube i TikTok.
    6.2. Publikacja zapisuje identyfikatory materiałów na platformach.
@@ -83,6 +95,7 @@
 1. System miksuje dźwięki zdarzeń (SFX) z wideo na podstawie `events.json`.
 2. Repozytorium SFX zawiera podstawowe kolizje i zdarzenia (tagi/rodzaj/głośność).
 3. Muzyka tła jest opcjonalna; w MVP może być wyłączona lub wybierana ręcznie.
+4. Intro tekstowe jest traktowane jako obowiązkowy krok postprodukcji (krótki hook/zasady animacji).
 
 ## 6. Panel operacyjny (moduł UI)
 1. Zakres MVP

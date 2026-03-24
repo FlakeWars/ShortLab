@@ -3,17 +3,26 @@
 ShortLab to lokalny pipeline do codziennego generowania i publikacji krótkich animacji 2D (Shorts), z panelem review, półautomatyczną publikacją i metrykami dla YouTube/TikTok. Nowy kierunek zaklada Godot 4.x + pelny GDScript generowany przez LLM (deterministycznosc nie jest celem nadrzednym).
 
 ## Zakres MVP
-- Generacja pomyslu + skryptu GDScript -> walidacja/naprawa -> preview -> render -> review/QC -> publikacja -> metryki.
+- Generacja jednego pomyslu (lub wybór z `later`) -> skrypt GDScript -> walidacja/naprawa -> estimate_duration -> preview -> final render -> intro tekst + audio -> QC -> publikacja -> metryki.
 - Render 2D w Godot 4.x (Movie Maker) + opcjonalny FFmpeg.
 - Lokalna infrastruktura: Postgres, Redis, MinIO (Docker Compose).
 - Panel review: React + Vite.
 
-## Stan implementacji (2026-02-11)
+## Stan implementacji (2026-03-24)
 - Dziala legacy sciezka DSL: enqueue -> generate_dsl -> render -> artefakty.
 - Dziala Idea Repository/Idea Gate + embeddings.
 - Dziala mediator LLM z routingiem i persystencja metryk/budzetu w DB.
-- Nowy kierunek: Godot 4.x + GDScript (LLM generuje pelny skrypt) — migracja w toku.
-- W toku: pelna sciezka UI dla QC/publikacji/metryk.
+- Dziala manualny flow Godot E2E po API: `idea_generate -> idea_gate -> compile -> validate -> estimate_duration -> preview -> final_render`.
+- Nowy kierunek: operator-first `single-video cadence` (1 film co 1-2 dni) z uproszczonym flow UI.
+- Plan wykonawczy: `.ai/operator-flow-v2.md`.
+
+## Operator-first flow (single-video cadence)
+- Cel: operator ma wykonywać jeden, czytelny flow bez przeskakiwania między wieloma panelami.
+- Zasada: domyślnie pracujemy na jednym pomyśle i jednym aktywnym filmie.
+- Kolejność: `Pomysł -> Animacja -> Intro/Audio -> QC -> Publish -> Metrics`.
+- Nietrafione pomysły:
+  - `later`: do ponownego użycia.
+  - `trash`: do usunięcia (lub cleanup po TTL).
 
 ## Szybki start (macOS M2 Pro)
 1. Zainstaluj narzędzia bazowe:
