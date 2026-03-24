@@ -51,6 +51,7 @@
        - Pola: `t` (czas w sekundach), `type` (np. collision/spawn/merge/split), `payload` opcjonalny.
    2.6. Pipeline mierzy moment realizacji idei (`intent coverage`) i na tej podstawie dobiera czas symulacji przed skalowaniem do runtime publikacyjnego.
    2.7. Jeśli realizacja idei następuje zbyt późno, system wydłuża symulację i normalizuje wynik do czasu docelowego materiału.
+   2.8. Domyślny runtime publikacyjny to 60s (jednolity dla platform), z możliwością override per film gdy scaling powoduje nienaturalny odbiór.
 3. Design system i warstwa wizualna
    3.1. Warstwa wizualna jest minimalistyczna i oparta o zamrożony Design System MVP.
    3.2. Design System jest wersjonowany i przypisywany do każdej animacji.
@@ -96,6 +97,11 @@
 2. Repozytorium SFX zawiera podstawowe kolizje i zdarzenia (tagi/rodzaj/głośność).
 3. Muzyka tła jest opcjonalna; w MVP może być wyłączona lub wybierana ręcznie.
 4. Intro tekstowe jest traktowane jako obowiązkowy krok postprodukcji (krótki hook/zasady animacji).
+5. Domyślny język intro tekstowego: EN.
+
+## 3b. Lifecycle idei (operator-first)
+1. `trash` oznacza natychmiastowe usunięcie idei z systemu (hard-delete).
+2. `later` oznacza odłożenie idei do ponownego użycia.
 
 ## 6. Panel operacyjny (moduł UI)
 1. Zakres MVP

@@ -162,6 +162,10 @@ Decyzja architektoniczna:
 - Każdy film ma: `idea linkage`, `intent report`, `intro`, `audio`, `qc`, `publish record`, `metrics snapshot`.
 
 ## 10) Braki do doprecyzowania (wymagają decyzji)
-1. Docelowy runtime filmu: zawsze 60s czy per platforma (np. 30-60s)?
-2. Język intro overlay: PL, EN czy auto per platforma?
-3. Domyślna polityka dla `trash`: hard delete po ilu dniach?
+1. Docelowy runtime filmu:
+   - decyzja: domyślnie `60s` dla wszystkich platform,
+   - wyjątek: operator może ustawić override runtime dla konkretnego filmu, jeśli scaling do 60s daje nienaturalny efekt.
+2. Język intro overlay:
+   - decyzja: domyślnie `EN` (maksymalizacja potencjalnego zasięgu).
+3. Polityka `trash`:
+   - decyzja: hard-delete natychmiast po oznaczeniu idei jako `trash`.

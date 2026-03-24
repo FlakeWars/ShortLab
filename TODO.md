@@ -26,8 +26,9 @@
   - [ ] [P2] Publish connectors: hardening YouTube/TikTok + fallback manual_confirmed
   - [ ] [P2] Metrics: dashboard 24h/72h/7d/14d + raport rekomendacji dla kolejnego filmu
   - [ ] [P2] Cleanup: polityka kasowania `trash` i limit wieku `later`
-  - [ ] Ryzyko/uzupełnienie: potwierdzić runtime docelowy (stałe 60s vs per platforma)
-  - [ ] Ryzyko/uzupełnienie: potwierdzić język intro (PL/EN/auto)
+  - [ ] [P1] Runtime policy: domyślnie 60s + override per film, gdy scaling powoduje nienaturalny efekt
+  - [ ] [P1] Intro policy: język domyślny EN
+  - [ ] [P1] Idea lifecycle: `trash` = natychmiastowy hard-delete
   - [ ] Ryzyko/uzupełnienie: ocenić i wybrać MCP serwer wspierający publish/analytics (po audycie bezpieczeństwa)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
   - [x] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM

@@ -102,6 +102,11 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 - **Intent coverage**:
   - raport momentu realizacji idei,
   - automatyczne skalowanie czasu symulacji do runtime publikacyjnego.
+- **Runtime policy**:
+  - domyślny runtime publikacyjny: `60s`,
+  - override runtime dozwolony per film przy artefaktach wizualnych po skalowaniu.
+- **Language policy**:
+  - intro overlay domyślnie generowane w języku `EN`.
 
 ## 11. Testy i jakość
 - **Pytest**: testy pipeline, walidacji skryptu i stabilnosci renderu (golden tests gdzie to mozliwe).

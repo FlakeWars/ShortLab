@@ -20,9 +20,11 @@ ShortLab to lokalny pipeline do codziennego generowania i publikacji krótkich a
 - Cel: operator ma wykonywać jeden, czytelny flow bez przeskakiwania między wieloma panelami.
 - Zasada: domyślnie pracujemy na jednym pomyśle i jednym aktywnym filmie.
 - Kolejność: `Pomysł -> Animacja -> Intro/Audio -> QC -> Publish -> Metrics`.
+- Runtime: domyślnie `60s` (jeden format dla wszystkich platform), z opcjonalnym override per film.
+- Język intro: domyślnie `EN`.
 - Nietrafione pomysły:
   - `later`: do ponownego użycia.
-  - `trash`: do usunięcia (lub cleanup po TTL).
+  - `trash`: natychmiastowy hard-delete.
 
 ## Szybki start (macOS M2 Pro)
 1. Zainstaluj narzędzia bazowe:
