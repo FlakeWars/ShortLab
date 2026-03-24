@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
+import re
 from os import getenv
 from pathlib import Path
 import subprocess
@@ -50,7 +51,7 @@ from ideas.capability import (
 )
 from ideas.compiler import compile_idea_to_dsl
 from ideas.godot_compiler import compile_idea_to_gdscript
-from ideas.generator import IdeaDraft, generate_ideas, save_ideas
+from ideas.generator import IdeaDraft, _is_valid, generate_ideas, save_ideas
 from ideas.parser import parse_ideas_text
 from llm import get_mediator
 from llm.mediator import _load_route, _load_routes
@@ -223,7 +224,7 @@ def _manual_godot_history_max_lines() -> int:
 
 def _manual_godot_history_record(
     *,
-    step: Literal["compile", "validate", "preview", "render"],
+    step: Literal["compile", "validate", "estimate", "preview", "render"],
     ok: bool,
     actor_user_id: UUID | None = None,
     idea_id: UUID | None = None,
@@ -244,6 +245,9 @@ def _manual_godot_history_record(
         "log_file": payload.get("log_file"),
         "exit_code": payload.get("exit_code"),
         "script_hash": payload.get("script_hash"),
+        "estimate": payload.get("estimate"),
+        "recommended_sim_duration_s": payload.get("recommended_sim_duration_s"),
+        "target_duration_s": payload.get("target_duration_s"),
         "error": error,
     }
 
@@ -384,13 +388,16 @@ def _latest_godot_log_file(before: set[Path] | None = None) -> Path | None:
 
 def _run_godot_manual_step(
     *,
-    mode: Literal["validate", "preview", "render"],
+    mode: Literal["validate", "preview", "render", "estimate"],
     script_path: Path,
     seconds: float,
     fps: int,
     max_nodes: int,
     out_path: Path | None = None,
     scale: float | None = None,
+    estimate_threshold: float | None = None,
+    estimate_hold_seconds: float | None = None,
+    estimate_sample_seconds: float | None = None,
 ) -> dict:
     repo_root = Path(__file__).resolve().parents[1]
     cmd = [
@@ -411,6 +418,17 @@ def _run_godot_manual_step(
         cmd.extend(["--out", str(out_path.resolve())])
     if scale is not None:
         cmd.extend(["--scale", str(scale)])
+    if mode == "estimate":
+        cmd.extend(
+            [
+                "--estimate-threshold",
+                str(estimate_threshold if estimate_threshold is not None else 0.85),
+                "--estimate-hold-seconds",
+                str(estimate_hold_seconds if estimate_hold_seconds is not None else 2.0),
+                "--estimate-sample-seconds",
+                str(estimate_sample_seconds if estimate_sample_seconds is not None else 0.5),
+            ]
+        )
 
     before_logs = set()
     latest_before = _latest_godot_log_file()
@@ -431,6 +449,21 @@ def _run_godot_manual_step(
     if out_path is not None:
         payload["out_path"] = str(out_path.resolve())
         payload["out_exists"] = out_path.exists()
+    if mode == "estimate":
+        combined = ((completed.stdout or "") + "\n" + (completed.stderr or "")).strip()
+        summary = re.search(
+            r"\[godot-run-estimate\]\s+reached=([-0-9.]+)\s+effect_time_s=([-0-9.]+)\s+threshold=([-0-9.]+)\s+hold_s=([-0-9.]+)\s+progress=([-0-9.]+)\s+support=([-0-9.]+)",
+            combined,
+        )
+        if summary:
+            payload["estimate"] = {
+                "reached": int(float(summary.group(1))) == 1,
+                "effect_time_s": float(summary.group(2)),
+                "threshold": float(summary.group(3)),
+                "hold_s": float(summary.group(4)),
+                "progress": float(summary.group(5)),
+                "support": int(float(summary.group(6))) == 1,
+            }
     payload["ok"] = completed.returncode == 0
     return payload
 
@@ -670,6 +703,19 @@ class GodotManualRunRequest(BaseModel):
     max_nodes: int = Field(default=200, ge=10, le=5000)
     out_path: str | None = Field(default=None)
     scale: float | None = Field(default=None, ge=0.1, le=2.0)
+    actor: UUID | None = Field(default=None)
+
+
+class GodotEstimateDurationRequest(BaseModel):
+    script_path: str
+    target_duration_s: float = Field(default=30.0, ge=1.0, le=300.0)
+    scout_seconds: float = Field(default=60.0, ge=2.0, le=600.0)
+    fps: int = Field(default=12, ge=1, le=120)
+    max_nodes: int = Field(default=200, ge=10, le=5000)
+    threshold: float = Field(default=0.85, ge=0.1, le=1.0)
+    hold_seconds: float = Field(default=2.0, ge=0.1, le=30.0)
+    sample_seconds: float = Field(default=0.5, ge=0.1, le=10.0)
+    tail_seconds: float = Field(default=2.0, ge=0.0, le=60.0)
     actor: UUID | None = Field(default=None)
 
 
@@ -1233,15 +1279,10 @@ def sample_idea_repo(limit: int = Query(3, ge=1, le=20)) -> List[dict]:
                     verify_candidate_capability(session, idea_candidate_id=candidate.id)
             session.flush()
 
-        stmt = (
-            select(IdeaCandidate)
-            .where(
-                IdeaCandidate.status.in_(["new", "later"]),
-                IdeaCandidate.capability_status == "feasible",
-            )
-            .order_by(func.random())
-            .limit(limit)
-        )
+        stmt = select(IdeaCandidate).where(IdeaCandidate.status.in_(["new", "later"]))
+        if not _dev_manual_flow_enabled():
+            stmt = stmt.where(IdeaCandidate.capability_status == "feasible")
+        stmt = stmt.order_by(func.random()).limit(limit)
         rows = session.execute(stmt).scalars().all()
         session.commit()
         return jsonable_encoder([_serialize_candidate(row) for row in rows])
@@ -1275,7 +1316,7 @@ def decide_idea_repo(
         picked_candidate = by_id[picked[0].idea_candidate_id]
         if picked_candidate.status == "picked":
             raise HTTPException(status_code=409, detail="already_picked")
-        if picked_candidate.capability_status != "feasible":
+        if (not _dev_manual_flow_enabled()) and picked_candidate.capability_status != "feasible":
             raise HTTPException(status_code=409, detail="candidate_not_feasible")
 
         picked_candidate.status = "picked"
@@ -1830,8 +1871,38 @@ def generate_idea_candidates(
         else:
             raise HTTPException(status_code=400, detail="unsupported_mode")
 
+        existing_hashes = {
+            str(value)
+            for (value,) in session.execute(select(Idea.idea_hash).where(Idea.idea_hash.is_not(None))).all()
+            if value
+        }
+        skip_summary: dict[str, int] = {}
+        skip_examples: list[dict[str, str]] = []
+        for draft in drafts:
+            reason: str | None = None
+            if draft.idea_hash and draft.idea_hash in existing_hashes:
+                reason = "duplicate_hash"
+            elif len((draft.title or "").strip()) < 3:
+                reason = "invalid_title_too_short"
+            elif len((draft.summary or "").strip()) < 20:
+                reason = "invalid_summary_too_short"
+            elif not _is_valid(draft):
+                reason = "invalid_draft"
+            if reason:
+                skip_summary[reason] = skip_summary.get(reason, 0) + 1
+                if len(skip_examples) < 5:
+                    skip_examples.append({"title": (draft.title or "").strip()[:120], "reason": reason})
+
         if not drafts:
-            return jsonable_encoder({"created": 0, "skipped": 0, "idea_candidate_ids": []})
+            return jsonable_encoder(
+                {
+                    "created": 0,
+                    "skipped": 0,
+                    "idea_candidate_ids": [],
+                    "skip_summary": skip_summary,
+                    "skip_examples": skip_examples,
+                }
+            )
 
         idea_batch = IdeaBatch(
             run_date=date.today(),
@@ -1857,6 +1928,8 @@ def generate_idea_candidates(
                 "skipped": len(drafts) - len(created),
                 "idea_batch_id": str(idea_batch.id),
                 "idea_candidate_ids": [str(item.id) for item in created],
+                "skip_summary": skip_summary,
+                "skip_examples": skip_examples,
             }
         )
     finally:
@@ -2419,6 +2492,103 @@ def ops_godot_validate(
         _append_manual_godot_history(
             _manual_godot_history_record(
                 step="validate",
+                ok=False,
+                actor_user_id=request.actor,
+                payload=detail,
+                error=None if detail else str(exc.detail),
+            )
+        )
+        raise
+    finally:
+        session.close()
+
+
+@app.post("/ops/godot/estimate-duration")
+def ops_godot_estimate_duration(
+    request: GodotEstimateDurationRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        script_path = Path(request.script_path).expanduser().resolve()
+        if not script_path.exists():
+            raise HTTPException(status_code=404, detail="script_not_found")
+        if script_path.suffix != ".gd":
+            raise HTTPException(status_code=400, detail="script_must_be_gd")
+
+        result = _run_godot_manual_step(
+            mode="estimate",
+            script_path=script_path,
+            seconds=request.scout_seconds,
+            fps=request.fps,
+            max_nodes=request.max_nodes,
+            estimate_threshold=request.threshold,
+            estimate_hold_seconds=request.hold_seconds,
+            estimate_sample_seconds=request.sample_seconds,
+        )
+        if not result["ok"]:
+            raise HTTPException(status_code=400, detail=result)
+
+        estimate = result.get("estimate") if isinstance(result.get("estimate"), dict) else {}
+        reached = bool(estimate.get("reached")) if estimate else False
+        effect_time = float(estimate.get("effect_time_s", -1.0) or -1.0) if estimate else -1.0
+        progress = float(estimate.get("progress", 0.0) or 0.0) if estimate else 0.0
+        support = bool(estimate.get("support")) if estimate else False
+
+        if reached and effect_time >= 0.0:
+            recommended_sim_duration_s = max(1.0, min(request.scout_seconds, effect_time + request.tail_seconds))
+            confidence = max(0.2, min(1.0, progress if support else 0.6))
+            method = "progress_threshold"
+        else:
+            recommended_sim_duration_s = max(1.0, min(request.scout_seconds, request.target_duration_s))
+            confidence = 0.2
+            method = "fallback_target_duration"
+
+        speed_factor = (
+            recommended_sim_duration_s / request.target_duration_s
+            if request.target_duration_s > 0
+            else 1.0
+        )
+        payload = {
+            **result,
+            "target_duration_s": request.target_duration_s,
+            "scout_seconds": request.scout_seconds,
+            "tail_seconds": request.tail_seconds,
+            "recommended_sim_duration_s": recommended_sim_duration_s,
+            "recommended_speed_factor": speed_factor,
+            "confidence": confidence,
+            "method": method,
+        }
+
+        _audit_event(
+            session,
+            event_type="godot_manual_estimate_duration",
+            actor_user_id=request.actor,
+            payload={
+                "script_path": str(script_path),
+                "target_duration_s": request.target_duration_s,
+                "recommended_sim_duration_s": recommended_sim_duration_s,
+                "confidence": confidence,
+                "method": method,
+                "log_file": result.get("log_file"),
+            },
+        )
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="estimate",
+                ok=True,
+                actor_user_id=request.actor,
+                payload=payload,
+            )
+        )
+        session.commit()
+        return jsonable_encoder(payload)
+    except HTTPException as exc:
+        session.rollback()
+        detail = exc.detail if isinstance(exc.detail, dict) else None
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="estimate",
                 ok=False,
                 actor_user_id=request.actor,
                 payload=detail,

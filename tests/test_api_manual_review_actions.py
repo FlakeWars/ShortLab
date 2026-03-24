@@ -411,6 +411,60 @@ def test_ops_godot_validate_persists_manual_history(monkeypatch, tmp_path: Path)
     assert row["exit_code"] == 0
 
 
+def test_ops_godot_estimate_duration_returns_recommendation(monkeypatch, tmp_path: Path) -> None:
+    script = tmp_path / "script.gd"
+    script.write_text("extends Node2D\n")
+    fake_session = _FakeSession()
+    history_file = tmp_path / "manual-godot" / "_history" / "manual-runs.jsonl"
+    now = datetime(2026, 2, 24, 10, 0, tzinfo=UTC)
+
+    monkeypatch.setattr(api_main, "SessionLocal", lambda: fake_session)
+    monkeypatch.setattr(api_main, "_utc_now", lambda: now)
+    monkeypatch.setattr(api_main, "_manual_godot_history_file", lambda: history_file)
+    monkeypatch.setattr(
+        api_main,
+        "_run_godot_manual_step",
+        lambda **kwargs: {
+            "ok": True,
+            "mode": "estimate",
+            "script_path": str(script.resolve()),
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": "",
+            "log_file": str(tmp_path / "godot.log"),
+            "estimate": {
+                "reached": True,
+                "effect_time_s": 18.0,
+                "threshold": 0.85,
+                "hold_s": 2.0,
+                "progress": 0.91,
+                "support": True,
+            },
+        },
+    )
+
+    payload = api_main.ops_godot_estimate_duration(
+        api_main.GodotEstimateDurationRequest(
+            script_path=str(script),
+            target_duration_s=30.0,
+            scout_seconds=60.0,
+            tail_seconds=3.0,
+        ),
+        _guard=None,
+    )
+
+    assert payload["ok"] is True
+    assert payload["method"] == "progress_threshold"
+    assert payload["recommended_sim_duration_s"] == 21.0
+    assert payload["recommended_speed_factor"] == 0.7
+    assert fake_session.commits == 1
+    lines = history_file.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    row = api_main.json.loads(lines[0])
+    assert row["step"] == "estimate"
+    assert row["recommended_sim_duration_s"] == 21.0
+
+
 def test_append_manual_godot_history_rotates_to_max_lines(monkeypatch, tmp_path: Path) -> None:
     history_file = tmp_path / "manual-godot" / "_history" / "manual-runs.jsonl"
     monkeypatch.setattr(api_main, "_manual_godot_history_file", lambda: history_file)

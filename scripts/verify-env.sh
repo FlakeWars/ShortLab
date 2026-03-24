@@ -106,7 +106,7 @@ ffmpeg_v=$(get_cmd_version "ffmpeg" "ffmpeg -version 2>/dev/null | head -n 1 | a
 cairo_v=$(get_cmd_version "pkg-config" "pkg-config --modversion cairo 2>/dev/null")
 godot_v="missing"
 if [[ -n "${godot_bin}" ]]; then
-  godot_v=$("${godot_bin}" --version 2>/dev/null | sed -n 's/^\\([0-9][0-9]*\\.[0-9][0-9]*\\).*/\\1/p')
+  godot_v=$("${godot_bin}" --version 2>/dev/null | sed -n 's/^\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')
   if [[ -z "${godot_v}" ]]; then
     godot_v="missing"
   fi

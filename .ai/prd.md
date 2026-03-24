@@ -3,7 +3,7 @@
 1. Cel: Zbudować eksperymentalny, lokalny system, który codziennie generuje, renderuje i publikuje krótkie animacje 2D typu Short, aby empirycznie sprawdzić, czy regularna publikacja treści AI zwiększa zasięgi w rolling 14-dniowych oknach.
 2. Zakres MVP: Półautomatyczny pipeline oparty o kolejkę zadań i workerów, z webowym panelem review, renderem 2D w Godot 4.x oraz zbieraniem metryk z YouTube i TikTok.
 3. Charakter animacji: Krótkie animacje 2D z fizyką (kolizje, grawitacja, pęd) i prostą kompozycją; deterministyczność nie jest celem nadrzędnym na tym etapie.
-4. Architektura: Lokalne uruchomienie, job-based pipeline: generacja pomysłu + skryptu GDScript -> walidacja/naprawa -> preview -> render -> QC/review -> publikacja -> metryki -> analiza.
+4. Architektura: Lokalne uruchomienie, job-based pipeline: generacja pomysłu + skryptu GDScript -> walidacja/naprawa -> estimate_duration (manual-first) -> preview -> render -> QC/review -> publikacja -> metryki -> analiza.
 5. Autonomia: Etapy manual -> assisted -> semi-auto, z ewaluacją co 14 dni i jawnie zdefiniowanymi kryteriami wyjścia.
 
 ## 1a. Stan implementacji (na dzień 11 lutego 2026)

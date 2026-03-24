@@ -123,9 +123,15 @@ Docelowo caly przeplyw ma byc wykonywany krok po kroku z GUI (bez CLI). Na obecn
    - `make infra-up`
    - `make run-dev`
 2. Otwórz UI (`http://localhost:5173`) i przejdź do widoku `Flow`.
-3. Wygeneruj kandydatów (sekcja generatora / Idea Repository), następnie zweryfikuj że kandydaci są `feasible`.
+3. Wygeneruj kandydatów w `Idea Generator`; jeśli coś zostało pominięte, sprawdź sekcję `Powody pominięcia (skip)`.
 4. W `Idea Gate` wybierz dokładnie jednego kandydata (`picked`) i zapisz decyzję.
-5. Uruchom render (obecnie legacy/manual ops zależnie od etapu migracji) i poczekaj aż animacja pojawi się na liście `Animations`.
+5. W `Manual Flow -> Godot Manual Run` wykonaj kroki:
+   - `Compile GDScript`
+   - `Validate`
+   - `Estimate duration` (opcjonalnie kliknij `Use recommendation`)
+   - `Preview`
+   - `Final render`
+   i poczekaj aż animacja pojawi się na liście `Animations`.
 6. W `Animations` wybierz animację i sprawdź:
    - podgląd wideo,
    - artefakty,
@@ -138,7 +144,7 @@ Docelowo caly przeplyw ma byc wykonywany krok po kroku z GUI (bez CLI). Na obecn
 10. Jeśli coś nie działa, zanotuj błąd i dodaj podpunkt ryzyka/korekty do `TODO.md` (zgodnie z `AGENTS.md`).
 
 Uwagi:
-- Na tym etapie automatyzacje i pełny tor Godot (`compile_gdscript -> validate -> preview -> final_render`) są rozwijane krok po kroku.
+- Na tym etapie automatyzacje są ograniczone (manual-first), ale tor Godot w GUI obejmuje już `compile_gdscript -> validate -> estimate_duration -> preview -> final_render`.
 - Dla etapu Godot można lokalnie weryfikować runner CLI przez `make godot-verify-cli`, `make godot-preview`, `make godot-render`.
 
 ### Godot CLI (lokalna weryfikacja)

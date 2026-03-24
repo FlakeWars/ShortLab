@@ -27,6 +27,7 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 - **GDScript (Godot 4.x)**: pelny skrypt generowany przez LLM (bez template'ow animacji).
 - **Kontrakt skryptu**: ograniczona pula node/shape + limit czasu/obiektow; brak IO/sieci poza workspace.
 - **Walidacja skryptu**: parse + load + krotki tick fizyki (smoke test) przed renderem.
+- **Estimate duration (manual-first)**: scout-run z telemetrią `effect_progress` (jeśli skrypt ją udostępnia) do rekomendacji czasu symulacji przed preview/final.
 - **Petla naprawy**: precyzyjny raport bledow -> retry LLM (limit prob).
 - **Wersjonowanie**: wersja Godot i kontraktu skryptu zapisywane w metadanych renderu.
 

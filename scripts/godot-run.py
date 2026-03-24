@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -48,6 +49,33 @@ def _run_cmd(cmd: list[str], env: dict[str, str] | None = None) -> int:
     print("[godot-run]", " ".join(cmd))
     completed = subprocess.run(cmd, check=False, env=env)
     return completed.returncode
+
+
+def _run_cmd_capture(cmd: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    print("[godot-run]", " ".join(cmd))
+    completed = subprocess.run(cmd, capture_output=True, text=True, check=False, env=env)
+    if completed.stdout:
+        sys.stdout.write(completed.stdout)
+    if completed.stderr:
+        sys.stderr.write(completed.stderr)
+    return completed
+
+
+def _parse_estimate_summary(output: str) -> dict[str, float | int]:
+    match = re.search(
+        r"\[runner:estimate\] summary reached=(\d+) effect_time_s=([-0-9.]+) threshold=([-0-9.]+) hold_s=([-0-9.]+) progress=([-0-9.]+) support=(\d+)",
+        output,
+    )
+    if not match:
+        return {}
+    return {
+        "reached": int(match.group(1)),
+        "effect_time_s": float(match.group(2)),
+        "threshold": float(match.group(3)),
+        "hold_s": float(match.group(4)),
+        "progress": float(match.group(5)),
+        "support": int(match.group(6)),
+    }
 
 
 def _movie_ext_supported(path: Path) -> bool:
@@ -103,13 +131,16 @@ def _transcode_movie(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run Godot runner for GDScript")
-    parser.add_argument("--mode", choices=["validate", "preview", "render"], required=True)
+    parser.add_argument("--mode", choices=["validate", "preview", "render", "estimate"], required=True)
     parser.add_argument("--script", required=True, help="Path to .gd script to run")
     parser.add_argument("--seconds", type=float, default=5.0)
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--max-nodes", type=int, default=200)
     parser.add_argument("--out", default="out/godot/render.mp4")
     parser.add_argument("--scale", type=float, default=1.0)
+    parser.add_argument("--estimate-threshold", type=float, default=0.85)
+    parser.add_argument("--estimate-hold-seconds", type=float, default=2.0)
+    parser.add_argument("--estimate-sample-seconds", type=float, default=0.5)
     args = parser.parse_args()
 
     script_path = Path(args.script).resolve()
@@ -141,9 +172,23 @@ def main() -> int:
     env["GODOT_SCRIPT_PATH"] = res_script
     env["GODOT_SECONDS"] = str(args.seconds)
     env["GODOT_MAX_NODES"] = str(args.max_nodes)
+    if args.mode == "estimate":
+        env["GODOT_ESTIMATE_ENABLED"] = "1"
+        env["GODOT_ESTIMATE_THRESHOLD"] = str(args.estimate_threshold)
+        env["GODOT_ESTIMATE_HOLD_SECONDS"] = str(args.estimate_hold_seconds)
+        env["GODOT_ESTIMATE_SAMPLE_SECONDS"] = str(args.estimate_sample_seconds)
 
-    if args.mode == "validate":
+    if args.mode in {"validate", "estimate"}:
         cmd.insert(1, "--headless")
+        if args.mode == "estimate":
+            completed = _run_cmd_capture(cmd, env)
+            summary = _parse_estimate_summary((completed.stdout or "") + "\n" + (completed.stderr or ""))
+            if summary:
+                print(
+                    "[godot-run-estimate] "
+                    + " ".join(f"{key}={value}" for key, value in summary.items())
+                )
+            return completed.returncode
         return _run_cmd(cmd, env)
 
     out_path = Path(args.out).resolve()

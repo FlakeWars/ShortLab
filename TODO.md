@@ -1,7 +1,18 @@
 # TODO
 
 ## Now (W toku)
-
+- [ ] Godot Manual Run: automatyczna estymacja czasu symulacji (branch: feat/godot-estimate-duration)
+  - [x] Dodać krok `estimate_duration` w API (`POST /ops/godot/estimate-duration`) oparty o scout-run i sygnał progresu efektu
+  - [x] Rozszerzyć `scripts/godot-run.py` i `renderer/godot/runner.gd` o tryb `estimate` i telemetry hook (`effect_progress`)
+  - [x] Dodać UI krok `Estimate duration` + pola target/scout/threshold/hold/tail + akcję „Use recommendation”
+  - [x] Zapisywać wynik estymacji w historii `manual-runs.jsonl` (step=`estimate`)
+  - [x] Uporządkować Flow pod E2E: domyślnie ukryć legacy DSL panele, pokazać powody `skip` w Idea Generator i odblokować Idea Gate w `DEV_MANUAL_FLOW=1`
+  - [x] Testy backend: endpoint estymacji i regresja istniejących endpointów Godot/manual
+  - [x] Test/Smoke (2026-03-24): pełny manual flow E2E po API (`idea_generate -> idea_gate(picked) -> compile_gdscript -> validate -> estimate_duration -> preview -> final_render`) przeszedł z artefaktami `preview.mp4` i `final.mp4`
+  - [x] Krytyczna analiza (2026-03-24): krok `preview` był blokowany przez parse error w Godot 4.6 (`Warning treated as error`) na inferencji typu `Variant` w `renderer/godot/runner.gd`; naprawiono przez jawne typowanie (`var ...: Variant`)
+  - [ ] Ryzyko/uzupełnienie: dodać regresyjny smoke test (API/CLI) dla `preview/render`, który failuje przy ostrzeżeniach parsera Godot 4.6 (żeby wychwycić podobne regresje `runner.gd` wcześniej)
+  - [ ] Ryzyko/uzupełnienie: dodać gotowość/retry gate do skryptu E2E (`run-dev` cold start), bo pojedynczy health-check zaraz po starcie daje fałszywe negatywy
+  - [ ] Krytyczna analiza po smoke lokalnym: skalibrować domyślne `threshold/hold/tail` dla różnych typów animacji
 
 ## Next (Kolejne)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
@@ -27,6 +38,8 @@
     - [x] Usprawnienie (2026-02-23): `scripts/godot-run.py` automatycznie wykrywa lokalną binarkę z `.tools/godot/current/...` (bez ręcznego `export GODOT_BIN`)
     - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot w `Makefile` i `scripts/godot-verify-cli.sh`; `make godot-validate` działa bez ręcznego `GODOT_BIN`
     - [x] Usprawnienie (2026-02-24): dodano persystencję rezultatów Etapu B (historia JSONL w `out/manual-godot/_history/manual-runs.jsonl`) + endpoint `GET /ops/godot/manual-runs` + panel `Recent manual runs` w UI
+    - [x] Usprawnienie (2026-02-24): dodano krok `estimate_duration` (scout-run + rekomendowany czas symulacji) w API/UI oraz zapis wyniku do historii manual runs
+    - [ ] Ryzyko/uzupełnienie: estymacja opiera się na opcjonalnym sygnale `effect_progress` w skrypcie; brak sygnału używa fallbacku do `target_duration_s` (niższa pewność)
     - [x] Test/Smoke (2026-02-24): lokalnie potwierdzono odświeżanie historii po `validate/preview` oraz zapis preview do `out/manual-godot/...` (macOS operator)
     - [x] Usprawnienie (2026-02-24): dodano prostą rotację/przycinanie historii JSONL Etapu B po liczbie rekordów (`MANUAL_GODOT_HISTORY_MAX_LINES`)
     - [ ] Ryzyko/uzupełnienie: rozważyć migrację historii Etapu B do DB po ustabilizowaniu kontraktu pól (np. tabela `manual_run_record`)

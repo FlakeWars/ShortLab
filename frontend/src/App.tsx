@@ -114,7 +114,7 @@ type PlannerStatusResponse = {
 
 type GodotManualStepResult = {
   ok?: boolean
-  mode?: 'validate' | 'preview' | 'render'
+  mode?: 'validate' | 'estimate' | 'preview' | 'render'
   script_path?: string
   out_path?: string
   out_exists?: boolean
@@ -126,12 +126,27 @@ type GodotManualStepResult = {
   script_exists?: boolean
   compiler_meta?: Record<string, unknown>
   validation_report?: Record<string, unknown>
+  estimate?: {
+    reached?: boolean
+    effect_time_s?: number
+    threshold?: number
+    hold_s?: number
+    progress?: number
+    support?: boolean
+  }
+  target_duration_s?: number
+  scout_seconds?: number
+  tail_seconds?: number
+  recommended_sim_duration_s?: number
+  recommended_speed_factor?: number
+  confidence?: number
+  method?: string
 }
 
 type GodotManualHistoryRow = {
   id: string
   recorded_at?: string | null
-  step?: 'compile' | 'validate' | 'preview' | 'render' | string | null
+  step?: 'compile' | 'validate' | 'estimate' | 'preview' | 'render' | string | null
   ok?: boolean | null
   actor_user_id?: string | null
   idea_id?: string | null
@@ -141,6 +156,9 @@ type GodotManualHistoryRow = {
   log_file?: string | null
   exit_code?: number | null
   script_hash?: string | null
+  estimate?: Record<string, unknown> | null
+  recommended_sim_duration_s?: number | null
+  target_duration_s?: number | null
   error?: string | null
 }
 
@@ -549,8 +567,11 @@ function App() {
   const [generatorFileName, setGeneratorFileName] = useState('')
   const [generatorFileContent, setGeneratorFileContent] = useState('')
   const [generatorMessage, setGeneratorMessage] = useState<string | null>(null)
+  const [generatorSkipSummary, setGeneratorSkipSummary] = useState<Record<string, number>>({})
+  const [generatorSkipExamples, setGeneratorSkipExamples] = useState<Array<{ title?: string; reason?: string }>>([])
   const [generatorError, setGeneratorError] = useState<string | null>(null)
   const [generatorLoading, setGeneratorLoading] = useState(false)
+  const [showLegacyDslPanels, setShowLegacyDslPanels] = useState(false)
 
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [auditError, setAuditError] = useState<string | null>(null)
@@ -583,6 +604,11 @@ function App() {
   const [godotFps, setGodotFps] = useState('12')
   const [godotMaxNodes, setGodotMaxNodes] = useState('200')
   const [godotPreviewScale, setGodotPreviewScale] = useState('0.5')
+  const [godotTargetDuration, setGodotTargetDuration] = useState('30')
+  const [godotScoutSeconds, setGodotScoutSeconds] = useState('60')
+  const [godotEstimateThreshold, setGodotEstimateThreshold] = useState('0.85')
+  const [godotEstimateHoldSeconds, setGodotEstimateHoldSeconds] = useState('2')
+  const [godotEstimateTailSeconds, setGodotEstimateTailSeconds] = useState('2')
   const [godotStepLoading, setGodotStepLoading] = useState<Record<string, boolean>>({})
   const [godotStepStatus, setGodotStepStatus] = useState<Record<string, 'idle' | 'success' | 'fail'>>({})
   const [godotStepError, setGodotStepError] = useState<Record<string, string | null>>({})
@@ -1018,7 +1044,11 @@ function App() {
       }
       const payload = (await response.json()) as IdeaCandidate[]
       if (payload.length === 0) {
-        setIdeaError('Brak kandydatów do wylosowania. Sprawdź, czy są feasible propozycje.')
+        setIdeaError(
+          manualFlowEnabled
+            ? 'Brak kandydatów do wylosowania. Wygeneruj nowe propozycje w Idea Generator.'
+            : 'Brak kandydatów do wylosowania. Sprawdź, czy są feasible propozycje.'
+        )
       }
       setIdeaCandidates(payload)
       setIdeaDecisions({})
@@ -1036,7 +1066,9 @@ function App() {
     setManualPickError(null)
     try {
       const params = new URLSearchParams()
-      params.set('capability_status', 'feasible')
+      if (!manualFlowEnabled) {
+        params.set('capability_status', 'feasible')
+      }
       params.set('limit', '50')
       const response = await fetch(`${API_BASE}/idea-candidates?${params.toString()}`)
       if (!response.ok) {
@@ -1059,6 +1091,8 @@ function App() {
     setGeneratorLoading(true)
     setGeneratorError(null)
     setGeneratorMessage(null)
+    setGeneratorSkipSummary({})
+    setGeneratorSkipExamples([])
     try {
       const payload: Record<string, unknown> = { mode: generatorMode }
       if (generatorMode === 'llm') {
@@ -1082,8 +1116,15 @@ function App() {
       if (!response.ok) {
         throw new Error(`API error ${response.status}`)
       }
-      const result = (await response.json()) as { created?: number; skipped?: number }
+      const result = (await response.json()) as {
+        created?: number
+        skipped?: number
+        skip_summary?: Record<string, number>
+        skip_examples?: Array<{ title?: string; reason?: string }>
+      }
       setGeneratorMessage(`Utworzono ${result.created ?? 0} kandydatow, pominieto ${result.skipped ?? 0}.`)
+      setGeneratorSkipSummary(result.skip_summary ?? {})
+      setGeneratorSkipExamples(result.skip_examples ?? [])
       fetchSystemStatus()
       fetchIdeaCandidates()
       fetchCandidateList()
@@ -1449,7 +1490,7 @@ function App() {
     }
   }
 
-  const handleGodotRunStep = async (step: 'validate' | 'preview' | 'render') => {
+  const handleGodotRunStep = async (step: 'validate' | 'estimate' | 'preview' | 'render') => {
     setGodotStepLoadingState(step, true)
     setGodotStepOutcome(step, 'idle', null)
     try {
@@ -1461,6 +1502,14 @@ function App() {
         seconds: Math.max(0.1, parseNumberInput(godotSeconds, 2)),
         fps: Math.max(1, Math.floor(parseNumberInput(godotFps, 12))),
         max_nodes: Math.max(10, Math.floor(parseNumberInput(godotMaxNodes, 200))),
+      }
+      if (step === 'estimate') {
+        body.target_duration_s = Math.max(1, parseNumberInput(godotTargetDuration, 30))
+        body.scout_seconds = Math.max(2, parseNumberInput(godotScoutSeconds, 60))
+        body.threshold = Math.max(0.1, Math.min(1, parseNumberInput(godotEstimateThreshold, 0.85)))
+        body.hold_seconds = Math.max(0.1, parseNumberInput(godotEstimateHoldSeconds, 2))
+        body.sample_seconds = 0.5
+        body.tail_seconds = Math.max(0, parseNumberInput(godotEstimateTailSeconds, 2))
       }
       if (step === 'preview') {
         body.scale = Math.max(0.1, parseNumberInput(godotPreviewScale, 0.5))
@@ -2770,6 +2819,18 @@ function App() {
               </div>
             )}
           </div>
+          <div className="flex items-center justify-between rounded-2xl border border-stone-200/70 bg-stone-50/60 p-3 text-xs text-stone-600">
+            <div>
+              Tryb operatora (Godot) jest domyślny. Panele legacy DSL można pokazać tylko do diagnostyki/starego flow.
+            </div>
+            <Button
+              variant={showLegacyDslPanels ? 'outline' : 'ghost'}
+              className="rounded-full"
+              onClick={() => setShowLegacyDslPanels((prev) => !prev)}
+            >
+              {showLegacyDslPanels ? 'Ukryj legacy DSL' : 'Pokaż legacy DSL'}
+            </Button>
+          </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button className="rounded-full" onClick={() => setActiveView('flow')}>Przejdź do Flow</Button>
@@ -2839,8 +2900,12 @@ function App() {
               <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Compile</div>
               <div className="text-2xl font-semibold text-stone-900">{compiledIdeas}</div>
               <div className="text-xs text-stone-500">idei skompilowanych</div>
-              <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('dsl-capability-panel')}>
-                DSL Gaps
+              <Button
+                variant="outline"
+                className="w-full rounded-full"
+                onClick={() => (showLegacyDslPanels ? scrollToSection('dsl-capability-panel') : scrollToSection('flow-manual-panel'))}
+              >
+                {showLegacyDslPanels ? 'DSL Gaps' : 'Godot Manual Run'}
               </Button>
             </CardContent>
           </Card>
@@ -2930,7 +2995,7 @@ function App() {
                 <div>
                   <div className="text-sm font-semibold text-stone-900">Godot Manual Run (Etap B)</div>
                   <div className="text-xs text-stone-600">
-                    Krok po kroku: compile_gdscript → validate → preview → final_render.
+                    Krok po kroku: compile_gdscript → validate → estimate_duration → preview → final_render.
                   </div>
                 </div>
               </div>
@@ -2980,8 +3045,50 @@ function App() {
                   </label>
                 </div>
               </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-5">
+                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Target duration (s)
+                  <input
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={godotTargetDuration}
+                    onChange={(event) => setGodotTargetDuration(event.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Scout seconds
+                  <input
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={godotScoutSeconds}
+                    onChange={(event) => setGodotScoutSeconds(event.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Threshold
+                  <input
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={godotEstimateThreshold}
+                    onChange={(event) => setGodotEstimateThreshold(event.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Hold seconds
+                  <input
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={godotEstimateHoldSeconds}
+                    onChange={(event) => setGodotEstimateHoldSeconds(event.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Tail seconds
+                  <input
+                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={godotEstimateTailSeconds}
+                    onChange={(event) => setGodotEstimateTailSeconds(event.target.value)}
+                  />
+                </label>
+              </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <Button className="rounded-full" onClick={handleGodotCompile} disabled={!!godotStepLoading.compile}>
                   {godotStepLoading.compile ? 'Compiling…' : '1. Compile GDScript'}
                 </Button>
@@ -2996,10 +3103,18 @@ function App() {
                 <Button
                   variant="outline"
                   className="rounded-full"
+                  onClick={() => handleGodotRunStep('estimate')}
+                  disabled={!!godotStepLoading.estimate}
+                >
+                  {godotStepLoading.estimate ? 'Estimating…' : '3. Estimate duration'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
                   onClick={() => handleGodotRunStep('preview')}
                   disabled={!!godotStepLoading.preview}
                 >
-                  {godotStepLoading.preview ? 'Rendering preview…' : '3. Preview'}
+                  {godotStepLoading.preview ? 'Rendering preview…' : '4. Preview'}
                 </Button>
                 <Button
                   variant="outline"
@@ -3007,12 +3122,12 @@ function App() {
                   onClick={() => handleGodotRunStep('render')}
                   disabled={!!godotStepLoading.render}
                 >
-                  {godotStepLoading.render ? 'Rendering final…' : '4. Final render'}
+                  {godotStepLoading.render ? 'Rendering final…' : '5. Final render'}
                 </Button>
               </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                {(['compile', 'validate', 'preview', 'render'] as const).map((step) => {
+                {(['compile', 'validate', 'estimate', 'preview', 'render'] as const).map((step) => {
                   const result = godotStepResult[step]
                   const error = godotStepError[step]
                   const status = godotStepStatus[step] ?? 'idle'
@@ -3048,6 +3163,32 @@ function App() {
                           ) : null}
                           {typeof result.exit_code === 'number' ? (
                             <div><span className="font-semibold text-stone-800">exit:</span> {result.exit_code}</div>
+                          ) : null}
+                          {step === 'estimate' && typeof result.recommended_sim_duration_s === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">recommended sim:</span> {result.recommended_sim_duration_s.toFixed(2)}s</div>
+                          ) : null}
+                          {step === 'estimate' && typeof result.recommended_speed_factor === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">speed factor:</span> {result.recommended_speed_factor.toFixed(3)}</div>
+                          ) : null}
+                          {step === 'estimate' && typeof result.confidence === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">confidence:</span> {result.confidence.toFixed(2)}</div>
+                          ) : null}
+                          {step === 'estimate' && result.estimate ? (
+                            <div>
+                              <span className="font-semibold text-stone-800">effect:</span>{' '}
+                              {result.estimate.reached ? `reached @ ${Number(result.estimate.effect_time_s ?? -1).toFixed(2)}s` : 'not reached in scout horizon'}
+                            </div>
+                          ) : null}
+                          {step === 'estimate' && typeof result.recommended_sim_duration_s === 'number' ? (
+                            <div className="mt-2">
+                              <Button
+                                variant="outline"
+                                className="h-7 rounded-full px-3 text-[11px]"
+                                onClick={() => setGodotSeconds(String(result.recommended_sim_duration_s))}
+                              >
+                                Use recommendation
+                              </Button>
+                            </div>
                           ) : null}
                           {(step === 'preview' || step === 'render') &&
                           result.out_exists &&
@@ -3117,6 +3258,12 @@ function App() {
                         {row.script_path ? <div><span className="font-semibold text-stone-800">script:</span> {row.script_path}</div> : null}
                         {row.out_path ? <div><span className="font-semibold text-stone-800">out:</span> {row.out_path}</div> : null}
                         {row.log_file ? <div><span className="font-semibold text-stone-800">log:</span> {row.log_file}</div> : null}
+                        {row.step === 'estimate' && typeof row.recommended_sim_duration_s === 'number' ? (
+                          <div><span className="font-semibold text-stone-800">recommended sim:</span> {row.recommended_sim_duration_s.toFixed(2)}s</div>
+                        ) : null}
+                        {row.step === 'estimate' && typeof row.target_duration_s === 'number' ? (
+                          <div><span className="font-semibold text-stone-800">target duration:</span> {row.target_duration_s.toFixed(2)}s</div>
+                        ) : null}
                         {row.error ? <div className="text-rose-700"><span className="font-semibold">error:</span> {row.error}</div> : null}
                         {(row.step === 'preview' || row.step === 'render') &&
                         row.out_exists &&
@@ -3138,7 +3285,7 @@ function App() {
             <ul className="mt-2 list-disc space-y-2 pl-4">
               <li>Brak automatycznego enqueue po Idea Gate.</li>
               <li>Weryfikacja i kompilacja uruchamiane ręcznie.</li>
-              <li>Etap B: Godot Manual Run pozwala uruchamiać compile/validate/preview/render z GUI.</li>
+              <li>Etap B: Godot Manual Run pozwala uruchamiać compile/validate/estimate/preview/render z GUI.</li>
             </ul>
           </div>
         </div>
@@ -3220,7 +3367,7 @@ function App() {
           <div>
             <h2 className="text-2xl font-semibold text-stone-900">Idea Generator</h2>
             <p className="text-sm text-stone-600">
-              Punkt startu flow: nowe kandydaty, weryfikacja DSL i odsiew gapów.
+              Punkt startu flow: nowe kandydaty do toru Godot. Legacy DSL panele są opcjonalne i ukryte domyślnie.
             </p>
           </div>
         </div>
@@ -3364,6 +3511,27 @@ function App() {
                 {generatorMessage}
               </div>
             ) : null}
+            {Object.keys(generatorSkipSummary).length > 0 ? (
+              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+                <div className="font-semibold">Powody pominięcia (skip)</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {Object.entries(generatorSkipSummary).map(([reason, count]) => (
+                    <Badge key={reason} variant="outline" className="border-amber-300 text-amber-800">
+                      {reason}: {count}
+                    </Badge>
+                  ))}
+                </div>
+                {generatorSkipExamples.length > 0 ? (
+                  <div className="mt-2 space-y-1 text-amber-800">
+                    {generatorSkipExamples.map((item, idx) => (
+                      <div key={`${item.reason ?? 'skip'}-${idx}`}>
+                        {(item.title || '—')}: {item.reason || 'unknown'}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {generatorError ? (
               <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">
                 {generatorError}
@@ -3383,12 +3551,13 @@ function App() {
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-stone-500">
           <span>Generator dostepny z UI oraz CLI: `make idea-generate`.</span>
-          <span>Weryfikacja DSL: `make idea-verify-capability`.</span>
+          <span>Legacy DSL verification (opcjonalnie): `make idea-verify-capability`.</span>
           <span>Similarity: porównanie kandydata do historii idei (embedding + cosine similarity).</span>
         </div>
       </section>
 
       
+      {showLegacyDslPanels ? (
       <section id="dsl-capability-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -3574,7 +3743,9 @@ function App() {
           </div>
         ) : null}
       </section>
+      ) : null}
 
+      {showLegacyDslPanels ? (
       <section className="mt-6 rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -3636,6 +3807,7 @@ function App() {
           )}
         </div>
       </section>
+      ) : null}
 
       <section id="idea-gate-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">

@@ -69,7 +69,7 @@ def compile_idea_to_gdscript(
                 max_tokens=int(os.getenv("IDEA_GDSCRIPT_MAX_TOKENS", "2400")),
                 temperature=float(os.getenv("IDEA_GDSCRIPT_TEMPERATURE", "0.2")),
             )
-            gdscript = str(payload["gdscript"]).strip()
+            gdscript = _extract_gdscript_field(payload)
             if not gdscript:
                 raise RuntimeError("empty_gdscript")
             last_script = gdscript
@@ -130,6 +130,15 @@ def _validate_gdscript(*, script_path: Path, seconds: float, max_nodes: int) -> 
     stdout = (result.stdout or "").strip()
     msg = stderr or stdout or "unknown_godot_error"
     return [msg[:8000]]
+
+
+def _extract_gdscript_field(payload: dict[str, Any]) -> str:
+    for key in ("gdscript", "script", "code"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    keys = ", ".join(sorted(str(k) for k in payload.keys())) if isinstance(payload, dict) else "non-dict"
+    raise RuntimeError(f"missing_gdscript_field:{keys}")
 
 
 def _build_compile_prompt(
