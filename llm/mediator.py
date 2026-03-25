@@ -486,7 +486,7 @@ class LLMMediator:
                             task_type=task_type,
                         )
                     parsed = self._parse_json_content(content)
-                except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError) as exc:
+                except (KeyError, IndexError, TypeError, json.JSONDecodeError, LLMError, Exception) as exc:
                     fail_count = self._failures.get(breaker_key, 0) + 1
                     self._failures[breaker_key] = fail_count
                     self._track_metrics(

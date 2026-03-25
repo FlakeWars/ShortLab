@@ -70,7 +70,7 @@ def compile_idea_to_gdscript(
                         "required": ["gdscript"],
                         "additionalProperties": False,
                     },
-                    max_tokens=int(os.getenv("IDEA_GDSCRIPT_MAX_TOKENS", "2400")),
+                    max_tokens=int(os.getenv("IDEA_GDSCRIPT_MAX_TOKENS", "5000")),
                     temperature=float(os.getenv("IDEA_GDSCRIPT_TEMPERATURE", "0.2")),
                 )
                 gdscript = _extract_gdscript_field(payload)
@@ -388,6 +388,10 @@ def _build_system_prompt(*, contract: str, guidelines: str) -> str:
         "Animation must stay visibly dynamic across the whole run and should never freeze before the end.\n"
         "Do not stop physics/process based on elapsed time (no early set_physics_process(false)).\n"
         "Use high visual contrast and clear moving elements so the frame is not perceived as empty.\n\n"
+        "SHORT FORMAT REQUIREMENTS:\n"
+        "- Target frame is vertical 9:16 (1080x1920).\n"
+        "- Keep primary action in safe center area (about 70% width, 80% height).\n"
+        "- Avoid putting crucial events near left/right edges where crop/UI overlays can hide them.\n\n"
         "CONTRACT (BEGIN):\n"
         "<<<CONTRACT_BEGIN>>>\n"
         f"{contract}\n"

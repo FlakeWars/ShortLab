@@ -459,6 +459,10 @@ def test_ops_godot_compile_gdscript_returns_script_path(monkeypatch, tmp_path: P
     assert str(payload["idea_id"]) == str(idea.id)
     assert payload["script_hash"] == "hash123"
     assert str(payload["script_path"]).endswith(f"idea-{idea.id}/script.gd")
+    assert str(payload["idea_context_json_path"]).endswith(f"idea-{idea.id}/idea.json")
+    assert str(payload["idea_context_text_path"]).endswith(f"idea-{idea.id}/idea.txt")
+    assert Path(payload["idea_context_json_path"]).exists()
+    assert Path(payload["idea_context_text_path"]).exists()
     assert fake_session.commits == 1
     audits = [obj for obj in fake_session.added if getattr(obj, "event_type", None) == "godot_manual_compile"]
     assert len(audits) == 1
@@ -517,6 +521,33 @@ def test_godot_log_has_fatal_errors_detects_parse_error(tmp_path: Path) -> None:
 
     assert has_error is True
     assert hint is not None
+
+
+def test_run_godot_manual_step_rejects_non_vertical_video(monkeypatch, tmp_path: Path) -> None:
+    script = tmp_path / "script.gd"
+    script.write_text("extends Node2D\n", encoding="utf-8")
+    out_path = tmp_path / "final.mp4"
+    out_path.write_bytes(b"video")
+
+    def _fake_subprocess_run(*args, **kwargs):
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(api_main.subprocess, "run", _fake_subprocess_run)
+    monkeypatch.setattr(api_main, "_latest_godot_log_file", lambda before=None: None)
+    monkeypatch.setattr(api_main, "_video_dimensions", lambda path: (1920, 1080))
+
+    payload = api_main._run_godot_manual_step(
+        mode="render",
+        script_path=script,
+        seconds=10.0,
+        fps=30,
+        max_nodes=200,
+        out_path=out_path,
+    )
+
+    assert payload["ok"] is False
+    assert payload["error"] == "short_format_required_vertical_video"
+    assert payload["is_vertical"] is False
 
 
 def test_get_manual_godot_file_restricts_to_manual_root(monkeypatch, tmp_path: Path) -> None:

@@ -110,6 +110,35 @@ def _manual_godot_root() -> Path:
     return Path(getenv("MANUAL_GODOT_OUT_ROOT", "out/manual-godot")).expanduser().resolve()
 
 
+def _write_manual_idea_context_files(*, out_dir: Path, idea: Idea) -> tuple[Path, Path]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    idea_json_path = out_dir / "idea.json"
+    idea_txt_path = out_dir / "idea.txt"
+    payload = {
+        "idea_id": str(idea.id),
+        "title": idea.title or "",
+        "summary": idea.summary or "",
+        "what_to_expect": idea.what_to_expect or "",
+        "preview": idea.preview or "",
+        "status": idea.status or "",
+        "created_at": idea.created_at.isoformat() if idea.created_at else None,
+    }
+    idea_json_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    text_payload = (
+        f"ID: {payload['idea_id']}\n"
+        f"Tytul: {payload['title']}\n"
+        f"Podsumowanie: {payload['summary']}\n"
+        f"Co zobaczysz: {payload['what_to_expect']}\n"
+        f"Preview: {payload['preview']}\n"
+        f"Status: {payload['status']}\n"
+    )
+    idea_txt_path.write_text(text_payload, encoding="utf-8")
+    return idea_json_path, idea_txt_path
+
+
 def _planner_settings_file() -> Path:
     return (Path(getenv("PLANNER_SETTINGS_FILE", "out/planner/settings.json")).expanduser().resolve())
 
@@ -590,9 +619,18 @@ def _run_godot_manual_step(
         "stderr": (completed.stderr or "").strip()[-8000:],
         "log_file": str(latest_log) if latest_log else None,
     }
+    vertical_error: tuple[int, int] | None = None
     if out_path is not None:
         payload["out_path"] = str(out_path.resolve())
         payload["out_exists"] = out_path.exists()
+        if mode in {"preview", "render"} and out_path.exists():
+            width, height = _video_dimensions(out_path)
+            payload["video_width"] = width
+            payload["video_height"] = height
+            is_vertical = height > width
+            payload["is_vertical"] = is_vertical
+            if not is_vertical:
+                vertical_error = (width, height)
     if mode == "estimate":
         combined = ((completed.stdout or "") + "\n" + (completed.stderr or "")).strip()
         summary = re.search(
@@ -618,6 +656,10 @@ def _run_godot_manual_step(
         payload["error"] = "godot_script_error_detected"
         if fatal_hint:
             payload["error_hint"] = fatal_hint
+    if vertical_error is not None:
+        payload["ok"] = False
+        payload["error"] = "short_format_required_vertical_video"
+        payload["error_hint"] = f"video_dimensions={vertical_error[0]}x{vertical_error[1]}"
     return payload
 
 
@@ -2816,6 +2858,7 @@ def ops_godot_compile_gdscript(
         out_dir = Path(request.out_root).expanduser().resolve() / f"idea-{idea.id}"
         out_dir.mkdir(parents=True, exist_ok=True)
         script_path = out_dir / "script.gd"
+        idea_json_path, idea_txt_path = _write_manual_idea_context_files(out_dir=out_dir, idea=idea)
         result = compile_idea_to_gdscript(
             idea=idea,
             target_path=script_path,
@@ -2832,6 +2875,8 @@ def ops_godot_compile_gdscript(
             "script_hash": result.script_hash,
             "compiler_meta": result.compiler_meta,
             "validation_report": result.validation_report,
+            "idea_context_json_path": str(idea_json_path),
+            "idea_context_text_path": str(idea_txt_path),
         }
         _audit_event(
             session,
