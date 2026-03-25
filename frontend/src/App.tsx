@@ -87,6 +87,17 @@ type MetricsDailyRow = {
   created_at?: string | null
 }
 
+type PublishConnectorStatusResponse = {
+  updated_at?: string
+  connectors?: Record<
+    string,
+    {
+      ready?: boolean
+      mode?: string
+    }
+  >
+}
+
 type PlannerSettings = {
   timezone?: string
   daily_publish_hour?: number
@@ -112,10 +123,69 @@ type PlannerStatusResponse = {
   settings?: PlannerSettings
 }
 
+type InsightsWindow = {
+  days?: number
+  from_date?: string
+  views?: number
+  likes?: number
+  comments?: number
+  shares?: number
+  watch_time_seconds?: number
+  avg_view_percentage?: number | null
+  engagement_rate?: number | null
+  published_count?: number
+}
+
+type InsightsSummaryResponse = {
+  generated_at?: string
+  windows?: Record<string, InsightsWindow>
+  top_content_14d?: Array<{
+    platform?: string
+    content_id?: string
+    views?: number
+    engagement_rate?: number | null
+    watch_time_seconds?: number
+  }>
+  audio_profiles_14d?: Array<{
+    audio_profile?: string
+    rows?: number
+    views?: number
+    watch_time_seconds?: number
+    avg_view_percentage?: number | null
+    avg_view_duration_seconds?: number | null
+  }>
+  intro_translate_14d?: {
+    rows_total?: number
+    attempted?: number
+    translated?: number
+    fallback?: number
+    empty_result?: number
+    disabled?: number
+    other?: number
+    fallback_share_attempted?: number | null
+  }
+  recommendation_code?: string
+  recommendation?: string
+}
+
+type PublishReadinessSummaryResponse = {
+  generated_at?: string
+  overall_pass?: boolean
+  components?: Record<
+    string,
+    {
+      pass?: boolean
+      reason?: string
+    }
+  >
+  source_file?: string
+}
+
 type GodotManualStepResult = {
   ok?: boolean
-  mode?: 'validate' | 'estimate' | 'preview' | 'render'
+  mode?: 'validate' | 'estimate' | 'intent_check' | 'preview' | 'render' | 'intro_overlay' | 'audio_mix'
   script_path?: string
+  input_path?: string
   out_path?: string
   out_exists?: boolean
   log_file?: string | null
@@ -139,6 +209,26 @@ type GodotManualStepResult = {
   tail_seconds?: number
   recommended_sim_duration_s?: number
   recommended_speed_factor?: number
+  intent_reached?: boolean
+  intent_reached_at_s?: number | null
+  intent_progress?: number | null
+  target_runtime_s?: number
+  runtime_override_s?: number | null
+  intro_text?: string
+  language?: string
+  duration_s?: number
+  font_size?: number
+  music_path?: string | null
+  sfx_path?: string | null
+  keep_source_audio?: boolean
+  music_gain_db?: number
+  sfx_gain_db?: number
+  normalize_loudness?: boolean
+  target_lufs?: number
+  true_peak_db?: number
+  audio_profile?: string | null
+  intent_status?: string
+  blocking_reason?: string | null
   confidence?: number
   method?: string
 }
@@ -146,7 +236,7 @@ type GodotManualStepResult = {
 type GodotManualHistoryRow = {
   id: string
   recorded_at?: string | null
-  step?: 'compile' | 'validate' | 'estimate' | 'preview' | 'render' | string | null
+  step?: 'compile' | 'validate' | 'estimate' | 'intent_check' | 'preview' | 'render' | string | null
   ok?: boolean | null
   actor_user_id?: string | null
   idea_id?: string | null
@@ -158,7 +248,16 @@ type GodotManualHistoryRow = {
   script_hash?: string | null
   estimate?: Record<string, unknown> | null
   recommended_sim_duration_s?: number | null
+  recommended_speed_factor?: number | null
   target_duration_s?: number | null
+  target_runtime_s?: number | null
+  intent_reached?: boolean | null
+  intent_reached_at_s?: number | null
+  intent_progress?: number | null
+  intent_status?: string | null
+  blocking_reason?: string | null
+  confidence?: number | null
+  method?: string | null
   error?: string | null
 }
 
@@ -232,6 +331,22 @@ type BlockedIdeaCandidate = {
 }
 
 const STATUS_ORDER = ['queued', 'running', 'failed', 'succeeded']
+const MANUAL_STEP_ORDER = ['compile', 'validate', 'estimate', 'preview', 'intent_check', 'render', 'intro_overlay', 'audio_mix'] as const
+const MANUAL_STEP_LABELS: Record<(typeof MANUAL_STEP_ORDER)[number], string> = {
+  compile: 'Kompilacja',
+  validate: 'Walidacja',
+  estimate: 'Estymacja',
+  preview: 'Podgląd',
+  intent_check: 'Sprawdzenie intencji',
+  render: 'Render finalny',
+  intro_overlay: 'Intro',
+  audio_mix: 'Miks audio',
+}
+const MANUAL_STEP_STATUS_LABELS: Record<'idle' | 'success' | 'fail', string> = {
+  idle: 'oczekuje',
+  success: 'sukces',
+  fail: 'błąd',
+}
 const LANGUAGE_OPTIONS = [
   { value: 'pl', label: 'PL' },
   { value: 'en', label: 'EN' },
@@ -264,35 +379,35 @@ const REPO_CARD_ORDER = [
 ] as const
 
 const REPO_LABELS: Record<(typeof REPO_CARD_ORDER)[number], string> = {
-  idea_candidates: 'Idea Candidates',
-  ideas: 'Ideas',
-  dsl_gaps: 'DSL Gaps',
-  animations: 'Animations',
-  renders: 'Renders',
-  artifacts: 'Artifacts',
-  jobs: 'Jobs',
+  idea_candidates: 'Kandydaci na pomysł',
+  ideas: 'Pomysły',
+  dsl_gaps: 'Braki DSL',
+  animations: 'Animacje',
+  renders: 'Rendery',
+  artifacts: 'Artefakty',
+  jobs: 'Zadania',
   sfx: 'SFX',
-  music: 'Music',
+  music: 'Muzyka',
 }
 
 const REPO_HINTS: Record<(typeof REPO_CARD_ORDER)[number], string> = {
   idea_candidates: 'Surowe propozycje przed decyzją operatora (new/later/picked/rejected).',
-  ideas: 'Idee w procesie pipeline (unverified/ready/blocked/feasible/compiled).',
-  dsl_gaps: 'Braki DSL blokujące ideę.',
-  animations: 'Animacje powiązane z ideami.',
-  renders: 'Renderowania i ich statusy.',
-  artifacts: 'Pliki wynikowe (wideo/metadata).',
-  jobs: 'Joby pipeline (queued/running/failed).',
+  ideas: 'Pomysły w pipeline (unverified/ready/blocked/feasible/compiled).',
+  dsl_gaps: 'Braki DSL blokujące realizację pomysłu.',
+  animations: 'Animacje powiązane z pomysłami.',
+  renders: 'Zadania renderu i ich statusy.',
+  artifacts: 'Pliki wynikowe (wideo/metadane).',
+  jobs: 'Zadania pipeline (queued/running/failed).',
   sfx: 'Repozytorium efektów dźwiękowych (planowane).',
-  music: 'Repozytorium podkładów muzycznych (planowane).',
+  music: 'Repozytorium muzyki (planowane).',
 }
 
 function getViewFromUrl(): AppView {
   if (typeof window === 'undefined') return 'home'
   const params = new URLSearchParams(window.location.search)
-  const value = params.get('view')
-  if (value && APP_VIEWS.includes(value as AppView)) {
-    return value as AppView
+  const value = params.get('view')?.toLowerCase().trim()
+  if (value && VIEW_SLUG_ALIASES[value]) {
+    return VIEW_SLUG_ALIASES[value]
   }
   return 'home'
 }
@@ -309,6 +424,44 @@ const fallbackApiBase = (() => {
 })()
 const API_BASE = (explicitApiBase || fallbackApiBase).replace(/\/$/, '')
 const TOKEN_BUDGET_ALERT_THRESHOLD = 0.8
+const SYSTEM_STATUS_POLL_MS = 15000
+const SYSTEM_STATUS_TIMEOUT_MS = 8000
+const SYSTEM_STATUS_STALE_MS = 60000
+const SYSTEM_STATUS_SLO_MS = 3000
+const ANIMATION_POLL_MS = 20000
+const FLOW_ANIMATION_PREVIEW_LIMIT = 8
+const AUDIO_PROFILE_PRESETS = {
+  balanced: { targetLufs: '-16', truePeakDb: '-1', musicGainDb: '-18', sfxGainDb: '-6', normalizeLoudness: true },
+  speech: { targetLufs: '-15', truePeakDb: '-1', musicGainDb: '-24', sfxGainDb: '-8', normalizeLoudness: true },
+  music: { targetLufs: '-14', truePeakDb: '-1', musicGainDb: '-14', sfxGainDb: '-10', normalizeLoudness: true },
+  sfx_heavy: { targetLufs: '-16', truePeakDb: '-1', musicGainDb: '-20', sfxGainDb: '-3', normalizeLoudness: true },
+} as const
+const INTENT_CHECK_PRESETS = {
+  balanced: { threshold: '0.85', holdSeconds: '2', tailSeconds: '2' },
+  fast_hook: { threshold: '0.78', holdSeconds: '1.2', tailSeconds: '1.5' },
+  gradual_reveal: { threshold: '0.9', holdSeconds: '3', tailSeconds: '3' },
+  loop_pattern: { threshold: '0.82', holdSeconds: '2.5', tailSeconds: '2' },
+} as const
+
+const VIEW_TITLE_MAP: Record<AppView, string> = {
+  home: 'Panel główny',
+  plan: 'Plan i analityka',
+  flow: 'Przepływ operatora',
+  repositories: 'Repozytoria',
+  settings: 'Ustawienia',
+}
+
+const VIEW_SLUG_ALIASES: Record<string, AppView> = {
+  home: 'home',
+  todzień: 'home',
+  flow: 'flow',
+  operator_flow: 'flow',
+  plan: 'plan',
+  insights: 'plan',
+  repositories: 'repositories',
+  repo: 'repositories',
+  settings: 'settings',
+}
 
 type TokenBudgetGroup = {
   limit?: number
@@ -331,6 +484,22 @@ function parseTokenBudgets(raw?: string | null): TokenBudgetConfig | null {
   }
 }
 
+function viewLabel(view: AppView, singleVideoMode: boolean): string {
+  if (singleVideoMode) {
+    if (view === 'home') return 'todzień'
+    if (view === 'plan') return 'insights'
+  }
+  return view
+}
+
+function viewSlug(view: AppView, singleVideoMode: boolean): string {
+  if (singleVideoMode) {
+    if (view === 'home') return 'todzień'
+    if (view === 'plan') return 'insights'
+  }
+  return view
+}
+
 function manualGodotFileUrl(path?: string | null): string | null {
   if (!path) return null
   return `${API_BASE}/godot/manual-file?path=${encodeURIComponent(path)}`
@@ -347,6 +516,15 @@ function dateKeyInTimezone(value: string | Date, timeZone: string): string {
   return formatter.format(date)
 }
 
+function isValidIanaTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone }).format(new Date())
+    return true
+  } catch {
+    return false
+  }
+}
+
 type SettingsResponse = {
   database_url?: string
   redis_url?: string
@@ -358,6 +536,10 @@ type SettingsResponse = {
   idea_gate_threshold?: string
   idea_gate_auto?: string
   dev_manual_flow?: string
+  operator_single_video_mode?: string
+  operator_target_runtime_s?: string
+  operator_intro_language?: string
+  operator_later_max_age_days?: string
   operator_guard?: boolean
   artifacts_base_dir?: string
   openai_model?: string
@@ -383,7 +565,7 @@ type LLMMetricsResponse = {
   budget?: {
     spent_usd_total?: number
     daily_budget_usd?: number
-    budget_day?: string
+    budget_dzień?: string
   }
   state_backend?: string
 }
@@ -478,6 +660,7 @@ function App() {
   const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null)
   const [systemStatusLoading, setSystemStatusLoading] = useState(false)
   const [systemStatusError, setSystemStatusError] = useState<string | null>(null)
+  const [systemStatusLastOkAt, setSystemStatusLastOkAt] = useState<Date | null>(null)
   const [summaryData, setSummaryData] = useState<SummaryResponse | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
 
@@ -500,9 +683,22 @@ function App() {
   const [planPublishRecords, setPlanPublishRecords] = useState<PublishRecordRow[]>([])
   const [planPublishRecordsError, setPlanPublishRecordsError] = useState<string | null>(null)
   const [planPublishRecordsLoading, setPlanPublishRecordsLoading] = useState(false)
+  const [planPublishFilterPlatform, setPlanPublishFilterPlatform] = useState('')
+  const [planPublishFilterStatus, setPlanPublishFilterStatus] = useState('')
+  const [planPublishFilterDateFrom, setPlanPublishFilterDateFrom] = useState('')
+  const [planPublishFilterDateTo, setPlanPublishFilterDateTo] = useState('')
   const [planMetricsRows, setPlanMetricsRows] = useState<MetricsDailyRow[]>([])
   const [planMetricsError, setPlanMetricsError] = useState<string | null>(null)
   const [planMetricsLoading, setPlanMetricsLoading] = useState(false)
+  const [insightsSummary, setInsightsSummary] = useState<InsightsSummaryResponse | null>(null)
+  const [insightsSummaryError, setInsightsSummaryError] = useState<string | null>(null)
+  const [insightsSummaryLoading, setInsightsSummaryLoading] = useState(false)
+  const [publishReadinessSummary, setPublishReadinessSummary] = useState<PublishReadinessSummaryResponse | null>(null)
+  const [publishReadinessError, setPublishReadinessError] = useState<string | null>(null)
+  const [publishReadinessLoading, setPublishReadinessLoading] = useState(false)
+  const [publishReadinessRefreshLoading, setPublishReadinessRefreshLoading] = useState(false)
+  const [publishReadinessRefreshMessage, setPublishReadinessRefreshMessage] = useState<string | null>(null)
+  const [publishReadinessRefreshError, setPublishReadinessRefreshError] = useState<string | null>(null)
   const [plannerSettings, setPlannerSettings] = useState<PlannerSettings | null>(null)
   const [plannerSettingsLoading, setPlannerSettingsLoading] = useState(false)
   const [plannerSettingsError, setPlannerSettingsError] = useState<string | null>(null)
@@ -529,14 +725,22 @@ function App() {
   const [metricsImportComments, setMetricsImportComments] = useState('0')
   const [metricsImportShares, setMetricsImportShares] = useState('0')
   const [metricsImportWatchTime, setMetricsImportWatchTime] = useState('0')
+  const [metricsImportAudioProfile, setMetricsImportAudioProfile] = useState<
+    '' | 'balanced' | 'speech' | 'music' | 'sfx_heavy'
+  >('')
   const [metricsImportAvgPercent, setMetricsImportAvgPercent] = useState('')
   const [metricsImportAvgDuration, setMetricsImportAvgDuration] = useState('')
   const [reviewActionMessage, setReviewActionMessage] = useState<string | null>(null)
   const [reviewActionError, setReviewActionError] = useState<string | null>(null)
   const [qcActionLoading, setQcActionLoading] = useState(false)
   const [publishActionLoading, setPublishActionLoading] = useState(false)
+  const [publishConnectorStatus, setPublishConnectorStatus] = useState<PublishConnectorStatusResponse | null>(null)
+  const [publishConnectorStatusError, setPublishConnectorStatusError] = useState<string | null>(null)
   const [qcResultInput, setQcResultInput] = useState<'accepted' | 'rejected' | 'regenerate'>('accepted')
   const [qcNotesInput, setQcNotesInput] = useState('')
+  const [qcIdeaIntentOk, setQcIdeaIntentOk] = useState(true)
+  const [qcIntroReadabilityOk, setQcIntroReadabilityOk] = useState(true)
+  const [qcAudioQualityOk, setQcAudioQualityOk] = useState(true)
   const [publishPlatformInput, setPublishPlatformInput] = useState<'youtube' | 'tiktok'>('youtube')
   const [publishStatusInput, setPublishStatusInput] = useState<
     'queued' | 'uploading' | 'published' | 'failed' | 'manual_confirmed'
@@ -551,7 +755,7 @@ function App() {
   const [ideaUpdatedAt, setIdeaUpdatedAt] = useState<Date | null>(null)
   const [selectedIdea, setSelectedIdea] = useState<IdeaCandidate | null>(null)
 
-  const [ideaSampleCount, setIdeaSampleCount] = useState('3')
+  const [ideaSampleCount, setIdeaSampleCount] = useState('1')
   const [ideaDecisions, setIdeaDecisions] = useState<Record<string, string>>({})
   const [ideaDecisionError, setIdeaDecisionError] = useState<string | null>(null)
   const [ideaDecisionMessage, setIdeaDecisionMessage] = useState<string | null>(null)
@@ -561,7 +765,7 @@ function App() {
   const [manualPickLoading, setManualPickLoading] = useState(false)
   const [manualPickError, setManualPickError] = useState<string | null>(null)
   const [generatorMode, setGeneratorMode] = useState<'llm' | 'text' | 'file'>('llm')
-  const [generatorLimit, setGeneratorLimit] = useState('5')
+  const [generatorLimit, setGeneratorLimit] = useState('1')
   const [generatorPrompt, setGeneratorPrompt] = useState('')
   const [generatorText, setGeneratorText] = useState('')
   const [generatorFileName, setGeneratorFileName] = useState('')
@@ -600,15 +804,32 @@ function App() {
   const [manualPipelineMessage, setManualPipelineMessage] = useState<string | null>(null)
   const [manualPipelineError, setManualPipelineError] = useState<string | null>(null)
   const [godotScriptPath, setGodotScriptPath] = useState('')
-  const [godotSeconds, setGodotSeconds] = useState('2')
+  const [godotSekundy, setGodotSekundy] = useState('2')
   const [godotFps, setGodotFps] = useState('12')
   const [godotMaxNodes, setGodotMaxNodes] = useState('200')
   const [godotPreviewScale, setGodotPreviewScale] = useState('0.5')
-  const [godotTargetDuration, setGodotTargetDuration] = useState('30')
-  const [godotScoutSeconds, setGodotScoutSeconds] = useState('60')
-  const [godotEstimateThreshold, setGodotEstimateThreshold] = useState('0.85')
-  const [godotEstimateHoldSeconds, setGodotEstimateHoldSeconds] = useState('2')
-  const [godotEstimateTailSeconds, setGodotEstimateTailSeconds] = useState('2')
+  const [godotTargetDuration, setGodotTargetDuration] = useState('60')
+  const [godotScoutSekundy, setGodotScoutSekundy] = useState('60')
+  const [godotEstimatePróg, setGodotEstimatePróg] = useState('0.85')
+  const [godotEstimateHoldSekundy, setGodotEstimateHoldSekundy] = useState('2')
+  const [godotEstimateTailSekundy, setGodotEstimateTailSekundy] = useState('2')
+  const [intentCheckPreset, setIntentCheckPreset] = useState<keyof typeof INTENT_CHECK_PRESETS>('balanced')
+  const [introInputPath, setIntroInputPath] = useState('')
+  const [introOutPath, setIntroOutPath] = useState('')
+  const [introText, setIntroText] = useState('')
+  const [introCzas, setIntroCzas] = useState('1.5')
+  const [introFontSize, setIntroFontSize] = useState('52')
+  const [audioInputPath, setAudioInputPath] = useState('')
+  const [audioOutPath, setAudioOutPath] = useState('')
+  const [audioMusicPath, setAudioMusicPath] = useState('')
+  const [audioSfxPath, setAudioSfxPath] = useState('')
+  const [audioKeepSource, setAudioKeepSource] = useState(false)
+  const [audioMusicGainDb, setAudioMusicGainDb] = useState('-18')
+  const [audioSfxGainDb, setAudioSfxGainDb] = useState('-6')
+  const [audioNormalizeLoudness, setAudioNormalizeLoudness] = useState(true)
+  const [audioTargetLufs, setAudioTargetLufs] = useState('-16')
+  const [audioTruePeakDb, setAudioTruePeakDb] = useState('-1')
+  const [audioProfile, setAudioProfile] = useState<keyof typeof AUDIO_PROFILE_PRESETS>('balanced')
   const [godotStepLoading, setGodotStepLoading] = useState<Record<string, boolean>>({})
   const [godotStepStatus, setGodotStepStatus] = useState<Record<string, 'idle' | 'success' | 'fail'>>({})
   const [godotStepError, setGodotStepError] = useState<Record<string, string | null>>({})
@@ -651,7 +872,17 @@ function App() {
   const [candidateFilterCapability, setCandidateFilterCapability] = useState('')
   const [candidateFilterSimilarity, setCandidateFilterSimilarity] = useState('')
   const [candidateListLimit, setCandidateListLimit] = useState('25')
+  const [laterCleanupMaxAgeDays, setLaterCleanupMaxAgeDays] = useState('30')
+  const [laterCleanupDryRun, setLaterCleanupDryRun] = useState(true)
+  const [laterCleanupLoading, setLaterCleanupLoading] = useState(false)
+  const [laterCleanupMessage, setLaterCleanupMessage] = useState<string | null>(null)
+  const [laterCleanupError, setLaterCleanupError] = useState<string | null>(null)
   const manualFlowEnabled = settings?.dev_manual_flow === '1'
+  const singleVideoMode = (settings?.operator_single_video_mode ?? '1') !== '0'
+  const [showAdvancedFlowPanels, setShowAdvancedFlowPanels] = useState(false)
+  const [showManualTechnicalParams, setShowManualTechnicalParams] = useState(false)
+  const primaryOperatorViews: readonly AppView[] = singleVideoMode ? ['home', 'flow', 'plan'] : APP_VIEWS
+  const activeViewTitle = VIEW_TITLE_MAP[activeView]
 
   const opsHeaders = (): Record<string, string> => {
     const token = import.meta.env.VITE_OPERATOR_TOKEN as string | undefined
@@ -696,6 +927,39 @@ function App() {
     return `API error ${response.status}${detail ? `: ${detail}` : ''}`
   }
 
+  const summarizePayload = (payload: unknown) => {
+    if (!payload || typeof payload !== 'object') return String(payload ?? '')
+    const row = payload as Record<string, unknown>
+    const keys = [
+      'status',
+      'result',
+      'job_id',
+      'animation_id',
+      'render_id',
+      'idea_id',
+      'out_path',
+      'intent_status',
+      'queued',
+      'cleaned',
+      'updated',
+    ]
+    const parts = keys
+      .map((key) => {
+        const value = row[key]
+        if (value === undefined || value === null || value === '') return null
+        return `${key}=${String(value)}`
+      })
+      .filter((value): value is string => Boolean(value))
+    if (typeof row.deleted_count === 'number' || typeof row.expired_count === 'number' || typeof row.skipped_count === 'number') {
+      parts.push(
+        `expired=${Number(row.expired_count ?? 0)}`,
+        `deleted=${Number(row.deleted_count ?? 0)}`,
+        `skipped=${Number(row.skipped_count ?? 0)}`,
+      )
+    }
+    return parts.length ? parts.join(' | ') : JSON.stringify(payload)
+  }
+
   const fetchSummary = async () => {
     setSummaryLoading(true)
     try {
@@ -715,16 +979,36 @@ function App() {
   const fetchSystemStatus = async () => {
     setSystemStatusLoading(true)
     setSystemStatusError(null)
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), SYSTEM_STATUS_TIMEOUT_MS)
     try {
-      const response = await fetch(`${API_BASE}/system/status`)
+      const response = await fetch(`${API_BASE}/system/status`, { signal: controller.signal })
       if (!response.ok) {
-        throw new Error(`API error ${response.status}`)
+        if (response.status === 404) {
+          throw new Error(
+            'Brak endpointu /system/status. Wykryto niezgodność wersji backend/UI. Uruchom ponownie backend (`make run-dev`) i odśwież UI.',
+          )
+        }
+        throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as SystemStatusResponse
+      if (!payload || typeof payload !== 'object' || !('service_status' in payload) || !('repo_counts' in payload)) {
+        throw new Error(
+          'Niezgodność kontraktu API dla /system/status. Backend jest prawdopodobnie nieaktualny. Uruchom ponownie backend (`make run-dev`) i odśwież UI.',
+        )
+      }
       setSystemStatus(payload)
+      setSystemStatusLastOkAt(new Date())
     } catch (err) {
-      setSystemStatusError(err instanceof Error ? err.message : 'Unknown error')
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setSystemStatusError(
+          `System status timeout after ${SYSTEM_STATUS_TIMEOUT_MS}ms. Check API load/health and try again.`,
+        )
+      } else {
+        setSystemStatusError(err instanceof Error ? err.message : 'Nieznany błąd')
+      }
     } finally {
+      window.clearTimeout(timeoutId)
       setSystemStatusLoading(false)
     }
   }
@@ -752,7 +1036,7 @@ function App() {
         return payload.find((row) => row.id === prev.id) ?? payload[0]
       })
     } catch (err) {
-      setAnimationError(err instanceof Error ? err.message : 'Unknown error')
+      setAnimationError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setAnimationLoading(false)
     }
@@ -773,7 +1057,7 @@ function App() {
       const payload = (await response.json()) as Artifact[]
       setArtifacts(payload)
     } catch (err) {
-      setArtifactsError(err instanceof Error ? err.message : 'Unknown error')
+      setArtifactsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setArtifactsLoading(false)
     }
@@ -798,18 +1082,22 @@ function App() {
       const payload = (await response.json()) as PublishRecordRow[]
       setPublishRecords(payload)
     } catch (err) {
-      setPublishRecordsError(err instanceof Error ? err.message : 'Unknown error')
+      setPublishRecordsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setPublishRecordsLoading(false)
     }
   }
 
-  const fetchPlanPublishRecords = async () => {
+  const fetchPlanPublishRecords = async (filters?: { platform?: string; status?: string }) => {
     setPlanPublishRecordsLoading(true)
     setPlanPublishRecordsError(null)
     try {
       const params = new URLSearchParams()
       params.set('limit', '50')
+      const platform = filters?.platform ?? planPublishFilterPlatform
+      const status = filters?.status ?? planPublishFilterStatus
+      if (platform) params.set('platform_type', platform)
+      if (status) params.set('status', status)
       const response = await fetch(`${API_BASE}/publish-records?${params.toString()}`)
       if (!response.ok) {
         throw new Error(await readApiError(response))
@@ -817,7 +1105,7 @@ function App() {
       const payload = (await response.json()) as PublishRecordRow[]
       setPlanPublishRecords(payload)
     } catch (err) {
-      setPlanPublishRecordsError(err instanceof Error ? err.message : 'Unknown error')
+      setPlanPublishRecordsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setPlanPublishRecordsLoading(false)
     }
@@ -836,9 +1124,103 @@ function App() {
       const payload = (await response.json()) as MetricsDailyRow[]
       setPlanMetricsRows(payload)
     } catch (err) {
-      setPlanMetricsError(err instanceof Error ? err.message : 'Unknown error')
+      setPlanMetricsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setPlanMetricsLoading(false)
+    }
+  }
+
+  const fetchPublishConnectorStatus = async () => {
+    setPublishConnectorStatusError(null)
+    try {
+      const response = await fetch(`${API_BASE}/publish/connectors/status`, {
+        headers: opsHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as PublishConnectorStatusResponse
+      setPublishConnectorStatus(payload)
+    } catch (err) {
+      setPublishConnectorStatusError(err instanceof Error ? err.message : 'Nieznany błąd')
+    }
+  }
+
+  const fetchInsightsSummary = async () => {
+    setInsightsSummaryLoading(true)
+    setInsightsSummaryError(null)
+    try {
+      const response = await fetch(`${API_BASE}/insights/summary`, {
+        headers: opsHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as InsightsSummaryResponse
+      setInsightsSummary(payload)
+    } catch (err) {
+      setInsightsSummaryError(err instanceof Error ? err.message : 'Nieznany błąd')
+    } finally {
+      setInsightsSummaryLoading(false)
+    }
+  }
+
+  const fetchPublishReadinessSummary = async () => {
+    setPublishReadinessLoading(true)
+    setPublishReadinessError(null)
+    try {
+      const response = await fetch(`${API_BASE}/publish/readiness-summary`, {
+        headers: opsHeaders(),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as PublishReadinessSummaryResponse
+      setPublishReadinessSummary(payload)
+    } catch (err) {
+      setPublishReadinessError(err instanceof Error ? err.message : 'Nieznany błąd')
+    } finally {
+      setPublishReadinessLoading(false)
+    }
+  }
+
+  const runPublishReadinessRefresh = async () => {
+    setPublishReadinessRefreshLoading(true)
+    setPublishReadinessRefreshError(null)
+    setPublishReadinessRefreshMessage(null)
+    try {
+      const response = await fetch(`${API_BASE}/ops/publish/readiness-refresh`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify({
+          run_mcp_audit: true,
+          run_compliance_check: true,
+          run_oauth_smoke: true,
+          oauth_online: false,
+          oauth_require: 'passed_if_configured',
+          mcp_audit_fail_on_risk_level: 'none',
+          compliance_require: 'none',
+          summary_max_allowed_risk: 'medium',
+          summary_require_pass: false,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as {
+        ok?: boolean
+        scripts_ok?: boolean
+        overall_pass?: boolean
+      }
+      setPublishReadinessRefreshMessage(
+        `Odświeżenie bramki zakończone (ok=${String(payload.ok ?? false)}, scripts_ok=${String(payload.scripts_ok ?? false)}, overall_pass=${String(payload.overall_pass ?? false)}).`,
+      )
+      fetchPublishReadinessSummary()
+      fetchAuditEvents()
+    } catch (err) {
+      setPublishReadinessRefreshError(err instanceof Error ? err.message : 'Nieznany błąd')
+    } finally {
+      setPublishReadinessRefreshLoading(false)
     }
   }
 
@@ -862,7 +1244,7 @@ function App() {
       setPlannerSettings(payload)
       applyPlannerSettingsToInputs(payload)
     } catch (err) {
-      setPlannerSettingsError(err instanceof Error ? err.message : 'Unknown error')
+      setPlannerSettingsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setPlannerSettingsLoading(false)
     }
@@ -879,19 +1261,25 @@ function App() {
       const payload = (await response.json()) as PlannerStatusResponse
       setPlannerStatus(payload)
     } catch (err) {
-      setPlannerStatusError(err instanceof Error ? err.message : 'Unknown error')
+      setPlannerStatusError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setPlannerStatusLoading(false)
     }
   }
 
   const savePlannerSettings = async () => {
+    const timezone = plannerTimezoneInput.trim() || 'UTC'
+    if (!isValidIanaTimeZone(timezone)) {
+      setPlannerSettingsError('Nieprawidłowa strefa czasowa. Użyj formatu IANA (np. Europe/Warsaw, UTC).')
+      setPlannerSettingsMessage(null)
+      return
+    }
     setPlannerSettingsLoading(true)
     setPlannerSettingsError(null)
     setPlannerSettingsMessage(null)
     try {
       const body = {
-        timezone: plannerTimezoneInput.trim() || 'UTC',
+        timezone,
         daily_publish_hour: Math.max(0, Math.min(23, Math.floor(parseNumberInput(plannerHourInput, 18)))),
         daily_publish_minute: Math.max(0, Math.min(59, Math.floor(parseNumberInput(plannerMinuteInput, 0)))),
         publish_window_minutes: Math.max(15, Math.min(1440, Math.floor(parseNumberInput(plannerWindowInput, 120)))),
@@ -911,7 +1299,7 @@ function App() {
       setPlannerSettingsMessage('Zapisano ustawienia planera.')
       fetchPlannerStatus()
     } catch (err) {
-      setPlannerSettingsError(err instanceof Error ? err.message : 'Unknown error')
+      setPlannerSettingsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setPlannerSettingsLoading(false)
     }
@@ -931,13 +1319,13 @@ function App() {
         throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setPlannerTickMessage(`Planner tick: ${JSON.stringify(payload)}`)
+      setPlannerTickMessage(`Tick planera: ${summarizePayload(payload)}`)
       fetchPlannerStatus()
       fetchSummary()
       fetchAnimations()
       fetchAuditEvents()
     } catch (err) {
-      setPlannerTickError(err instanceof Error ? err.message : 'Unknown error')
+      setPlannerTickError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setPlannerTickLoading(false)
     }
@@ -950,7 +1338,7 @@ function App() {
     try {
       const contentId = metricsImportContentId.trim()
       if (!contentId) {
-        throw new Error('Podaj Content ID dla metryk.')
+        throw new Error('Podaj ID treści dla metryk.')
       }
       if (!metricsImportDate) {
         throw new Error('Podaj datę metryk.')
@@ -964,6 +1352,9 @@ function App() {
         comments: Math.max(0, Math.floor(parseNumberInput(metricsImportComments, 0))),
         shares: Math.max(0, Math.floor(parseNumberInput(metricsImportShares, 0))),
         watch_time_seconds: Math.max(0, Math.floor(parseNumberInput(metricsImportWatchTime, 0))),
+      }
+      if (metricsImportAudioProfile) {
+        body.audio_profile = metricsImportAudioProfile
       }
       if (metricsImportAvgPercent.trim()) {
         body.avg_view_percentage = Math.max(0, Math.min(100, parseNumberInput(metricsImportAvgPercent, 0)))
@@ -980,11 +1371,11 @@ function App() {
         throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setMetricsImportMessage(`Metryki zapisane: ${JSON.stringify(payload)}`)
+      setMetricsImportMessage(`Zapisano metryki: ${summarizePayload(payload)}`)
       fetchPlanMetrics()
       fetchAuditEvents()
     } catch (err) {
-      setMetricsImportError(err instanceof Error ? err.message : 'Unknown error')
+      setMetricsImportError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setMetricsImportLoading(false)
     }
@@ -1024,7 +1415,7 @@ function App() {
       const payload = (await response.json()) as GodotManualHistoryRow[]
       setGodotHistoryRows(payload)
     } catch (err) {
-      setGodotHistoryError(err instanceof Error ? err.message : 'Unknown error')
+      setGodotHistoryError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setGodotHistoryLoading(false)
     }
@@ -1036,8 +1427,8 @@ function App() {
     setIdeaDecisionError(null)
     setIdeaDecisionMessage(null)
     try {
-      const count = Number(ideaSampleCount || '3')
-      const limit = Number.isNaN(count) ? 3 : Math.max(1, Math.min(count, 10))
+      const count = Number(ideaSampleCount || '1')
+      const limit = singleVideoMode ? 1 : Number.isNaN(count) ? 1 : Math.max(1, Math.min(count, 10))
       const response = await fetch(`${API_BASE}/idea-repo/sample?limit=${limit}`)
       if (!response.ok) {
         throw new Error(`API error ${response.status}`)
@@ -1046,8 +1437,8 @@ function App() {
       if (payload.length === 0) {
         setIdeaError(
           manualFlowEnabled
-            ? 'Brak kandydatów do wylosowania. Wygeneruj nowe propozycje w Idea Generator.'
-            : 'Brak kandydatów do wylosowania. Sprawdź, czy są feasible propozycje.'
+            ? 'Brak kandydatów. Wygeneruj nowe propozycje w Generatorze pomysłów.'
+            : 'Brak kandydatów. Sprawdź, czy istnieją propozycje o statusie feasible.'
         )
       }
       setIdeaCandidates(payload)
@@ -1055,7 +1446,7 @@ function App() {
       setIdeaUpdatedAt(new Date())
       setSelectedIdea(payload[0] ?? null)
     } catch (err) {
-      setIdeaError(err instanceof Error ? err.message : 'Unknown error')
+      setIdeaError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setIdeaLoading(false)
     }
@@ -1081,7 +1472,7 @@ function App() {
         setManualPickCandidateId(filtered[0]?.id ?? '')
       }
     } catch (err) {
-      setManualPickError(err instanceof Error ? err.message : 'Unknown error')
+      setManualPickError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setManualPickLoading(false)
     }
@@ -1096,8 +1487,8 @@ function App() {
     try {
       const payload: Record<string, unknown> = { mode: generatorMode }
       if (generatorMode === 'llm') {
-        const limit = Number(generatorLimit || '5')
-        payload.limit = Number.isNaN(limit) ? 5 : Math.max(1, Math.min(limit, 50))
+        const limit = Number(generatorLimit || '1')
+        payload.limit = singleVideoMode ? 1 : Number.isNaN(limit) ? 1 : Math.max(1, Math.min(limit, 50))
         if (generatorPrompt.trim()) {
           payload.prompt = generatorPrompt.trim()
         }
@@ -1122,7 +1513,7 @@ function App() {
         skip_summary?: Record<string, number>
         skip_examples?: Array<{ title?: string; reason?: string }>
       }
-      setGeneratorMessage(`Utworzono ${result.created ?? 0} kandydatow, pominieto ${result.skipped ?? 0}.`)
+      setGeneratorMessage(`Utworzono ${result.created ?? 0} kandydatów, pominięto ${result.skipped ?? 0}.`)
       setGeneratorSkipSummary(result.skip_summary ?? {})
       setGeneratorSkipExamples(result.skip_examples ?? [])
       fetchSystemStatus()
@@ -1132,7 +1523,7 @@ function App() {
         fetchManualPickCandidates()
       }
     } catch (err) {
-      setGeneratorError(err instanceof Error ? err.message : 'Unknown error')
+      setGeneratorError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setGeneratorLoading(false)
     }
@@ -1144,7 +1535,7 @@ function App() {
     setIdeaDecisionMessage(null)
     try {
       if (ideaCandidates.length === 0) {
-        throw new Error('Brak propozycji do klasyfikacji.')
+        throw new Error('Brak propozycji do sklasyfikowania.')
       }
       const decisions = ideaCandidates.map((idea) => ({
         idea_candidate_id: idea.id,
@@ -1155,7 +1546,7 @@ function App() {
       }
       const picked = decisions.filter((item) => item.decision === 'picked')
       if (picked.length !== 1) {
-        throw new Error('Wybierz dokładnie jedną propozycję do generowania.')
+        throw new Error('Wybierz dokładnie jedną propozycję do generacji.')
       }
       const response = await fetch(`${API_BASE}/idea-repo/decide`, {
         method: 'POST',
@@ -1170,7 +1561,7 @@ function App() {
         throw new Error('Brak idea_id po decyzji.')
       }
       if (manualFlowEnabled) {
-        setIdeaDecisionMessage('Wybrana idea zapisana. Uruchom kompilację ręcznie w sekcji Manual.')
+        setIdeaDecisionMessage('Zapisano wybrany pomysł. Uruchom ręczną kompilację w sekcji manualnej.')
       } else {
         const enqueueResponse = await fetch(`${API_BASE}/ops/enqueue`, {
           method: 'POST',
@@ -1185,12 +1576,12 @@ function App() {
         if (!enqueueResponse.ok) {
           throw new Error(`API error ${enqueueResponse.status}`)
         }
-        setIdeaDecisionMessage('Wybrana idea przekazana do pipeline.')
+        setIdeaDecisionMessage('Wybrany pomysł wysłano do pipeline.')
         fetchSummary()
       }
       fetchAuditEvents()
     } catch (err) {
-      setIdeaDecisionError(err instanceof Error ? err.message : 'Unknown error')
+      setIdeaDecisionError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setIdeaDecisionLoading(false)
     }
@@ -1223,13 +1614,13 @@ function App() {
       if (!payload.idea_id) {
         throw new Error('Brak idea_id po decyzji.')
       }
-      setIdeaDecisionMessage('Kandydat ręcznie wybrany.')
+      setIdeaDecisionMessage('Wybrano kandydata ręcznie.')
       fetchSystemStatus()
       fetchCandidateList()
       fetchSummary()
       fetchAuditEvents()
     } catch (err) {
-      setIdeaDecisionError(err instanceof Error ? err.message : 'Unknown error')
+      setIdeaDecisionError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setIdeaDecisionLoading(false)
     }
@@ -1300,6 +1691,66 @@ function App() {
     }
   }
 
+  const handleCleanupLaterCandidates = async () => {
+    setLaterCleanupLoading(true)
+    setLaterCleanupError(null)
+    setLaterCleanupMessage(null)
+    try {
+      const body = {
+        max_age_days: Math.max(1, Math.floor(parseNumberInput(laterCleanupMaxAgeDays, 30))),
+        dry_run: laterCleanupDryRun,
+      }
+      const response = await fetch(`${API_BASE}/ops/idea-candidates/cleanup-later`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as {
+        expired_count?: number
+        deleted_count?: number
+        skipped_count?: number
+        dry_run?: boolean
+      }
+      setLaterCleanupMessage(
+        `Czyszczenie later (${payload.dry_run ? 'dry-run' : 'apply'}): wygasłe=${payload.expired_count ?? 0}, usunięte=${payload.deleted_count ?? 0}, pominięte=${payload.skipped_count ?? 0}`,
+      )
+      fetchCandidateList()
+      fetchSystemStatus()
+      fetchAuditEvents()
+    } catch (err) {
+      setLaterCleanupError(err instanceof Error ? err.message : 'Nieznany błąd')
+    } finally {
+      setLaterCleanupLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!singleVideoMode) return
+    if (ideaSampleCount !== '1') setIdeaSampleCount('1')
+    if (generatorLimit !== '1') setGeneratorLimit('1')
+  }, [singleVideoMode, ideaSampleCount, generatorLimit])
+
+  useEffect(() => {
+    const runtimeRaw = settings?.operator_target_runtime_s
+    if (!runtimeRaw) return
+    const runtime = Number(runtimeRaw)
+    if (!Number.isFinite(runtime) || runtime <= 0) return
+    const normalized = String(Math.floor(runtime))
+    setGodotTargetDuration((prev) => (prev === normalized ? prev : normalized))
+  }, [settings?.operator_target_runtime_s])
+
+  useEffect(() => {
+    const maxAgeRaw = settings?.operator_later_max_age_days
+    if (!maxAgeRaw) return
+    const maxAge = Number(maxAgeRaw)
+    if (!Number.isFinite(maxAge) || maxAge <= 0) return
+    const normalized = String(Math.floor(maxAge))
+    setLaterCleanupMaxAgeDays((prev) => (prev === normalized ? prev : normalized))
+  }, [settings?.operator_later_max_age_days])
+
   const handleUndoCandidateDecision = async (candidateId: string) => {
     setCandidateAction(candidateId, true)
     try {
@@ -1336,7 +1787,7 @@ function App() {
       setAuditEvents(payload)
       setAuditUpdatedAt(new Date())
     } catch (err) {
-      setAuditError(err instanceof Error ? err.message : 'Unknown error')
+      setAuditError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setAuditLoading(false)
     }
@@ -1359,10 +1810,10 @@ function App() {
         throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setOpsMessage(`Enqueued: ${JSON.stringify(payload)}`)
+      setOpsMessage(`Dodano do kolejki: ${summarizePayload(payload)}`)
       fetchSummary()
     } catch (err) {
-      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+      setOpsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setOpsEnqueueLoading(false)
     }
@@ -1390,11 +1841,11 @@ function App() {
         throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setManualCompileMessage(`Compiled: ${JSON.stringify(payload)}`)
+      setManualCompileMessage(`Skompilowano: ${summarizePayload(payload)}`)
       fetchSystemStatus()
       fetchAuditEvents()
     } catch (err) {
-      setManualCompileError(err instanceof Error ? err.message : 'Unknown error')
+      setManualCompileError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setManualCompileLoading(false)
     }
@@ -1422,11 +1873,11 @@ function App() {
         throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setManualPipelineMessage(`Pipeline started: ${JSON.stringify(payload)}`)
+      setManualPipelineMessage(`Uruchomiono pipeline: ${summarizePayload(payload)}`)
       fetchSummary()
       fetchAuditEvents()
     } catch (err) {
-      setManualPipelineError(err instanceof Error ? err.message : 'Unknown error')
+      setManualPipelineError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setManualPipelineLoading(false)
     }
@@ -1452,6 +1903,13 @@ function App() {
   const parseNumberInput = (raw: string, fallback: number) => {
     const value = Number(raw)
     return Number.isFinite(value) ? value : fallback
+  }
+
+  const applyIntentCheckPreset = () => {
+    const preset = INTENT_CHECK_PRESETS[intentCheckPreset]
+    setGodotEstimatePróg(preset.threshold)
+    setGodotEstimateHoldSekundy(preset.holdSeconds)
+    setGodotEstimateTailSekundy(preset.tailSeconds)
   }
 
   const handleGodotCompile = async () => {
@@ -1483,38 +1941,47 @@ function App() {
       setGodotStepOutcome(step, 'success', null, payload)
       fetchAuditEvents()
     } catch (err) {
-      setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Unknown error', null)
+      setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Nieznany błąd', null)
     } finally {
       setGodotStepLoadingState(step, false)
       fetchGodotManualRuns()
     }
   }
 
-  const handleGodotRunStep = async (step: 'validate' | 'estimate' | 'preview' | 'render') => {
+  const handleGodotRunStep = async (step: 'validate' | 'estimate' | 'intent_check' | 'preview' | 'render') => {
     setGodotStepLoadingState(step, true)
     setGodotStepOutcome(step, 'idle', null)
     try {
       if (!godotScriptPath.trim()) {
-        throw new Error('Najpierw skompiluj GDScript albo podaj ścieżkę skryptu.')
+        throw new Error('Najpierw wykonaj kompilację GDScript albo podaj ścieżkę skryptu.')
       }
       const body: Record<string, unknown> = {
         script_path: godotScriptPath.trim(),
-        seconds: Math.max(0.1, parseNumberInput(godotSeconds, 2)),
+        seconds: Math.max(0.1, parseNumberInput(godotSekundy, 2)),
         fps: Math.max(1, Math.floor(parseNumberInput(godotFps, 12))),
         max_nodes: Math.max(10, Math.floor(parseNumberInput(godotMaxNodes, 200))),
       }
       if (step === 'estimate') {
         body.target_duration_s = Math.max(1, parseNumberInput(godotTargetDuration, 30))
-        body.scout_seconds = Math.max(2, parseNumberInput(godotScoutSeconds, 60))
-        body.threshold = Math.max(0.1, Math.min(1, parseNumberInput(godotEstimateThreshold, 0.85)))
-        body.hold_seconds = Math.max(0.1, parseNumberInput(godotEstimateHoldSeconds, 2))
+        body.scout_seconds = Math.max(2, parseNumberInput(godotScoutSekundy, 60))
+        body.threshold = Math.max(0.1, Math.min(1, parseNumberInput(godotEstimatePróg, 0.85)))
+        body.hold_seconds = Math.max(0.1, parseNumberInput(godotEstimateHoldSekundy, 2))
         body.sample_seconds = 0.5
-        body.tail_seconds = Math.max(0, parseNumberInput(godotEstimateTailSeconds, 2))
+        body.tail_seconds = Math.max(0, parseNumberInput(godotEstimateTailSekundy, 2))
+      }
+      if (step === 'intent_check') {
+        body.runtime_override_s = Math.max(1, parseNumberInput(godotTargetDuration, 60))
+        body.scout_seconds = Math.max(2, parseNumberInput(godotScoutSekundy, 60))
+        body.threshold = Math.max(0.1, Math.min(1, parseNumberInput(godotEstimatePróg, 0.85)))
+        body.hold_seconds = Math.max(0.1, parseNumberInput(godotEstimateHoldSekundy, 2))
+        body.sample_seconds = 0.5
+        body.tail_seconds = Math.max(0, parseNumberInput(godotEstimateTailSekundy, 2))
       }
       if (step === 'preview') {
         body.scale = Math.max(0.1, parseNumberInput(godotPreviewScale, 0.5))
       }
-      const response = await fetch(`${API_BASE}/ops/godot/${step}`, {
+      const endpoint = step === 'intent_check' ? 'intent-check' : step
+      const response = await fetch(`${API_BASE}/ops/godot/${endpoint}`, {
         method: 'POST',
         headers: opsHeaders(),
         body: JSON.stringify(body),
@@ -1524,12 +1991,112 @@ function App() {
       }
       const payload = (await response.json()) as GodotManualStepResult
       setGodotStepOutcome(step, 'success', null, payload)
+      if (step === 'render' && payload.out_path) {
+        setIntroInputPath(payload.out_path)
+        setAudioInputPath(payload.out_path)
+      }
       fetchAuditEvents()
     } catch (err) {
-      setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Unknown error', null)
+      setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Nieznany błąd', null)
     } finally {
       setGodotStepLoadingState(step, false)
       fetchGodotManualRuns()
+    }
+  }
+
+  const handleIntroOverlay = async () => {
+    const step = 'intro_overlay'
+    setGodotStepLoadingState(step, true)
+    setGodotStepOutcome(step, 'idle', null)
+    try {
+      const inputPath = introInputPath.trim() || godotStepResult.render?.out_path?.trim() || ''
+      if (!inputPath) {
+        throw new Error('Podaj ścieżkę wejściową wideo (finalny render).')
+      }
+      const body: Record<string, unknown> = {
+        input_path: inputPath,
+        intro_text: introText.trim() || undefined,
+        duration_s: Math.max(0.5, parseNumberInput(introCzas, 1.5)),
+        font_size: Math.max(16, Math.floor(parseNumberInput(introFontSize, 52))),
+      }
+      if (introOutPath.trim()) {
+        body.out_path = introOutPath.trim()
+      }
+      const introLanguage = (settings?.operator_intro_language ?? 'en').trim().toLowerCase()
+      if (introLanguage === 'pl' || introLanguage === 'en') {
+        body.language = introLanguage
+      }
+      const response = await fetch(`${API_BASE}/ops/overlay/intro`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as GodotManualStepResult
+      setGodotStepOutcome(step, 'success', null, payload)
+      if (payload.out_path) {
+        setIntroOutPath(payload.out_path)
+        setAudioInputPath(payload.out_path)
+      }
+      fetchAuditEvents()
+    } catch (err) {
+      setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Nieznany błąd', null)
+    } finally {
+      setGodotStepLoadingState(step, false)
+    }
+  }
+
+  const handleAudioMix = async () => {
+    const step = 'audio_mix'
+    setGodotStepLoadingState(step, true)
+    setGodotStepOutcome(step, 'idle', null)
+    try {
+      const inputPath = audioInputPath.trim() || godotStepResult.intro_overlay?.out_path?.trim() || godotStepResult.render?.out_path?.trim() || ''
+      if (!inputPath) {
+        throw new Error('Podaj ścieżkę wejściową wideo dla miksu audio.')
+      }
+      if (!audioKeepSource && !audioMusicPath.trim() && !audioSfxPath.trim()) {
+        throw new Error('Podaj co najmniej music_path lub sfx_path (albo włącz zachowanie dźwięku źródłowego).')
+      }
+      const body: Record<string, unknown> = {
+        input_path: inputPath,
+        keep_source_audio: audioKeepSource,
+        music_gain_db: parseNumberInput(audioMusicGainDb, -18),
+        sfx_gain_db: parseNumberInput(audioSfxGainDb, -6),
+        normalize_loudness: audioNormalizeLoudness,
+        target_lufs: parseNumberInput(audioTargetLufs, -16),
+        true_peak_db: parseNumberInput(audioTruePeakDb, -1),
+        audio_profile: audioProfile,
+      }
+      if (audioOutPath.trim()) {
+        body.out_path = audioOutPath.trim()
+      }
+      if (audioMusicPath.trim()) {
+        body.music_path = audioMusicPath.trim()
+      }
+      if (audioSfxPath.trim()) {
+        body.sfx_path = audioSfxPath.trim()
+      }
+      const response = await fetch(`${API_BASE}/ops/audio/mix`, {
+        method: 'POST',
+        headers: opsHeaders(),
+        body: JSON.stringify(body),
+      })
+      if (!response.ok) {
+        throw new Error(await readApiError(response))
+      }
+      const payload = (await response.json()) as GodotManualStepResult
+      setGodotStepOutcome(step, 'success', null, payload)
+      if (payload.out_path) {
+        setAudioOutPath(payload.out_path)
+      }
+      fetchAuditEvents()
+    } catch (err) {
+      setGodotStepOutcome(step, 'fail', err instanceof Error ? err.message : 'Nieznany błąd', null)
+    } finally {
+      setGodotStepLoadingState(step, false)
     }
   }
 
@@ -1550,10 +2117,10 @@ function App() {
         throw new Error(`API error ${response.status}`)
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setOpsMessage(`Rerun queued: ${JSON.stringify(payload)}`)
+      setOpsMessage(`Ponowne renderowanie dodane do kolejki: ${summarizePayload(payload)}`)
       fetchSummary()
     } catch (err) {
-      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+      setOpsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setOpsRerunLoading(false)
     }
@@ -1575,10 +2142,10 @@ function App() {
         throw new Error(`API error ${response.status}`)
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setOpsMessage(`Cleanup done: ${JSON.stringify(payload)}`)
+      setOpsMessage(`Czyszczenie zakończone: ${summarizePayload(payload)}`)
       fetchSummary()
     } catch (err) {
-      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+      setOpsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setOpsCleanupLoading(false)
     }
@@ -1592,6 +2159,9 @@ function App() {
       if (!selectedAnimation?.id) {
         throw new Error('Wybierz animację do decyzji QC.')
       }
+      if (qcResultInput === 'accepted' && (!qcIdeaIntentOk || !qcIntroReadabilityOk || !qcAudioQualityOk)) {
+        throw new Error('Akceptacja QC wymaga: zgodnieści z intencją pomysłu, czytelnego intro i jakości audio.')
+      }
       const response = await fetch(`${API_BASE}/ops/qc-decide`, {
         method: 'POST',
         headers: opsHeaders(),
@@ -1599,18 +2169,23 @@ function App() {
           animation_id: selectedAnimation.id,
           result: qcResultInput,
           notes: qcNotesInput.trim() || undefined,
+          decision_payload: {
+            idea_intent_ok: qcIdeaIntentOk,
+            intro_readability_ok: qcIntroReadabilityOk,
+            audio_quality_ok: qcAudioQualityOk,
+          },
         }),
       })
       if (!response.ok) {
         throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setReviewActionMessage(`QC zapisane: ${JSON.stringify(payload)}`)
+      setReviewActionMessage(`Zapisano QC: ${summarizePayload(payload)}`)
       await fetchAnimations()
       fetchSystemStatus()
       fetchAuditEvents()
     } catch (err) {
-      setReviewActionError(err instanceof Error ? err.message : 'Unknown error')
+      setReviewActionError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setQcActionLoading(false)
     }
@@ -1629,7 +2204,7 @@ function App() {
       const url = publishUrlInput.trim()
       const errorText = publishErrorInput.trim()
       if ((publishStatusInput === 'published' || publishStatusInput === 'manual_confirmed') && !contentId && !url) {
-        throw new Error('Dla statusu published/manual_confirmed podaj Content ID lub URL.')
+        throw new Error('Dla statusu published/manual_confirmed podaj ID treści lub URL.')
       }
       if (publishStatusInput === 'failed' && !errorText) {
         throw new Error('Dla statusu failed podaj opis błędu.')
@@ -1643,20 +2218,20 @@ function App() {
           status: publishStatusInput,
           content_id: contentId || undefined,
           url: url || undefined,
-          error: errorText || undefined,
+          błąd: errorText || undefined,
         }),
       })
       if (!response.ok) {
         throw new Error(await readApiError(response))
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setReviewActionMessage(`Publish zapisany: ${JSON.stringify(payload)}`)
+      setReviewActionMessage(`Zapisano publikację: ${summarizePayload(payload)}`)
       await fetchAnimations()
       fetchPublishRecords(renderId, selectedAnimation?.id ?? null)
       fetchSystemStatus()
       fetchAuditEvents()
     } catch (err) {
-      setReviewActionError(err instanceof Error ? err.message : 'Unknown error')
+      setReviewActionError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setPublishActionLoading(false)
     }
@@ -1664,7 +2239,7 @@ function App() {
 
   const fetchSettings = async () => {
     setSettingsLoading(true)
-    setSettingsError(null)
+      setSettingsError(null)
     try {
       const response = await fetch(`${API_BASE}/settings`)
       if (!response.ok) {
@@ -1673,7 +2248,7 @@ function App() {
       const payload = (await response.json()) as SettingsResponse
       setSettings(payload)
     } catch (err) {
-      setSettingsError(err instanceof Error ? err.message : 'Unknown error')
+      setSettingsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setSettingsLoading(false)
     }
@@ -1693,7 +2268,7 @@ function App() {
       setLlmMetrics(payload)
       setLlmMetricsUpdatedAt(new Date())
     } catch (err) {
-      setLlmMetricsError(err instanceof Error ? err.message : 'Unknown error')
+      setLlmMetricsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setLlmMetricsLoading(false)
     }
@@ -1711,7 +2286,7 @@ function App() {
       setDslGaps(payload)
       setDslGapsUpdatedAt(new Date())
     } catch (err) {
-      setDslGapsError(err instanceof Error ? err.message : 'Unknown error')
+      setDslGapsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setDslGapsLoading(false)
     }
@@ -1720,7 +2295,7 @@ function App() {
   const buildGapPrompt = (gap: DslGap) => {
     const currentDslVersion = systemStatus?.dsl_version_current ?? 'v1'
     return [
-      'Jesteś asystentem programistycznym. Twoim zadaniem jest wdrożyć GAP w DSL.',
+      'You are a coding assistant. Your task is to implement a GAP in DSL.',
       '',
       'KONTEKST PROJEKTU:',
       `- Repo: ${window.location.origin}`,
@@ -1731,7 +2306,7 @@ function App() {
       '',
       'GAP DO WDROZENIA:',
       `- feature: ${gap.feature ?? 'unknown'}`,
-      `- reason: ${gap.reason ?? '—'}`,
+      `- powód: ${gap.reason ?? '—'}`,
       `- impact: ${gap.impact ?? '—'}`,
       `- introduced in DSL: ${gap.dsl_version ?? '—'}`,
       `- current DSL version: ${currentDslVersion}`,
@@ -1743,10 +2318,10 @@ function App() {
       '- Po wdrozeniu bumpnij wersje DSL (np. 1.1) i oznacz GAP jako implemented.',
       '',
       'PROCES (KROKI):',
-      '1) Zaproponuj plan implementacji GAP (krótko).',
+      '1) Provide a short GAP implementation plan.',
       '2) Zidentyfikuj pliki do zmiany (specyfikacja, walidacja, renderer, modele).',
       '3) Wprowadz zmiany w kodzie.',
-      '4) Dodaj/aktualizuj testy, jeśli są.',
+      '4) Add/update tests where applicable.',
       '5) Uruchom formatery i lintery przez Makefile.',
       '6) Opisz jak przetestowac recznie.',
       '',
@@ -1757,8 +2332,8 @@ function App() {
       '- make db-migrate',
       '',
       'UWAGI:',
-      '- Trzymaj sie zasad z AGENTS.md (gałęzie, commit, merge).',
-      '- Zwracaj uwage na kompatybilnosc z aktualna wersja DSL.',
+      '- Follow AGENTS.md workflow rules (branches, commit, merge).',
+      '- Zwracaj uwage na kompatybilniesc z aktualna wersja DSL.',
     ].join('\n')
   }
 
@@ -1774,7 +2349,7 @@ function App() {
       setDslVersions(payload)
       setDslVersionsUpdatedAt(new Date())
     } catch (err) {
-      setDslVersionsError(err instanceof Error ? err.message : 'Unknown error')
+      setDslVersionsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setDslVersionsLoading(false)
     }
@@ -1787,7 +2362,7 @@ function App() {
       const payload = (await response.json()) as BlockedIdeaCandidate[]
       setBlockedCandidates(payload)
     } catch {
-      // Non-critical panel, ignore transient fetch issues.
+      // Non-critical panel, igniere transient fetch issues.
     }
   }
 
@@ -1809,7 +2384,7 @@ function App() {
       const filtered = candidateFilterStatus ? payload : payload.filter((row) => row.status !== 'rejected')
       setCandidateList(filtered)
     } catch (err) {
-      setCandidateListError(err instanceof Error ? err.message : 'Unknown error')
+      setCandidateListError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setCandidateListLoading(false)
     }
@@ -1833,7 +2408,7 @@ function App() {
         throw new Error(`API error ${response.status}`)
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setOpsMessage(`Verification done: ${JSON.stringify(payload)}`)
+      setOpsMessage(`Weryfikacja zakończona: ${summarizePayload(payload)}`)
       const reports = Array.isArray((payload as { reports?: unknown }).reports)
         ? ((payload as { reports: unknown[] }).reports as Array<Record<string, unknown>>)
         : []
@@ -1864,7 +2439,7 @@ function App() {
       fetchCandidateList()
       fetchAuditEvents()
     } catch (err) {
-      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+      setOpsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setVerifyLoading(false)
     }
@@ -1898,24 +2473,27 @@ function App() {
         throw new Error(`API error ${response.status}`)
       }
       const payload = (await response.json()) as Record<string, unknown>
-      setOpsMessage(`Gap updated: ${JSON.stringify(payload)}`)
+      setOpsMessage(`Zaktualizowano gap: ${summarizePayload(payload)}`)
       fetchDslGaps()
       fetchDslVersions()
       fetchIdeaCandidates()
       fetchSystemStatus()
       fetchBlockedCandidates()
     } catch (err) {
-      setOpsError(err instanceof Error ? err.message : 'Unknown error')
+      setOpsError(err instanceof Error ? err.message : 'Nieznany błąd')
     } finally {
       setGapActionLoading((prev) => ({ ...prev, [gapId]: false }))
     }
   }
 
+  // Intentional polling loop initialized once on mount.
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     fetchSystemStatus()
-    const interval = window.setInterval(fetchSystemStatus, 15000)
+    const interval = window.setInterval(fetchSystemStatus, SYSTEM_STATUS_POLL_MS)
     return () => window.clearInterval(interval)
   }, [])
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1931,10 +2509,10 @@ function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
-    params.set('view', activeView)
+    params.set('view', viewSlug(activeView, singleVideoMode))
     const nextUrl = `${window.location.pathname}?${params.toString()}`
     window.history.replaceState(null, '', nextUrl)
-  }, [activeView])
+  }, [activeView, singleVideoMode])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1949,6 +2527,8 @@ function App() {
     return () => window.clearInterval(interval)
   }, [])
 
+  /* eslint-disable react-hooks/exhaustive-deps */
+  // Intentional one-shot/bootstrap and view-driven fetch effects.
   useEffect(() => {
     fetchAnimations()
   }, [])
@@ -1967,14 +2547,22 @@ function App() {
     if (activeView !== 'plan') return
     fetchPlanPublishRecords()
     fetchPlanMetrics()
+    fetchInsightsSummary()
+    fetchPublishReadinessSummary()
     fetchPlannerSettings()
     fetchPlannerStatus()
   }, [activeView])
 
   useEffect(() => {
+    if (activeView !== 'plan') return
+    fetchPlanPublishRecords()
+  }, [activeView, planPublishFilterPlatform, planPublishFilterStatus])
+
+  useEffect(() => {
     if (!manualFlowEnabled) return
     if (activeView !== 'flow') return
     fetchGodotManualRuns()
+    fetchPublishConnectorStatus()
   }, [activeView, manualFlowEnabled, godotScriptPath])
 
   useEffect(() => {
@@ -2003,13 +2591,26 @@ function App() {
     fetchBlockedCandidates()
   }, [])
 
+  // Poll animation list in operator-facing views (flow/repositories).
+  /* eslint-disable react-hooks/exhaustive-deps */
+  useEffect(() => {
+    if (!(activeView === 'flow' || activeView === 'repositories')) return
+    const interval = window.setInterval(() => {
+      fetchAnimations()
+    }, ANIMATION_POLL_MS)
+    return () => window.clearInterval(interval)
+  }, [activeView, animationStatus, pipelineStage, ideaId])
+  /* eslint-enable react-hooks/exhaustive-deps */
+
   useEffect(() => {
     fetchArtifacts(selectedAnimation?.render?.id ?? null)
   }, [selectedAnimation?.render?.id])
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     fetchPublishRecords(selectedAnimation?.render?.id ?? null, selectedAnimation?.id ?? null)
   }, [selectedAnimation?.render?.id, selectedAnimation?.id])
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     setReviewActionError(null)
@@ -2018,8 +2619,21 @@ function App() {
 
   const summary = useMemo(() => summaryData?.summary ?? {}, [summaryData])
   const services = useMemo(() => systemStatus?.service_status ?? [], [systemStatus])
+  const systemStatusFresh = useMemo(() => {
+    if (!systemStatusLastOkAt) return false
+    return Date.now() - systemStatusLastOkAt.getTime() <= SYSTEM_STATUS_STALE_MS
+  }, [systemStatusLastOkAt])
   const repoCards = useMemo(() => systemStatus?.repo_counts ?? {}, [systemStatus])
   type RepoKey = (typeof REPO_CARD_ORDER)[number]
+  const repoCardCta: Partial<Record<RepoKey, { label: string; view: AppView }>> = {
+    ideas: { label: 'Otwórz przepływ', view: 'flow' },
+    idea_candidates: { label: 'Otwórz przepływ', view: 'flow' },
+    dsl_gaps: { label: 'Otwórz repozytoria', view: 'repositories' },
+    animations: { label: 'Otwórz repozytoria', view: 'repositories' },
+    renders: { label: 'Otwórz repozytoria', view: 'repositories' },
+    artifacts: { label: 'Otwórz repozytoria', view: 'repositories' },
+    jobs: { label: 'Otwórz repozytoria', view: 'repositories' },
+  }
   const orderedRepoCards = useMemo(() => {
     const entries = Object.entries(repoCards) as Array<[RepoKey, typeof repoCards[RepoKey]]>
     const priority = new Map(REPO_CARD_ORDER.map((name, index) => [name, index]))
@@ -2033,6 +2647,39 @@ function App() {
       return acc
     }, {})
   }, [planPublishRecords])
+  const filteredPlanPublishRecords = useMemo(() => {
+    return planPublishRecords.filter((row) => {
+      if (planPublishFilterPlatform && (row.platform_type || '') !== planPublishFilterPlatform) {
+        return false
+      }
+      if (planPublishFilterStatus && (row.status || '') !== planPublishFilterStatus) {
+        return false
+      }
+      const sourceDate = row.published_at || row.created_at
+      if (!sourceDate) {
+        return !planPublishFilterDateFrom && !planPublishFilterDateTo
+      }
+      const sourceTime = new Date(sourceDate).getTime()
+      if (!Number.isFinite(sourceTime)) {
+        return false
+      }
+      if (planPublishFilterDateFrom) {
+        const from = new Date(`${planPublishFilterDateFrom}T00:00:00`).getTime()
+        if (sourceTime < from) return false
+      }
+      if (planPublishFilterDateTo) {
+        const to = new Date(`${planPublishFilterDateTo}T23:59:59`).getTime()
+        if (sourceTime > to) return false
+      }
+      return true
+    })
+  }, [
+    planPublishRecords,
+    planPublishFilterPlatform,
+    planPublishFilterStatus,
+    planPublishFilterDateFrom,
+    planPublishFilterDateTo,
+  ])
   const planLatestMetricsByContent = useMemo(() => {
     const map = new Map<string, MetricsDailyRow>()
     for (const row of planMetricsRows) {
@@ -2063,19 +2710,23 @@ function App() {
     )
   }, [planLatestMetricsByContent])
   const plannerTimezone = plannerSettings?.timezone || plannerTimezoneInput || 'UTC'
-  const todayPlanKey = useMemo(() => dateKeyInTimezone(new Date(), plannerTimezone), [plannerTimezone])
+  const plannerTimezoneInputValid = useMemo(
+    () => isValidIanaTimeZone(plannerTimezoneInput.trim() || 'UTC'),
+    [plannerTimezoneInput],
+  )
+  const todzieńPlanKey = useMemo(() => dateKeyInTimezone(new Date(), plannerTimezone), [plannerTimezone])
   const planPublishedTodayCount = useMemo(() => {
     return planPublishRecords.filter((row) => {
       if (!(row.status === 'published' || row.status === 'manual_confirmed')) return false
       const sourceTs = row.published_at || row.created_at
       if (!sourceTs) return false
       try {
-        return dateKeyInTimezone(sourceTs, plannerTimezone) === todayPlanKey
+        return dateKeyInTimezone(sourceTs, plannerTimezone) === todzieńPlanKey
       } catch {
         return false
       }
     }).length
-  }, [planPublishRecords, plannerTimezone, todayPlanKey])
+  }, [planPublishRecords, plannerTimezone, todzieńPlanKey])
   const llmRouteRows = useMemo(() => {
     const routes = llmMetrics?.routes ?? {}
     return Object.entries(routes)
@@ -2190,6 +2841,48 @@ function App() {
   const selectedGap = dslGapPromptId
     ? dslGaps.find((gap) => gap.id === dslGapPromptId) ?? null
     : null
+  const activeManualStep = useMemo(() => {
+    for (const step of MANUAL_STEP_ORDER) {
+      if (godotStepStatus[step] !== 'success') return step
+    }
+    return MANUAL_STEP_ORDER[MANUAL_STEP_ORDER.length - 1]
+  }, [godotStepStatus])
+  const visibleManualSteps = useMemo(() => {
+    if (!singleVideoMode) return MANUAL_STEP_ORDER
+    return MANUAL_STEP_ORDER.filter((step) => step === activeManualStep || godotStepStatus[step] === 'fail')
+  }, [singleVideoMode, activeManualStep, godotStepStatus])
+  const canRunManualStep = (step: (typeof MANUAL_STEP_ORDER)[number]) => {
+    if (!singleVideoMode) return true
+    return step === activeManualStep
+  }
+  const manualStepQuickSummary = (
+    step: (typeof MANUAL_STEP_ORDER)[number],
+    result: GodotManualStepResult | null | undefined,
+    error: string | null | undefined,
+  ) => {
+    if (error) return `Błąd: ${error}`
+    if (!result) return 'Brak wyniku'
+    if (step === 'estimate' || step === 'intent_check') {
+      if (typeof result.intent_status === 'string' && result.intent_status) {
+        return `Status intencji: ${result.intent_status}`
+      }
+      if (typeof result.recommended_sim_duration_s === 'number') {
+        return `Rekomendowany sim: ${result.recommended_sim_duration_s.toFixed(2)}s`
+      }
+    }
+    if (step === 'intro_overlay' && typeof result.intro_text === 'string' && result.intro_text) {
+      return `Intro: ${result.intro_text}`
+    }
+    if (step === 'audio_mix' && result.out_path) {
+      return `Audio gotowe: ${result.out_path}`
+    }
+    if (result.out_path) return `Wynik: ${result.out_path}`
+    if (typeof result.exit_code === 'number') return `Exit code: ${result.exit_code}`
+    return result.ok ? 'Krok zakończony sukcesem' : 'Krok zakończony'
+  }
+  const introFallbackShare = insightsSummary?.intro_translate_14d?.fallback_share_attempted
+  const introFallbackSharePct = typeof introFallbackShare === 'number' ? introFallbackShare * 100 : null
+  const introFallbackHigh = typeof introFallbackSharePct === 'number' && introFallbackSharePct > 10
 
   const scrollToSection = (sectionId: string) => {
     if (typeof window === 'undefined') return
@@ -2207,21 +2900,20 @@ function App() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-stone-500">
-              ShortLab Control Panel
+              Pulpit ShortLab
             </p>
             <h1 className="mt-3 font-serif text-4xl font-semibold text-stone-900 md:text-5xl">
-              Pipeline Pulse
+              Puls pipeline
             </h1>
             <p className="mt-3 max-w-2xl text-base text-stone-600">
-              Live view of queue pressure, execution health, and the latest pipeline jobs.
-              Track the rhythm, spot bottlenecks, and react fast.
+              Widok na żywo: obciążenie kolejki, stan wykonania i najnowsze zadania pipeline. Monitoruj rytm pracy, wykrywaj wąskie gardła i reaguj szybko.
             </p>
           </div>
           <div className="flex flex-col gap-3 lg:items-end">
             <div className="flex flex-wrap items-center justify-end gap-2">
               <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-xs font-medium text-stone-600 shadow">
                 <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
-                Auto-refresh every 15s
+                Auto-odświeżanie co 15 s
               </div>
               <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-xs text-stone-600 shadow">
                 <span className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Lang</span>
@@ -2238,7 +2930,7 @@ function App() {
                 </select>
               </div>
               <div className="flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-xs text-stone-600 shadow">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Theme</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-stone-500">Motyw</span>
                 <div className="flex overflow-hidden rounded-full border border-stone-200 bg-white">
                   <button
                     type="button"
@@ -2248,7 +2940,7 @@ function App() {
                     )}
                     onClick={() => setUiTheme('light')}
                   >
-                    Light
+                    Jasny
                   </button>
                   <button
                     type="button"
@@ -2258,47 +2950,79 @@ function App() {
                     )}
                     onClick={() => setUiTheme('dark')}
                   >
-                    Dark
+                    Ciemny
                   </button>
                 </div>
               </div>
             </div>
             <Button variant="outline" className="rounded-full" onClick={fetchSummary} disabled={summaryLoading}>
-              Refresh now
+              Odśwież teraz
             </Button>
           </div>
         </div>
       </header>
 
       <nav className="flex flex-wrap gap-2">
-        {APP_VIEWS.map((view) => (
+        {primaryOperatorViews.map((view) => (
           <Button
             key={view}
             variant={activeView === view ? 'default' : 'outline'}
             className="rounded-full capitalize"
             onClick={() => setActiveView(view)}
           >
-            {view}
+            {viewLabel(view, singleVideoMode)}
           </Button>
         ))}
+        {singleVideoMode ? (
+          <>
+            <Button
+              variant={activeView === 'repositories' ? 'default' : 'outline'}
+              className="rounded-full"
+              onClick={() => setActiveView('repositories')}
+            >
+              Repozytoria
+            </Button>
+            <Button
+              variant={activeView === 'settings' ? 'default' : 'outline'}
+              className="rounded-full"
+              onClick={() => setActiveView('settings')}
+            >
+              Ustawienia
+            </Button>
+          </>
+        ) : null}
       </nav>
+      <div className="rounded-2xl border border-stone-200/80 bg-white/80 px-4 py-2 text-xs text-stone-600">
+        <span className="font-semibold text-stone-900">Widok:</span> {activeViewTitle} · Slug URL: <code>view={viewSlug(activeView, singleVideoMode)}</code>
+      </div>
 
       {activeView === 'home' ? (
         <>
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">System status</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">{singleVideoMode ? 'Dziś' : 'Status systemu'}</h2>
             <p className="text-sm text-stone-600">
-              Stan usług i liczników repozytoriów. Pierwszy punkt kontrolny przed pracą z pipeline.
+              {singleVideoMode
+                ? 'Ekran startowy operatora: co dalej, czy system jest gotowy i co zrobić teraz.'
+                : 'Status usług i liczniki repozytoriów. Pierwszy punkt kontroli przed uruchomieniem pipeline.'}
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              SLO statusu: odpytywanie {SYSTEM_STATUS_POLL_MS / 1000}s, timeout {SYSTEM_STATUS_TIMEOUT_MS / 1000}s, cel odpowiedzi {'<='}{SYSTEM_STATUS_SLO_MS}ms.
+              {' '}Ostatni poprawny odczyt: {systemStatusLastOkAt ? systemStatusLastOkAt.toLocaleTimeString() : 'brak'}.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" className="rounded-full" onClick={fetchSystemStatus} disabled={systemStatusLoading}>
-              {systemStatusLoading ? 'Refreshing…' : 'Refresh status'}
+              {systemStatusLoading ? 'Odświeżanie…' : 'Odśwież status'}
             </Button>
           </div>
         </div>
+        {!systemStatusFresh && systemStatusLastOkAt ? (
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
+            Status systemu jest nieaktualny ({Math.floor((Date.now() - systemStatusLastOkAt.getTime()) / 1000)}s od ostatniego udanego odświeżenia).
+          </div>
+        ) : null}
         {systemStatusError ? (
           <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs text-rose-700">
             {systemStatusError}
@@ -2306,14 +3030,14 @@ function App() {
         ) : null}
         {systemStatus?.partial_failures && systemStatus.partial_failures.length > 0 ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
-            Partial failures: {systemStatus.partial_failures.join(', ')}
+            Częściowe błędy: {systemStatus.partial_failures.join(', ')}
           </div>
         ) : null}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {services.length === 0 ? (
             <div className="col-span-full rounded-xl border border-dashed border-stone-200 bg-stone-50/60 p-4 text-sm text-stone-500">
-              Brak danych usług.
+              Brak danych o usługach.
             </div>
           ) : (
             services.map((item) => (
@@ -2339,7 +3063,7 @@ function App() {
         </div>
 
         <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-sm text-stone-700">
-          <div className="text-xs uppercase tracking-[0.18em] text-stone-500">DSL Version</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Wersja DSL</div>
           <div className="mt-1 text-lg font-semibold text-stone-900">
             {systemStatus?.dsl_version_current ?? '—'}
           </div>
@@ -2355,7 +3079,7 @@ function App() {
                   </div>
                   {value.placeholder ? (
                     <Badge variant="outline" className="border border-stone-300 text-stone-600">
-                      planned
+                      planowane
                     </Badge>
                   ) : null}
                 </div>
@@ -2382,12 +3106,21 @@ function App() {
                           </Badge>
                         ))}
                 </div>
+                {repoCardCta[name] ? (
+                  <Button
+                    variant="outline"
+                    className="mt-3 h-7 rounded-full px-3 text-[11px]"
+                    onClick={() => setActiveView(repoCardCta[name]!.view)}
+                  >
+                    {repoCardCta[name]!.label}
+                  </Button>
+                ) : null}
               </CardContent>
             </Card>
           ))}
         </div>
         <p className="mt-3 text-xs text-stone-500">
-          Updated: {formatDate(systemStatus?.updated_at)}
+          Zaktualizowano: {formatDate(systemStatus?.updated_at)}
         </p>
       </section>
 
@@ -2420,40 +3153,40 @@ function App() {
       <section className="grid gap-4 lg:grid-cols-3">
         <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
           <CardHeader>
-            <CardTitle className="text-lg text-stone-900">Co teraz: Idea Gate</CardTitle>
+            <CardTitle className="text-lg text-stone-900">Następny krok: Bramka pomysłu</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-stone-600">
-            <p>Gotowe propozycje do wyboru: <span className="font-semibold text-stone-900">{readyCandidates}</span></p>
-            <p>Zablokowane przez gapy: <span className="font-semibold text-stone-900">{blockedCandidatesCount}</span></p>
+            <p>Gotowe propozycje: <span className="font-semibold text-stone-900">{readyCandidates}</span></p>
+            <p>Zablokowane przez braki: <span className="font-semibold text-stone-900">{blockedCandidatesCount}</span></p>
             <Button className="rounded-full" onClick={() => setActiveView('flow')}>
-              Przejdź do Flow
+              Przejdź do przepływu
             </Button>
           </CardContent>
         </Card>
         <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
           <CardHeader>
-            <CardTitle className="text-lg text-stone-900">Co teraz: Produkcja</CardTitle>
+            <CardTitle className="text-lg text-stone-900">Następny krok: Produkcja</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-stone-600">
-            <p>Joby w toku: <span className="font-semibold text-stone-900">{queuedJobs}</span></p>
+            <p>Zadania w toku: <span className="font-semibold text-stone-900">{queuedJobs}</span></p>
             <p>Worker: <span className="font-semibold text-stone-900">{worker?.online ? 'online' : 'offline'}</span></p>
             <Button className="rounded-full" onClick={() => setActiveView('plan')}>
-              Otwórz Plan
+              Otwórz plan
             </Button>
           </CardContent>
         </Card>
         <Card className="border border-stone-200 bg-white/90 shadow-lg shadow-stone-900/5">
           <CardHeader>
-            <CardTitle className="text-lg text-stone-900">Co teraz: Diagnostyka</CardTitle>
+            <CardTitle className="text-lg text-stone-900">Następny krok: Diagniestyka</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-stone-600">
-            <p>Przeglądaj artefakty, audit i metryki LLM.</p>
+            <p>Sprawdź artefakty, zdarzenia audytu i metryki LLM.</p>
             <div className="flex gap-2">
               <Button variant="outline" className="rounded-full" onClick={() => setActiveView('repositories')}>
-                Repositories
+                Repozytoria
               </Button>
               <Button variant="outline" className="rounded-full" onClick={() => setActiveView('settings')}>
-                Settings
+                Ustawienia
               </Button>
             </div>
           </CardContent>
@@ -2467,9 +3200,9 @@ function App() {
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Plan / Calendar</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Plan / Kalendarz</h2>
             <p className="text-sm text-stone-600">
-              Widok operacyjny: co gotowe, co zablokowane i co czeka na decyzję.
+              Widok operacyjny: co jest gotowe, co zablokowane i co wymaga decyzji.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2479,6 +3212,8 @@ function App() {
           <Button variant="outline" className="rounded-full" onClick={() => {
             fetchPlanPublishRecords()
             fetchPlanMetrics()
+            fetchInsightsSummary()
+            fetchPublishReadinessSummary()
           }}>
             Odśwież publikacje/metryki
           </Button>
@@ -2487,36 +3222,212 @@ function App() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Ready to publish</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Gotowe do publikacji</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">{animationData.filter((a) => a.status === 'accepted').length}</div>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Published/manual confirmed</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Opublikowane/potwierdzone ręcznie</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">{(planPublishStatusCounts.published ?? 0) + (planPublishStatusCounts.manual_confirmed ?? 0)}</div>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Queued/uploading</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">W kolejce/wysyłane</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">{(planPublishStatusCounts.queued ?? 0) + (planPublishStatusCounts.uploading ?? 0)}</div>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Latest metrics views (snapshot)</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Najnowsze wyświetlenia metryk (snapshot)</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">{planMetricsTotals.views}</div>
               <div className="text-xs text-stone-500">likes: {planMetricsTotals.likes}</div>
             </CardContent>
           </Card>
         </div>
         <div className="mt-4 rounded-2xl border border-stone-200 bg-white/80 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-stone-900">Bramka gotowości publikacji</div>
+              <div className="text-xs text-stone-500">
+                Brama zbiorcza: audyt MCP + compliance + OAuth smoke.
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="h-7 rounded-full px-3 text-[11px]"
+              onClick={fetchPublishReadinessSummary}
+              disabled={publishReadinessLoading}
+            >
+              {publishReadinessLoading ? 'Ładowanie…' : 'Odśwież bramkę'}
+            </Button>
+            <Button
+              className="h-7 rounded-full px-3 text-[11px]"
+              onClick={runPublishReadinessRefresh}
+              disabled={publishReadinessRefreshLoading}
+            >
+              {publishReadinessRefreshLoading ? 'Uruchamianie…' : 'Uruchom sprawdzenia bramki'}
+            </Button>
+          </div>
+          {publishReadinessError ? (
+            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">
+              {publishReadinessError}
+            </div>
+          ) : null}
+          {publishReadinessRefreshError ? (
+            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">
+              {publishReadinessRefreshError}
+            </div>
+          ) : null}
+          {publishReadinessRefreshMessage ? (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-800">
+              {publishReadinessRefreshMessage}
+            </div>
+          ) : null}
+          {publishReadinessSummary ? (
+            <div className="mt-3 rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-stone-800">ogólnie:</span>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'border',
+                    publishReadinessSummary.overall_pass
+                      ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
+                      : 'border-amber-200 bg-amber-100 text-amber-900',
+                  )}
+                >
+                  {publishReadinessSummary.overall_pass ? 'OK' : 'ZABLOKOWANE'}
+                </Badge>
+              </div>
+              <div className="mt-2 space-y-1 text-stone-600">
+                {Object.entries(publishReadinessSummary.components ?? {}).map(([name, row]) => (
+                  <div key={name}>
+                    <span className="font-semibold text-stone-800">{name}</span>
+                    : {row.pass ? 'ok' : 'fail'} ({row.reason ?? '—'})
+                  </div>
+                ))}
+              </div>
+              {publishReadinessSummary.generated_at ? (
+                <div className="mt-2 text-[11px] text-stone-500">
+                  wygenerowanie: {new Date(publishReadinessSummary.generated_at).toLocaleString()}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-3 text-xs text-stone-500">Brak danych bramki gotowości. Kliknij odśwież.</div>
+          )}
+        </div>
+        <div className="mt-4 rounded-2xl border border-stone-200 bg-white/80 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-stone-900">Podsumowanie analityki (24h / 72h / 7d / 14d)</div>
+              <div className="text-xs text-stone-500">
+                Agregat metryk i rekomendacja dla kolejnego filmu.
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              className="h-7 rounded-full px-3 text-[11px]"
+              onClick={fetchInsightsSummary}
+              disabled={insightsSummaryLoading}
+            >
+              {insightsSummaryLoading ? 'Ładowanie…' : 'Odśwież analitykę'}
+            </Button>
+          </div>
+          {insightsSummaryError ? (
+            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">{insightsSummaryError}</div>
+          ) : null}
+          {insightsSummary ? (
+            <>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+                {(['24h', '72h', '7d', '14d'] as const).map((windowKey) => {
+                  const row = insightsSummary.windows?.[windowKey]
+                  return (
+                    <div key={windowKey} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3">
+                      <div className="font-semibold uppercase tracking-[0.15em] text-stone-700">{windowKey}</div>
+                      <div className="mt-1 text-stone-600">wyświetlenia: <span className="font-semibold text-stone-900">{row?.views ?? 0}</span></div>
+                      <div className="text-stone-600">publikacje: <span className="font-semibold text-stone-900">{row?.published_count ?? 0}</span></div>
+                      <div className="text-stone-600">retencja: <span className="font-semibold text-stone-900">{typeof row?.avg_view_percentage === 'number' ? `${row.avg_view_percentage.toFixed(1)}%` : '—'}</span></div>
+                      <div className="text-stone-600">zaangażowanie: <span className="font-semibold text-stone-900">{typeof row?.engagement_rate === 'number' ? `${(row.engagement_rate * 100).toFixed(2)}%` : '—'}</span></div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
+                <div className="font-semibold uppercase tracking-[0.15em]">Rekomendacja</div>
+                <div className="mt-1">{insightsSummary.recommendation ?? '—'}</div>
+                <div className="mt-1 text-[11px] text-amber-800">kod: {insightsSummary.recommendation_code ?? '—'}</div>
+              </div>
+              <div className="mt-3 rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
+                <div className="font-semibold uppercase tracking-[0.15em] text-stone-700">Najlepsze treści (14d)</div>
+                {insightsSummary.top_content_14d && insightsSummary.top_content_14d.length > 0 ? (
+                  <div className="mt-2 space-y-1 text-stone-600">
+                    {insightsSummary.top_content_14d.map((item, idx) => (
+                      <div key={`${item.platform}-${item.content_id}-${idx}`} className="flex flex-wrap gap-2">
+                        <span className="font-semibold text-stone-800">{item.platform}</span>
+                        <span>{item.content_id}</span>
+                        <span>wyświetlenia: <span className="font-semibold text-stone-800">{item.views ?? 0}</span></span>
+                        <span>eng: <span className="font-semibold text-stone-800">{typeof item.engagement_rate === 'number' ? `${(item.engagement_rate * 100).toFixed(2)}%` : '—'}</span></span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 text-stone-500">Brak danych top treści z ostatnich 14 dni.</div>
+                )}
+              </div>
+              <div className="mt-3 rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
+                <div className="font-semibold uppercase tracking-[0.15em] text-stone-700">Profile audio (14d)</div>
+                {insightsSummary.audio_profiles_14d && insightsSummary.audio_profiles_14d.length > 0 ? (
+                  <div className="mt-2 space-y-1 text-stone-600">
+                    {insightsSummary.audio_profiles_14d.map((item, idx) => (
+                      <div key={`${item.audio_profile ?? 'unknown'}-${idx}`} className="flex flex-wrap gap-2">
+                        <span className="font-semibold text-stone-800">{item.audio_profile ?? 'unknown'}</span>
+                        <span>wyświetlenia: <span className="font-semibold text-stone-800">{item.views ?? 0}</span></span>
+                        <span>czas oglądania: <span className="font-semibold text-stone-800">{item.watch_time_seconds ?? 0}s</span></span>
+                        <span>retencja: <span className="font-semibold text-stone-800">{typeof item.avg_view_percentage === 'number' ? `${item.avg_view_percentage.toFixed(1)}%` : '—'}</span></span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 text-stone-500">Brak danych profili audio z ostatnich 14 dni.</div>
+                )}
+              </div>
+              <div className="mt-3 rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
+                <div className="font-semibold uppercase tracking-[0.15em] text-stone-700">Intro translate (14d)</div>
+                {introFallbackHigh ? (
+                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/80 px-2 py-1 text-[11px] text-amber-900">
+                    Uwaga: fallback tłumaczenia intro przekracza 10% prób. Sprawdź routing/model `intro_translate`.
+                  </div>
+                ) : null}
+                <div className="mt-2 flex flex-wrap gap-2 text-stone-600">
+                  <span>próbek: <span className="font-semibold text-stone-800">{insightsSummary.intro_translate_14d?.rows_total ?? 0}</span></span>
+                  <span>próby tłumaczenia: <span className="font-semibold text-stone-800">{insightsSummary.intro_translate_14d?.attempted ?? 0}</span></span>
+                  <span>przetłumaczone: <span className="font-semibold text-stone-800">{insightsSummary.intro_translate_14d?.translated ?? 0}</span></span>
+                  <span>fallback: <span className="font-semibold text-stone-800">{(insightsSummary.intro_translate_14d?.fallback ?? 0) + (insightsSummary.intro_translate_14d?.empty_result ?? 0)}</span></span>
+                  <span>wyłączone: <span className="font-semibold text-stone-800">{insightsSummary.intro_translate_14d?.disabled ?? 0}</span></span>
+                  <span>
+                    udział fallback:
+                    <span className="font-semibold text-stone-800">
+                      {typeof introFallbackSharePct === 'number'
+                        ? ` ${introFallbackSharePct.toFixed(1)}%`
+                        : ' —'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="mt-3 text-xs text-stone-500">Brak podsumowania analityki. Kliknij odśwież.</div>
+          )}
+        </div>
+        <div className="mt-4 rounded-2xl border border-stone-200 bg-white/80 p-4">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="text-sm font-semibold text-stone-900">Daily publish schedule (MVP)</div>
+              <div className="text-sm font-semibold text-stone-900">Dzienny harmonogram publikacji (MVP)</div>
               <div className="text-xs text-stone-500">
-                Konfiguracja okna publikacji i celu dziennego w widoku Plan. Automatyczny scheduler jobów jeszcze nie jest włączony.
+                Skonfiguruj okno publikacji i dzienny cel w widoku Plan. Automatyczny scheduler jest nadal wyłączony.
               </div>
             </div>
             <Badge
@@ -2528,21 +3439,29 @@ function App() {
                   : 'border-amber-200 bg-amber-100 text-amber-900',
               )}
             >
-              Today {planPublishedTodayCount}/{Number(plannerTargetInput || 1)} ({plannerTimezone})
+              Dziś {planPublishedTodayCount}/{Number(plannerTargetInput || 1)} ({plannerTimezone})
             </Badge>
           </div>
           <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_repeat(4,minmax(0,1fr))]">
             <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Timezone
+              Strefa czasowa
               <input
-                className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                className={cn(
+                  'mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm text-stone-700',
+                  plannerTimezoneInputValid ? 'border-stone-200' : 'border-rose-300',
+                )}
                 value={plannerTimezoneInput}
                 onChange={(event) => setPlannerTimezoneInput(event.target.value)}
                 placeholder="Europe/Warsaw / UTC"
               />
+              {!plannerTimezoneInputValid ? (
+                <div className="mt-1 text-[11px] normal-case tracking-normal text-rose-700">
+                  Nieprawidłowa strefa IANA (np. Europe/Warsaw, UTC).
+                </div>
+              ) : null}
             </label>
             <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Hour
+              Godzina
               <input
                 className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                 value={plannerHourInput}
@@ -2551,7 +3470,7 @@ function App() {
               />
             </label>
             <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Minute
+              Minuta
               <input
                 className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                 value={plannerMinuteInput}
@@ -2560,7 +3479,7 @@ function App() {
               />
             </label>
             <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Window (min)
+              Oknie (min)
               <input
                 className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                 value={plannerWindowInput}
@@ -2569,7 +3488,7 @@ function App() {
               />
             </label>
             <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Target / day
+              Cel / dzień
               <input
                 className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                 value={plannerTargetInput}
@@ -2579,7 +3498,11 @@ function App() {
             </label>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button className="rounded-full" onClick={savePlannerSettings} disabled={plannerSettingsLoading}>
+            <Button
+              className="rounded-full"
+              onClick={savePlannerSettings}
+              disabled={plannerSettingsLoading || !plannerTimezoneInputValid}
+            >
               {plannerSettingsLoading ? 'Zapisywanie…' : 'Zapisz harmonogram'}
             </Button>
             <Button variant="outline" className="rounded-full" onClick={fetchPlannerSettings} disabled={plannerSettingsLoading}>
@@ -2590,14 +3513,14 @@ function App() {
           </div>
           {plannerSettings ? (
             <div className="mt-2 text-xs text-stone-500">
-              Saved: {String(plannerSettings.daily_publish_hour ?? 18).padStart(2, '0')}:
+              Zapisanie: {String(plannerSettings.daily_publish_hour ?? 18).padStart(2, '0')}:
               {String(plannerSettings.daily_publish_minute ?? 0).padStart(2, '0')}
-              {' '}({plannerSettings.publish_window_minutes ?? 120} min window), target {plannerSettings.target_per_day ?? 1}/day
+              {' '}({plannerSettings.publish_window_minutes ?? 120} oknie min), target {plannerSettings.target_per_day ?? 1}/dzień
             </div>
           ) : null}
           <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-semibold text-stone-900">Planner scheduler status (MVP)</div>
+              <div className="font-semibold text-stone-900">Status planera (MVP)</div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
@@ -2605,14 +3528,14 @@ function App() {
                   onClick={fetchPlannerStatus}
                   disabled={plannerStatusLoading}
                 >
-                  {plannerStatusLoading ? 'Loading…' : 'Refresh status'}
+                  {plannerStatusLoading ? 'Ładowanie…' : 'Odśwież status'}
                 </Button>
                 <Button
                   className="h-7 rounded-full px-3 text-[11px]"
                   onClick={() => runPlannerTick(false)}
                   disabled={plannerTickLoading}
                 >
-                  {plannerTickLoading ? 'Tick…' : 'Run planner tick'}
+                  {plannerTickLoading ? 'Tick…' : 'Uruchom tick planera'}
                 </Button>
                 <Button
                   variant="outline"
@@ -2620,7 +3543,7 @@ function App() {
                   onClick={() => runPlannerTick(true)}
                   disabled={plannerTickLoading}
                 >
-                  Force tick
+                  Wymuś tick
                 </Button>
               </div>
             </div>
@@ -2629,15 +3552,15 @@ function App() {
             {plannerTickMessage ? <div className="mt-2 text-emerald-700">{plannerTickMessage}</div> : null}
             {plannerStatus ? (
               <div className="mt-2 grid gap-1 text-stone-600 sm:grid-cols-2">
-                <div>local day: <span className="font-semibold text-stone-800">{plannerStatus.local_day ?? '—'}</span></div>
-                <div>timezone: <span className="font-semibold text-stone-800">{plannerStatus.timezone ?? '—'}</span></div>
-                <div>window: <span className="font-semibold text-stone-800">{plannerStatus.window_start_local ? new Date(plannerStatus.window_start_local).toLocaleString() : '—'}</span></div>
-                <div>window end: <span className="font-semibold text-stone-800">{plannerStatus.window_end_local ? new Date(plannerStatus.window_end_local).toLocaleString() : '—'}</span></div>
-                <div>published today: <span className="font-semibold text-stone-800">{plannerStatus.published_today ?? 0}</span></div>
-                <div>pending jobs: <span className="font-semibold text-stone-800">{plannerStatus.pending_jobs_today ?? 0}</span></div>
-                <div>in window: <span className="font-semibold text-stone-800">{String(plannerStatus.in_window ?? false)}</span></div>
-                <div>should enqueue: <span className="font-semibold text-stone-800">{String(plannerStatus.should_enqueue ?? false)}</span></div>
-                <div className="sm:col-span-2">reason: <span className="font-semibold text-stone-800">{plannerStatus.reason ?? '—'}</span></div>
+                <div>dzień lokalny: <span className="font-semibold text-stone-800">{plannerStatus.local_day ?? '—'}</span></div>
+                <div>strefa: <span className="font-semibold text-stone-800">{plannerStatus.timezone ?? '—'}</span></div>
+                <div>start okna: <span className="font-semibold text-stone-800">{plannerStatus.window_start_local ? new Date(plannerStatus.window_start_local).toLocaleString() : '—'}</span></div>
+                <div>koniec okna: <span className="font-semibold text-stone-800">{plannerStatus.window_end_local ? new Date(plannerStatus.window_end_local).toLocaleString() : '—'}</span></div>
+                <div>opublikowano dziś: <span className="font-semibold text-stone-800">{plannerStatus.published_today ?? 0}</span></div>
+                <div>oczekujące zadania: <span className="font-semibold text-stone-800">{plannerStatus.pending_jobs_today ?? 0}</span></div>
+                <div>w oknie: <span className="font-semibold text-stone-800">{String(plannerStatus.in_window ?? false)}</span></div>
+                <div>czy kolejkować: <span className="font-semibold text-stone-800">{String(plannerStatus.should_enqueue ?? false)}</span></div>
+                <div className="sm:col-span-2">powód: <span className="font-semibold text-stone-800">{plannerStatus.reason ?? '—'}</span></div>
               </div>
             ) : null}
           </div>
@@ -2646,25 +3569,72 @@ function App() {
           <div className="rounded-2xl border border-stone-200 bg-white/80 p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold text-stone-900">Recent publish records</div>
-                <div className="text-xs text-stone-500">Status publikacji i ręczne potwierdzenia (YouTube/TikTok)</div>
+                <div className="text-sm font-semibold text-stone-900">Ostatnie rekordy publikacji</div>
+                <div className="text-xs text-stone-500">Statusy publikacji i ręczne potwierdzenia (YouTube/TikTok)</div>
               </div>
-              <div className="text-xs text-stone-500">{planPublishRecords.length} rows</div>
+              <div className="text-xs text-stone-500">{filteredPlanPublishRecords.length} / {planPublishRecords.length} wierszy</div>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+                Platform
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-700"
+                  value={planPublishFilterPlatform}
+                  onChange={(event) => setPlanPublishFilterPlatform(event.target.value)}
+                >
+                  <option value="">wszystkie</option>
+                  <option value="youtube">youtube</option>
+                  <option value="tiktok">tiktok</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+                Status
+                <select
+                  className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-700"
+                  value={planPublishFilterStatus}
+                  onChange={(event) => setPlanPublishFilterStatus(event.target.value)}
+                >
+                  <option value="">wszystkie</option>
+                  <option value="manual_confirmed">manual_confirmed</option>
+                  <option value="published">published</option>
+                  <option value="queued">queued</option>
+                  <option value="uploading">uploading</option>
+                  <option value="failed">failed</option>
+                </select>
+              </label>
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+                Data od
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-700"
+                  value={planPublishFilterDateFrom}
+                  onChange={(event) => setPlanPublishFilterDateFrom(event.target.value)}
+                />
+              </label>
+              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+                Data do
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-700"
+                  value={planPublishFilterDateTo}
+                  onChange={(event) => setPlanPublishFilterDateTo(event.target.value)}
+                />
+              </label>
             </div>
             {planPublishRecordsLoading ? (
-              <div className="mt-3 text-sm text-stone-600">Loading publish records…</div>
+              <div className="mt-3 text-sm text-stone-600">Ładowanie rekordów publikacji…</div>
             ) : planPublishRecordsError ? (
               <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">{planPublishRecordsError}</div>
-            ) : planPublishRecords.length === 0 ? (
+            ) : filteredPlanPublishRecords.length === 0 ? (
               <div className="mt-3 rounded-xl border border-dashed border-stone-200 bg-stone-50/60 p-4 text-sm text-stone-600">
-                Brak publikacji w historii. Użyj `Publish Record (manual)` w widoku Flow.
+                Brak rekordów publikacji dla bieżących filtrów.
               </div>
             ) : (
               <div className="mt-3 space-y-2">
-                {planPublishRecords.slice(0, 12).map((row) => (
+                {filteredPlanPublishRecords.slice(0, 24).map((row) => (
                   <div key={row.id} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-stone-800">{row.platform_type ?? 'unknown'}</span>
+                      <span className="font-semibold text-stone-800">{row.platform_type ?? 'nieznane'}</span>
                       <Badge
                         variant="outline"
                         className={cn(
@@ -2676,20 +3646,20 @@ function App() {
                               : 'border-stone-200 bg-stone-100 text-stone-700',
                         )}
                       >
-                        {row.status ?? 'unknown'}
+                        {row.status ?? 'nieznany'}
                       </Badge>
                       <span className="text-stone-500">
                         {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
                       </span>
                     </div>
                     <div className="mt-1 grid gap-1 text-stone-600">
-                      {row.content_id ? <div><span className="font-semibold text-stone-800">content:</span> {row.content_id}</div> : null}
+                      {row.content_id ? <div><span className="font-semibold text-stone-800">treść:</span> {row.content_id}</div> : null}
                       {row.url ? <div className="truncate"><span className="font-semibold text-stone-800">url:</span> {row.url}</div> : null}
-                      {row.scheduled_for ? <div><span className="font-semibold text-stone-800">scheduled:</span> {new Date(row.scheduled_for).toLocaleString()}</div> : null}
-                      {row.published_at ? <div><span className="font-semibold text-stone-800">published_at:</span> {new Date(row.published_at).toLocaleString()}</div> : null}
+                      {row.scheduled_for ? <div><span className="font-semibold text-stone-800">zaplanowano:</span> {new Date(row.scheduled_for).toLocaleString()}</div> : null}
+                      {row.published_at ? <div><span className="font-semibold text-stone-800">opublikowanie:</span> {new Date(row.published_at).toLocaleString()}</div> : null}
                       {row.error_payload && typeof row.error_payload === 'object' && 'message' in row.error_payload ? (
                         <div className="text-rose-700">
-                          <span className="font-semibold">error:</span> {String((row.error_payload as { message?: unknown }).message ?? '')}
+                          <span className="font-semibold">błąd:</span> {String((row.error_payload as { message?: unknown }).message ?? '')}
                         </div>
                       ) : null}
                       {(row.status === 'published' || row.status === 'manual_confirmed') && row.content_id ? (
@@ -2699,7 +3669,7 @@ function App() {
                             className="h-7 rounded-full px-3 text-[11px]"
                             onClick={() => prefillMetricsFromPublishRecord(row)}
                           >
-                            Prefill metrics import
+                            Uzupełnij import metryk
                           </Button>
                         </div>
                       ) : null}
@@ -2711,9 +3681,9 @@ function App() {
           </div>
           <div className="rounded-2xl border border-stone-200 bg-white/80 p-4">
             <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
-              <div className="font-semibold text-stone-900">Manual metrics import (MVP)</div>
+              <div className="font-semibold text-stone-900">Ręczny import metryk (MVP)</div>
               <div className="mt-1 text-stone-500">
-                Ręczny zapis `metrics_daily` dla opublikowanego contentu (manual-first integracje).
+                Ręczny zapis do `metrics_daily` dla opublikowanych treści (integracje manual-first).
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
@@ -2728,7 +3698,7 @@ function App() {
                   </select>
                 </label>
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Date
+                  Data
                   <input
                     type="date"
                     className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
@@ -2737,41 +3707,59 @@ function App() {
                   />
                 </label>
                 <label className="sm:col-span-2 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Content ID
+                  ID treści
                   <input
                     className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                     value={metricsImportContentId}
                     onChange={(event) => setMetricsImportContentId(event.target.value)}
-                    placeholder="youtube/tiktok content id"
+                    placeholder="ID treści youtube/tiktok"
                   />
                 </label>
+                <label className="sm:col-span-2 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                  Profil audio (opcjonalnie)
+                  <select
+                    className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                    value={metricsImportAudioProfile}
+                    onChange={(event) =>
+                      setMetricsImportAudioProfile(
+                        event.target.value as '' | 'balanced' | 'speech' | 'music' | 'sfx_heavy',
+                      )
+                    }
+                  >
+                    <option value="">brak</option>
+                    <option value="balanced">balanced</option>
+                    <option value="speech">speech</option>
+                    <option value="music">music</option>
+                    <option value="sfx_heavy">sfx_heavy</option>
+                  </select>
+                </label>
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Views
+                  Wyświetlenia
                   <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportViews} onChange={(e) => setMetricsImportViews(e.target.value)} />
                 </label>
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Likes
+                  Polubienia
                   <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportLikes} onChange={(e) => setMetricsImportLikes(e.target.value)} />
                 </label>
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Comments
+                  Komentarze
                   <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportComments} onChange={(e) => setMetricsImportComments(e.target.value)} />
                 </label>
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Shares
+                  Udostępnienia
                   <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportShares} onChange={(e) => setMetricsImportShares(e.target.value)} />
                 </label>
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Watch time (s)
+                  Czas oglądania (s)
                   <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportWatchTime} onChange={(e) => setMetricsImportWatchTime(e.target.value)} />
                 </label>
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Avg view %
-                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportAvgPercent} onChange={(e) => setMetricsImportAvgPercent(e.target.value)} placeholder="optional" />
+                  Średni % obejrzenia
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportAvgPercent} onChange={(e) => setMetricsImportAvgPercent(e.target.value)} placeholder="opcjonalnie" />
                 </label>
                 <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Avg view duration (s)
-                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportAvgDuration} onChange={(e) => setMetricsImportAvgDuration(e.target.value)} placeholder="optional" />
+                  Średni czas obejrzenia (s)
+                  <input className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700" value={metricsImportAvgDuration} onChange={(e) => setMetricsImportAvgDuration(e.target.value)} placeholder="opcjonalnie" />
                 </label>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -2784,35 +3772,35 @@ function App() {
             </div>
             <div className="flex items-center justify-between gap-2">
               <div>
-                <div className="text-sm font-semibold text-stone-900">Latest metrics snapshot</div>
-                <div className="text-xs text-stone-500">Najnowszy wpis `metrics_daily` per platform/content</div>
+                <div className="text-sm font-semibold text-stone-900">Najnowszy snapshot metryk</div>
+                <div className="text-xs text-stone-500">Najnowszy rekord `metrics_daily` per platforma/treść</div>
               </div>
-              <div className="text-xs text-stone-500">{planLatestMetricsByContent.length} items</div>
+              <div className="text-xs text-stone-500">{planLatestMetricsByContent.length} pozycji</div>
             </div>
             {planMetricsLoading ? (
-              <div className="mt-3 text-sm text-stone-600">Loading metrics…</div>
+              <div className="mt-3 text-sm text-stone-600">Ładowanie metryk…</div>
             ) : planMetricsError ? (
               <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-700">{planMetricsError}</div>
             ) : planLatestMetricsByContent.length === 0 ? (
               <div className="mt-3 rounded-xl border border-dashed border-stone-200 bg-stone-50/60 p-4 text-sm text-stone-600">
-                Brak danych `metrics_daily`. To OK na etapie manualnym, dopóki nie działa pull metryk.
+                Brak danych `metrics_daily`. To oczekiwane, dopóki pobieranie metryk pozostaje manualne.
               </div>
             ) : (
               <div className="mt-3 space-y-2">
                 {planLatestMetricsByContent.slice(0, 12).map((row) => (
                   <div key={row.id} className="rounded-xl border border-stone-200 bg-stone-50/60 p-3 text-xs">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-stone-800">{row.platform_type ?? 'unknown'}</span>
-                      <span className="text-stone-500">{row.content_id ?? 'unknown-content'}</span>
+                      <span className="font-semibold text-stone-800">{row.platform_type ?? 'nieznane'}</span>
+                      <span className="text-stone-500">{row.content_id ?? 'nieznana-treść'}</span>
                       <span className="text-stone-500">{row.date ?? '—'}</span>
                     </div>
                     <div className="mt-1 grid grid-cols-2 gap-1 text-stone-600">
-                      <div>views: <span className="font-semibold text-stone-800">{row.views ?? 0}</span></div>
-                      <div>likes: <span className="font-semibold text-stone-800">{row.likes ?? 0}</span></div>
-                      <div>comments: <span className="font-semibold text-stone-800">{row.comments ?? 0}</span></div>
-                      <div>shares: <span className="font-semibold text-stone-800">{row.shares ?? 0}</span></div>
-                      <div>avg %: <span className="font-semibold text-stone-800">{row.avg_view_percentage ?? '—'}</span></div>
-                      <div>avg dur: <span className="font-semibold text-stone-800">{row.avg_view_duration_seconds ?? '—'}</span>s</div>
+                      <div>wyświetlenia: <span className="font-semibold text-stone-800">{row.views ?? 0}</span></div>
+                      <div>polubienia: <span className="font-semibold text-stone-800">{row.likes ?? 0}</span></div>
+                      <div>komentarze: <span className="font-semibold text-stone-800">{row.comments ?? 0}</span></div>
+                      <div>udostępnienia: <span className="font-semibold text-stone-800">{row.shares ?? 0}</span></div>
+                      <div>średni %: <span className="font-semibold text-stone-800">{row.avg_view_percentage ?? '—'}</span></div>
+                      <div>średni czas: <span className="font-semibold text-stone-800">{row.avg_view_duration_seconds ?? '—'}</span>s</div>
                     </div>
                   </div>
                 ))}
@@ -2821,7 +3809,7 @@ function App() {
           </div>
           <div className="flex items-center justify-between rounded-2xl border border-stone-200/70 bg-stone-50/60 p-3 text-xs text-stone-600">
             <div>
-              Tryb operatora (Godot) jest domyślny. Panele legacy DSL można pokazać tylko do diagnostyki/starego flow.
+              Tryb operatora Godot jest domyślny. Panele legacy DSL są opcjonalne i tylko diagniestyczne.
             </div>
             <Button
               variant={showLegacyDslPanels ? 'outline' : 'ghost'}
@@ -2833,8 +3821,10 @@ function App() {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button className="rounded-full" onClick={() => setActiveView('flow')}>Przejdź do Flow</Button>
-          <Button variant="outline" className="rounded-full" onClick={() => setActiveView('repositories')}>Otwórz Repositories</Button>
+          <Button className="rounded-full" onClick={() => setActiveView('flow')}>Przejdź do przepływu</Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setActiveView(singleVideoMode ? 'plan' : 'repositories')}>
+            {singleVideoMode ? 'Przejdź do analityki' : 'Otwórz repozytoria'}
+          </Button>
         </div>
       </section>
       ) : null}
@@ -2844,16 +3834,20 @@ function App() {
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Flow</h2>
-            <p className="text-sm text-stone-600">Sekwencja operatora: Idea Generator &rarr; Idea Gate &rarr; Compile &rarr; Render &rarr; QC &rarr; Publish.</p>
+            <h2 className="text-2xl font-semibold text-stone-900">Przepływ</h2>
+            <p className="text-sm text-stone-600">
+              {singleVideoMode
+                ? 'Sekwencja single-video: Pomysł -> Bramka -> Kompilacja -> Render -> QC -> Publikacja.'
+                : 'Sekwencja operatora: Generator pomysłów -> Bramka pomysłu -> Kompilacja -> Render -> QC -> Publikacja.'}
+            </p>
             {manualFlowEnabled ? (
               <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs text-amber-700">
-                Manual flow włączony (brak automatycznych akcji).
+                Tryb manualny włączony (bez automatycznych akcji).
               </div>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
-            {['Idea Generator', 'Idea Gate', 'Compile', 'Render', 'QC', 'Publish'].map((step) => (
+            {['Generator pomysłów', 'Bramka pomysłu', 'Kompilacja', 'Render', 'QC', 'Publikacja'].map((step) => (
               <Badge key={step} variant="outline" className="border border-stone-300 text-stone-700">
                 {step}
               </Badge>
@@ -2868,18 +3862,32 @@ function App() {
             fetchDslGaps()
             fetchBlockedCandidates()
           }}>
-            Odśwież Flow
+            Odśwież przepływ
           </Button>
+          {singleVideoMode ? (
+            <Button
+              variant={showAdvancedFlowPanels ? 'outline' : 'ghost'}
+              className="rounded-full"
+              onClick={() => setShowAdvancedFlowPanels((prev) => !prev)}
+            >
+              {showAdvancedFlowPanels ? 'Ukryj zaawansowane panele' : 'Pokaż zaawansowane panele'}
+            </Button>
+          ) : null}
           <Button variant="ghost" className="rounded-full" onClick={() => setActiveView('home')}>
-            Wróć do Home
+            Powrót do panelu głównego
           </Button>
         </div>
+        {singleVideoMode && !showAdvancedFlowPanels ? (
+          <p className="mt-2 text-xs text-stone-500">
+            Tryb uproszczony: panele `Logi operacyjne` i `Operacje` są ukryte.
+          </p>
+        ) : null}
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4 space-y-2">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Idea Generator</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Generator pomysłów</div>
               <div className="text-2xl font-semibold text-stone-900">{candidateCapabilitySummary.unverified ?? 0}</div>
-              <div className="text-xs text-stone-500">unverified candidates</div>
+              <div className="text-xs text-stone-500">kandydaci unverified</div>
               <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('idea-generator-panel')}>
                 Zobacz
               </Button>
@@ -2887,7 +3895,7 @@ function App() {
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4 space-y-2">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Idea Gate</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Bramka pomysłu</div>
               <div className="text-2xl font-semibold text-stone-900">{readyCandidates}</div>
               <div className="text-xs text-stone-500">gotowe do wyboru</div>
               <Button className="w-full rounded-full" onClick={() => scrollToSection('idea-gate-panel')}>
@@ -2897,15 +3905,15 @@ function App() {
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4 space-y-2">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Compile</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Kompilacja</div>
               <div className="text-2xl font-semibold text-stone-900">{compiledIdeas}</div>
-              <div className="text-xs text-stone-500">idei skompilowanych</div>
+              <div className="text-xs text-stone-500">skompilowane pomysły</div>
               <Button
                 variant="outline"
                 className="w-full rounded-full"
                 onClick={() => (showLegacyDslPanels ? scrollToSection('dsl-capability-panel') : scrollToSection('flow-manual-panel'))}
               >
-                {showLegacyDslPanels ? 'DSL Gaps' : 'Godot Manual Run'}
+                {showLegacyDslPanels ? 'Braki DSL' : 'Godot ręczny przebieg'}
               </Button>
             </CardContent>
           </Card>
@@ -2915,7 +3923,7 @@ function App() {
               <div className="text-2xl font-semibold text-stone-900">{renderQueue}</div>
               <div className="text-xs text-stone-500">w toku / w kolejce</div>
               <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('flow-animations-panel')}>
-                Animations
+                Animacje
               </Button>
             </CardContent>
           </Card>
@@ -2923,19 +3931,19 @@ function App() {
             <CardContent className="pt-4 space-y-2">
               <div className="text-xs uppercase tracking-[0.18em] text-stone-500">QC</div>
               <div className="text-2xl font-semibold text-stone-900">{qcQueue}</div>
-              <div className="text-xs text-stone-500">do decyzji QC</div>
+              <div className="text-xs text-stone-500">oczekuje na decyzję QC</div>
               <Button variant="outline" className="w-full rounded-full" onClick={() => scrollToSection('flow-animations-panel')}>
-                Sprawdź
+                Przegląd
               </Button>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4 space-y-2">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Publish</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Publikacja</div>
               <div className="text-2xl font-semibold text-stone-900">{publishReady}</div>
               <div className="text-xs text-stone-500">gotowe do publikacji</div>
               <Button variant="outline" className="w-full rounded-full" onClick={() => setActiveView('plan')}>
-                Zaplanuj
+                Plan
               </Button>
             </CardContent>
           </Card>
@@ -2946,14 +3954,14 @@ function App() {
       <section id="flow-manual-panel" className="rounded-[28px] border border-amber-200/80 bg-amber-50/40 p-6 shadow-2xl shadow-amber-900/10">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="text-xl font-semibold text-stone-900">Manual Flow</h3>
+            <h3 className="text-xl font-semibold text-stone-900">Przepływ ręczny</h3>
             <p className="text-sm text-stone-600">Kroki uruchamiane ręcznie przez operatora.</p>
           </div>
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4">
             <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-              Idea ID
+              ID pomysłu
               <input
                 className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
                 placeholder="UUID"
@@ -2963,10 +3971,10 @@ function App() {
             </label>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button className="rounded-full" onClick={handleManualCompile} disabled={manualCompileLoading}>
-                {manualCompileLoading ? 'Compiling…' : 'Compile DSL'}
+                {manualCompileLoading ? 'Kompilacja…' : 'Kompiluj DSL'}
               </Button>
               <Button variant="outline" className="rounded-full" onClick={handleManualPipeline} disabled={manualPipelineLoading}>
-                {manualPipelineLoading ? 'Starting…' : 'Start pipeline (compile+render)'}
+                {manualPipelineLoading ? 'Uruchamianie…' : 'Uruchom pipeline (kompilacja+render)'}
               </Button>
             </div>
             {manualCompileMessage ? (
@@ -2993,16 +4001,25 @@ function App() {
             <div className="mt-5 rounded-2xl border border-sky-200/80 bg-sky-50/40 p-4">
               <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-stone-900">Godot Manual Run (Etap B)</div>
+                  <div className="text-sm font-semibold text-stone-900">Godot ręczny przebieg (Etap B)</div>
                   <div className="text-xs text-stone-600">
-                    Krok po kroku: compile_gdscript → validate → estimate_duration → preview → final_render.
+                    Kolejność: kompilacja, walidacja, estymacja, podgląd, sprawdzenie intencji, render, intro, audio.
                   </div>
                 </div>
               </div>
-
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200/70 bg-white/70 px-3 py-2">
+                <div className="text-xs text-stone-600">Parametry techniczne (opcjonalne)</div>
+                <Button
+                  variant="ghost"
+                  className="h-7 rounded-full px-3 text-[11px]"
+                  onClick={() => setShowManualTechnicalParams((prev) => !prev)}
+                >
+                  {showManualTechnicalParams ? 'Ukryj parametry' : 'Pokaż parametry'}
+                </Button>
+              </div>
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  GDScript path
+                  Ścieżka GDScript
                   <input
                     className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                     placeholder="out/manual-godot/idea-.../script.gd"
@@ -3010,131 +4027,371 @@ function App() {
                     onChange={(event) => setGodotScriptPath(event.target.value)}
                   />
                 </label>
-                <div className="grid gap-3 sm:grid-cols-4">
+              </div>
+              {showManualTechnicalParams ? (
+                <>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Sekundy
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotSekundy}
+                        onChange={(event) => setGodotSekundy(event.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      FPS
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotFps}
+                        onChange={(event) => setGodotFps(event.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Maks. węzłów
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotMaxNodes}
+                        onChange={(event) => setGodotMaxNodes(event.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Skala podglądu
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotPreviewScale}
+                        onChange={(event) => setGodotPreviewScale(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-5">
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Docelowy czas (s)
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotTargetDuration}
+                        onChange={(event) => setGodotTargetDuration(event.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Scout (s)
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotScoutSekundy}
+                        onChange={(event) => setGodotScoutSekundy(event.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Próg
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotEstimatePróg}
+                        onChange={(event) => setGodotEstimatePróg(event.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Hold (s)
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotEstimateHoldSekundy}
+                        onChange={(event) => setGodotEstimateHoldSekundy(event.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Tail (s)
+                      <input
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={godotEstimateTailSekundy}
+                        onChange={(event) => setGodotEstimateTailSekundy(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
+                    <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                      Preset intent check
+                      <select
+                        className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                        value={intentCheckPreset}
+                        onChange={(event) => setIntentCheckPreset(event.target.value as keyof typeof INTENT_CHECK_PRESETS)}
+                      >
+                        <option value="balanced">zbalansowany</option>
+                        <option value="fast_hook">szybki hook</option>
+                        <option value="gradual_reveal">wolne ujawnianie</option>
+                        <option value="loop_pattern">pętla/pattern</option>
+                      </select>
+                    </label>
+                    <Button variant="outline" className="rounded-full self-end" onClick={applyIntentCheckPreset}>
+                      Zastosuj preset
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-2 text-xs text-stone-500">
+                  Parametry techniczne są ukryte. Używane są obecne wartości i profile.
+                </div>
+              )}
+              <div className="mt-3 rounded-2xl border border-sky-200/80 bg-white/80 p-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">Intro overlay</div>
+                <div className="mt-2 grid gap-3 lg:grid-cols-2">
                   <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                    Seconds
+                    Ścieżka wejściowa wideo
                     <input
                       className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                      value={godotSeconds}
-                      onChange={(event) => setGodotSeconds(event.target.value)}
+                      placeholder="out/manual-godot/.../final.mp4"
+                      value={introInputPath}
+                      onChange={(event) => setIntroInputPath(event.target.value)}
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                    FPS
+                    Tekst intro
                     <input
                       className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                      value={godotFps}
-                      onChange={(event) => setGodotFps(event.target.value)}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                    Max nodes
-                    <input
-                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                      value={godotMaxNodes}
-                      onChange={(event) => setGodotMaxNodes(event.target.value)}
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                    Preview scale
-                    <input
-                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                      value={godotPreviewScale}
-                      onChange={(event) => setGodotPreviewScale(event.target.value)}
+                      placeholder="Zasada animacji: ..."
+                      value={introText}
+                      onChange={(event) => setIntroText(event.target.value)}
                     />
                   </label>
                 </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Czas (s)
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={introCzas}
+                      onChange={(event) => setIntroCzas(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Rozmiar fontu
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={introFontSize}
+                      onChange={(event) => setIntroFontSize(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Ścieżka wyjściowa (opcjonalnie)
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={introOutPath}
+                      onChange={(event) => setIntroOutPath(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="mt-2 text-[11px] text-stone-500">
+                  Domyślny język intro: {(settings?.operator_intro_language ?? 'en').toUpperCase()}
+                </div>
               </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-5">
-                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Target duration (s)
-                  <input
-                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                    value={godotTargetDuration}
-                    onChange={(event) => setGodotTargetDuration(event.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Scout seconds
-                  <input
-                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                    value={godotScoutSeconds}
-                    onChange={(event) => setGodotScoutSeconds(event.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Threshold
-                  <input
-                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                    value={godotEstimateThreshold}
-                    onChange={(event) => setGodotEstimateThreshold(event.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Hold seconds
-                  <input
-                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                    value={godotEstimateHoldSeconds}
-                    onChange={(event) => setGodotEstimateHoldSeconds(event.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                  Tail seconds
-                  <input
-                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                    value={godotEstimateTailSeconds}
-                    onChange={(event) => setGodotEstimateTailSeconds(event.target.value)}
-                  />
-                </label>
+              <div className="mt-3 rounded-2xl border border-sky-200/80 bg-white/80 p-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">Miks audio</div>
+                <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Ścieżka wejściowa wideo
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      placeholder="out/manual-godot/.../final.intro.mp4"
+                      value={audioInputPath}
+                      onChange={(event) => setAudioInputPath(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Ścieżka wyjściowa (opcjonalnie)
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={audioOutPath}
+                      onChange={(event) => setAudioOutPath(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Ścieżka muzyki (opcjonalnie)
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      placeholder="assets/audio/music.mp3"
+                      value={audioMusicPath}
+                      onChange={(event) => setAudioMusicPath(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Ścieżka SFX (opcjonalnie)
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      placeholder="assets/audio/sfx.wav"
+                      value={audioSfxPath}
+                      onChange={(event) => setAudioSfxPath(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Profil audio
+                    <select
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={audioProfile}
+                      onChange={(event) => setAudioProfile(event.target.value as keyof typeof AUDIO_PROFILE_PRESETS)}
+                    >
+                      <option value="balanced">zbalansowany</option>
+                      <option value="speech">mowa</option>
+                      <option value="music">muzyka</option>
+                      <option value="sfx_heavy">mocne SFX</option>
+                    </select>
+                  </label>
+                  <Button
+                    variant="outline"
+                    className="rounded-full self-end"
+                    onClick={() => {
+                      const preset = AUDIO_PROFILE_PRESETS[audioProfile]
+                      setAudioTargetLufs(preset.targetLufs)
+                      setAudioTruePeakDb(preset.truePeakDb)
+                      setAudioMusicGainDb(preset.musicGainDb)
+                      setAudioSfxGainDb(preset.sfxGainDb)
+                      setAudioNormalizeLoudness(preset.normalizeLoudness)
+                    }}
+                  >
+                    Zastosuj profil
+                  </Button>
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Wzmocnienie muzyki (dB)
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={audioMusicGainDb}
+                      onChange={(event) => setAudioMusicGainDb(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Wzmocnienie SFX (dB)
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={audioSfxGainDb}
+                      onChange={(event) => setAudioSfxGainDb(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    <input
+                      type="checkbox"
+                      checked={audioKeepSource}
+                      onChange={(event) => setAudioKeepSource(event.target.checked)}
+                    />
+                    Zachowaj dźwięk źródłowy
+                  </label>
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    Docelowe LUFS
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={audioTargetLufs}
+                      onChange={(event) => setAudioTargetLufs(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    True peak (dB)
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={audioTruePeakDb}
+                      onChange={(event) => setAudioTruePeakDb(event.target.value)}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                    <input
+                      type="checkbox"
+                      checked={audioNormalizeLoudness}
+                      onChange={(event) => setAudioNormalizeLoudness(event.target.checked)}
+                    />
+                    Normalizacja głośności
+                  </label>
+                </div>
+                <div className="mt-2 text-[11px] text-stone-500">
+                  Domyślna ochrona: loudnorm + limiter (target -16 LUFS, true peak -1 dB).
+                </div>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <Button className="rounded-full" onClick={handleGodotCompile} disabled={!!godotStepLoading.compile}>
-                  {godotStepLoading.compile ? 'Compiling…' : '1. Compile GDScript'}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-8">
+                <Button
+                  className="rounded-full"
+                  onClick={handleGodotCompile}
+                  disabled={!!godotStepLoading.compile || !canRunManualStep('compile')}
+                >
+                  {godotStepLoading.compile ? 'Kompilacja…' : '1. Kompiluj GDScript'}
                 </Button>
                 <Button
                   variant="outline"
                   className="rounded-full"
                   onClick={() => handleGodotRunStep('validate')}
-                  disabled={!!godotStepLoading.validate}
+                  disabled={!!godotStepLoading.validate || !canRunManualStep('validate')}
                 >
-                  {godotStepLoading.validate ? 'Validating…' : '2. Validate'}
+                  {godotStepLoading.validate ? 'Walidacja…' : '2. Waliduj'}
                 </Button>
                 <Button
                   variant="outline"
                   className="rounded-full"
                   onClick={() => handleGodotRunStep('estimate')}
-                  disabled={!!godotStepLoading.estimate}
+                  disabled={!!godotStepLoading.estimate || !canRunManualStep('estimate')}
                 >
-                  {godotStepLoading.estimate ? 'Estimating…' : '3. Estimate duration'}
+                  {godotStepLoading.estimate ? 'Estymacja…' : '3. Estymuj czas'}
                 </Button>
                 <Button
                   variant="outline"
                   className="rounded-full"
                   onClick={() => handleGodotRunStep('preview')}
-                  disabled={!!godotStepLoading.preview}
+                  disabled={!!godotStepLoading.preview || !canRunManualStep('preview')}
                 >
-                  {godotStepLoading.preview ? 'Rendering preview…' : '4. Preview'}
+                  {godotStepLoading.preview ? 'Renderowanie podglądu…' : '4. Podgląd'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => handleGodotRunStep('intent_check')}
+                  disabled={!!godotStepLoading.intent_check || !canRunManualStep('intent_check')}
+                >
+                  {godotStepLoading.intent_check ? 'Sprawdzanie…' : '5. Sprawdzenie intencji'}
                 </Button>
                 <Button
                   variant="outline"
                   className="rounded-full"
                   onClick={() => handleGodotRunStep('render')}
-                  disabled={!!godotStepLoading.render}
+                  disabled={!!godotStepLoading.render || !canRunManualStep('render')}
                 >
-                  {godotStepLoading.render ? 'Rendering final…' : '5. Final render'}
+                  {godotStepLoading.render ? 'Renderowanie finalne…' : '6. Render finalny'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={handleIntroOverlay}
+                  disabled={!!godotStepLoading.intro_overlay || !canRunManualStep('intro_overlay')}
+                >
+                  {godotStepLoading.intro_overlay ? 'Nakładanie…' : '7. Intro overlay'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={handleAudioMix}
+                  disabled={!!godotStepLoading.audio_mix || !canRunManualStep('audio_mix')}
+                >
+                  {godotStepLoading.audio_mix ? 'Miksowanie…' : '8. Miks audio'}
                 </Button>
               </div>
+              {singleVideoMode ? (
+                <div className="mt-2 text-xs text-stone-500">
+                  Aktywny krok: <span className="font-semibold text-stone-800">{MANUAL_STEP_LABELS[activeManualStep]}</span>
+                </div>
+              ) : null}
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                {(['compile', 'validate', 'estimate', 'preview', 'render'] as const).map((step) => {
+                {visibleManualSteps.map((step) => {
                   const result = godotStepResult[step]
                   const error = godotStepError[step]
                   const status = godotStepStatus[step] ?? 'idle'
+                  const stepOrder = MANUAL_STEP_ORDER.indexOf(step) + 1
                   return (
                     <div key={step} className="rounded-xl border border-stone-200 bg-white/80 p-3 text-xs">
                       <div className="flex items-center justify-between">
-                        <div className="font-semibold text-stone-900 uppercase tracking-[0.15em]">{step}</div>
+                        <div className="font-semibold text-stone-900 uppercase tracking-[0.15em]">
+                          {stepOrder}/{MANUAL_STEP_ORDER.length} · {MANUAL_STEP_LABELS[step]}
+                        </div>
                         <Badge
                           variant="outline"
                           className={cn(
@@ -3146,8 +4403,11 @@ function App() {
                                 : 'border-stone-200 bg-stone-100 text-stone-700',
                           )}
                         >
-                          {status}
+                          {MANUAL_STEP_STATUS_LABELS[status]}
                         </Badge>
+                      </div>
+                      <div className="mt-2 rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-[11px] text-stone-600">
+                        {manualStepQuickSummary(step, result, error)}
                       </div>
                       {error ? <div className="mt-2 text-rose-700">{error}</div> : null}
                       {result ? (
@@ -3164,33 +4424,66 @@ function App() {
                           {typeof result.exit_code === 'number' ? (
                             <div><span className="font-semibold text-stone-800">exit:</span> {result.exit_code}</div>
                           ) : null}
-                          {step === 'estimate' && typeof result.recommended_sim_duration_s === 'number' ? (
-                            <div><span className="font-semibold text-stone-800">recommended sim:</span> {result.recommended_sim_duration_s.toFixed(2)}s</div>
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.recommended_sim_duration_s === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">rekomendowany sim:</span> {result.recommended_sim_duration_s.toFixed(2)}s</div>
                           ) : null}
-                          {step === 'estimate' && typeof result.recommended_speed_factor === 'number' ? (
-                            <div><span className="font-semibold text-stone-800">speed factor:</span> {result.recommended_speed_factor.toFixed(3)}</div>
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.target_runtime_s === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">docelowy runtime:</span> {result.target_runtime_s.toFixed(0)}s</div>
                           ) : null}
-                          {step === 'estimate' && typeof result.confidence === 'number' ? (
-                            <div><span className="font-semibold text-stone-800">confidence:</span> {result.confidence.toFixed(2)}</div>
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.intent_reached === 'boolean' ? (
+                            <div><span className="font-semibold text-stone-800">intencja osiągnięta:</span> {result.intent_reached ? 'tak' : 'nie'}</div>
                           ) : null}
-                          {step === 'estimate' && result.estimate ? (
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.intent_reached_at_s === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">intencja przy:</span> {result.intent_reached_at_s.toFixed(2)}s</div>
+                          ) : null}
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.recommended_speed_factor === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">współczynnik prędkości:</span> {result.recommended_speed_factor.toFixed(3)}</div>
+                          ) : null}
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.confidence === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">pewność:</span> {result.confidence.toFixed(2)}</div>
+                          ) : null}
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.intent_status === 'string' ? (
+                            <div><span className="font-semibold text-stone-800">status intencji:</span> {result.intent_status}</div>
+                          ) : null}
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.blocking_reason === 'string' && result.blocking_reason ? (
+                            <div><span className="font-semibold text-stone-800">blokada:</span> {result.blocking_reason}</div>
+                          ) : null}
+                          {step === 'intro_overlay' && typeof result.intro_text === 'string' ? (
+                            <div><span className="font-semibold text-stone-800">tekst:</span> {result.intro_text}</div>
+                          ) : null}
+                          {step === 'intro_overlay' && typeof result.language === 'string' ? (
+                            <div><span className="font-semibold text-stone-800">język:</span> {result.language}</div>
+                          ) : null}
+                          {step === 'intro_overlay' && typeof result.duration_s === 'number' ? (
+                            <div><span className="font-semibold text-stone-800">czas intro:</span> {result.duration_s.toFixed(2)}s</div>
+                          ) : null}
+                          {step === 'audio_mix' && typeof result.music_path === 'string' ? (
+                            <div><span className="font-semibold text-stone-800">muzyka:</span> {result.music_path}</div>
+                          ) : null}
+                          {step === 'audio_mix' && typeof result.sfx_path === 'string' ? (
+                            <div><span className="font-semibold text-stone-800">SFX:</span> {result.sfx_path}</div>
+                          ) : null}
+                          {step === 'audio_mix' && typeof result.keep_source_audio === 'boolean' ? (
+                            <div><span className="font-semibold text-stone-800">zachowaj źródło:</span> {result.keep_source_audio ? 'tak' : 'nie'}</div>
+                          ) : null}
+                          {(step === 'estimate' || step === 'intent_check') && result.estimate ? (
                             <div>
-                              <span className="font-semibold text-stone-800">effect:</span>{' '}
-                              {result.estimate.reached ? `reached @ ${Number(result.estimate.effect_time_s ?? -1).toFixed(2)}s` : 'not reached in scout horizon'}
+                              <span className="font-semibold text-stone-800">efekt:</span>{' '}
+                              {result.estimate.reached ? `osiągnięty @ ${Number(result.estimate.effect_time_s ?? -1).toFixed(2)}s` : 'nieosiągnięty w oknie scout'}
                             </div>
                           ) : null}
-                          {step === 'estimate' && typeof result.recommended_sim_duration_s === 'number' ? (
+                          {(step === 'estimate' || step === 'intent_check') && typeof result.recommended_sim_duration_s === 'number' ? (
                             <div className="mt-2">
                               <Button
                                 variant="outline"
                                 className="h-7 rounded-full px-3 text-[11px]"
-                                onClick={() => setGodotSeconds(String(result.recommended_sim_duration_s))}
+                                onClick={() => setGodotSekundy(String(result.recommended_sim_duration_s))}
                               >
-                                Use recommendation
+                                Użyj rekomendacji
                               </Button>
                             </div>
                           ) : null}
-                          {(step === 'preview' || step === 'render') &&
+                          {(step === 'preview' || step === 'render' || step === 'intro_overlay' || step === 'audio_mix') &&
                           result.out_exists &&
                           result.out_path &&
                           result.out_path.includes('/out/manual-godot/') ? (
@@ -3223,19 +4516,19 @@ function App() {
 
               <div className="mt-4 rounded-xl border border-stone-200 bg-white/80 p-3 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="font-semibold uppercase tracking-[0.15em] text-stone-900">recent manual runs</div>
+                  <div className="font-semibold uppercase tracking-[0.15em] text-stone-900">ostatnie ręczne uruchomienia</div>
                   <Button
                     variant="outline"
                     className="h-7 rounded-full px-3 text-[11px]"
                     onClick={fetchGodotManualRuns}
                     disabled={godotHistoryLoading}
                   >
-                    {godotHistoryLoading ? 'Loading…' : 'Refresh'}
+                    {godotHistoryLoading ? 'Ładowanie…' : 'Odśwież'}
                   </Button>
                 </div>
                 {godotHistoryError ? <div className="mt-2 text-rose-700">{godotHistoryError}</div> : null}
                 {godotHistoryRows.length === 0 && !godotHistoryLoading && !godotHistoryError ? (
-                  <div className="mt-2 text-stone-500">No persisted runs yet.</div>
+                  <div className="mt-2 text-stone-500">Brak zapisanych uruchomień.</div>
                 ) : null}
                 <div className="mt-2 space-y-2">
                   {godotHistoryRows.map((row) => (
@@ -3248,9 +4541,9 @@ function App() {
                             row.ok ? 'border-emerald-200 bg-emerald-100 text-emerald-900' : 'border-rose-200 bg-rose-100 text-rose-900',
                           )}
                         >
-                          {row.ok ? 'success' : 'fail'}
+                          {row.ok ? 'sukces' : 'błąd'}
                         </Badge>
-                        <span className="font-semibold uppercase tracking-[0.15em] text-stone-700">{row.step ?? 'unknown'}</span>
+                        <span className="font-semibold uppercase tracking-[0.15em] text-stone-700">{row.step ?? 'nieznany'}</span>
                         <span className="text-stone-500">{row.recorded_at ? new Date(row.recorded_at).toLocaleString() : '—'}</span>
                         {typeof row.exit_code === 'number' ? <span className="text-stone-500">exit={row.exit_code}</span> : null}
                       </div>
@@ -3258,13 +4551,13 @@ function App() {
                         {row.script_path ? <div><span className="font-semibold text-stone-800">script:</span> {row.script_path}</div> : null}
                         {row.out_path ? <div><span className="font-semibold text-stone-800">out:</span> {row.out_path}</div> : null}
                         {row.log_file ? <div><span className="font-semibold text-stone-800">log:</span> {row.log_file}</div> : null}
-                        {row.step === 'estimate' && typeof row.recommended_sim_duration_s === 'number' ? (
-                          <div><span className="font-semibold text-stone-800">recommended sim:</span> {row.recommended_sim_duration_s.toFixed(2)}s</div>
+                        {(row.step === 'estimate' || row.step === 'intent_check') && typeof row.recommended_sim_duration_s === 'number' ? (
+                          <div><span className="font-semibold text-stone-800">rekomendowany sim:</span> {row.recommended_sim_duration_s.toFixed(2)}s</div>
                         ) : null}
-                        {row.step === 'estimate' && typeof row.target_duration_s === 'number' ? (
+                        {(row.step === 'estimate' || row.step === 'intent_check') && typeof row.target_duration_s === 'number' ? (
                           <div><span className="font-semibold text-stone-800">target duration:</span> {row.target_duration_s.toFixed(2)}s</div>
                         ) : null}
-                        {row.error ? <div className="text-rose-700"><span className="font-semibold">error:</span> {row.error}</div> : null}
+                        {row.error ? <div className="text-rose-700"><span className="font-semibold">błąd:</span> {row.error}</div> : null}
                         {(row.step === 'preview' || row.step === 'render') &&
                         row.out_exists &&
                         row.out_path &&
@@ -3283,23 +4576,24 @@ function App() {
           <div className="rounded-2xl border border-amber-200/70 bg-white/70 p-4 text-xs text-stone-600">
             <div className="font-semibold text-stone-900">Tryb manualny</div>
             <ul className="mt-2 list-disc space-y-2 pl-4">
-              <li>Brak automatycznego enqueue po Idea Gate.</li>
-              <li>Weryfikacja i kompilacja uruchamiane ręcznie.</li>
-              <li>Etap B: Godot Manual Run pozwala uruchamiać compile/validate/estimate/preview/render z GUI.</li>
+              <li>Brak automatycznego enqueue po Bramce pomysłu.</li>
+              <li>Weryfikacja i kompilacja są uruchamiane ręcznie.</li>
+              <li>Etap B: Godot ręczny przebieg uruchamia compile/validate/estimate/preview/intent_check/render/intro_overlay/audio_mix z GUI.</li>
             </ul>
           </div>
         </div>
       </section>
 ) : null}
 
+{(!singleVideoMode || showAdvancedFlowPanels) ? (
 <section id="flow-logs-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h3 className="text-xl font-semibold text-stone-900">Logi operacyjne</h3>
-            <p className="text-sm text-stone-600">Ostatnie zdarzenia z audit logu + błędy z operacji.</p>
+            <p className="text-sm text-stone-600">Najnowsze zdarzenia audytu i błędy operacyjne.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-            <span>Updated: {auditUpdatedAt ? auditUpdatedAt.toLocaleTimeString() : '—'}</span>
+            <span>Zaktualizowano: {auditUpdatedAt ? auditUpdatedAt.toLocaleTimeString() : '—'}</span>
             <Button variant="outline" className="rounded-full" onClick={fetchAuditEvents} disabled={auditLoading}>
               {auditLoading ? 'Ładowanie…' : 'Odśwież'}
             </Button>
@@ -3318,20 +4612,20 @@ function App() {
         <div className="mt-4 overflow-x-auto">
           {auditLoading ? (
             <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading events…
+              Ładowanie zdarzeń…
             </div>
           ) : auditError ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-              <div className="font-semibold">Failed to load</div>
+              <div className="font-semibold">Nie udało się wczytać</div>
               <div>{auditError}</div>
             </div>
           ) : (
             <table className="min-w-[900px] w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                 <tr>
-                  <th className="px-2 py-3">Time</th>
-                  <th className="px-2 py-3">Type</th>
-                  <th className="px-2 py-3">Source</th>
+                  <th className="px-2 py-3">Czas</th>
+                  <th className="px-2 py-3">Typ</th>
+                  <th className="px-2 py-3">Źródło</th>
                   <th className="px-2 py-3">Payload</th>
                 </tr>
               </thead>
@@ -3361,13 +4655,14 @@ function App() {
           )}
         </div>
       </section>
+) : null}
 
 <section id="idea-generator-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Idea Generator</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Generator pomysłów</h2>
             <p className="text-sm text-stone-600">
-              Punkt startu flow: nowe kandydaty do toru Godot. Legacy DSL panele są opcjonalne i ukryte domyślnie.
+              Punkt wejścia przepływu: niewi kandydaci dla ścieżki Godot. Panele legacy DSL są opcjonalne i domyślnie ukryte.
             </p>
           </div>
         </div>
@@ -3375,7 +4670,7 @@ function App() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Unverified</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Niezweryfikowane</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">
                 {candidateCapabilitySummary.unverified ?? 0}
               </div>
@@ -3383,7 +4678,7 @@ function App() {
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Feasible</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Wykonalne</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">
                 {candidateCapabilitySummary.feasible ?? 0}
               </div>
@@ -3391,7 +4686,7 @@ function App() {
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Blocked by gaps</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Zablokowane przez braki</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">
                 {candidateCapabilitySummary.blocked_by_gaps ?? 0}
               </div>
@@ -3399,7 +4694,7 @@ function App() {
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">New/Later/Picked</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Nowe/Później/Wybrane</div>
               <div className="mt-2 text-sm text-stone-700">
                 new: {candidateStatusSummary.new ?? 0} · later: {candidateStatusSummary.later ?? 0} · picked:{' '}
                 {candidateStatusSummary.picked ?? 0} · rejected: {candidateStatusSummary.rejected ?? 0}
@@ -3426,14 +4721,20 @@ function App() {
 
             {generatorMode === 'llm' ? (
               <div className="mt-4 space-y-3 text-sm">
-                <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                  Limit
-                  <input
-                    className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
-                    value={generatorLimit}
-                    onChange={(event) => setGeneratorLimit(event.target.value)}
-                  />
-                </label>
+                {singleVideoMode ? (
+                  <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-3 text-xs text-sky-800">
+                    Tryb single-video: generator tworzy dokładnie 1 propozycję.
+                  </div>
+                ) : (
+                  <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
+                    Limit
+                    <input
+                      className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
+                      value={generatorLimit}
+                      onChange={(event) => setGeneratorLimit(event.target.value)}
+                    />
+                  </label>
+                )}
                 <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
                   Prompt (opcjonalny)
                   <textarea
@@ -3503,7 +4804,7 @@ function App() {
                 }}
                 disabled={generatorLoading}
               >
-                Wyczyść
+                Resetuj
               </Button>
             </div>
             {generatorMessage ? (
@@ -3513,7 +4814,7 @@ function App() {
             ) : null}
             {Object.keys(generatorSkipSummary).length > 0 ? (
               <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-900">
-                <div className="font-semibold">Powody pominięcia (skip)</div>
+                <div className="font-semibold">Powody pominięcia</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {Object.entries(generatorSkipSummary).map(([reason, count]) => (
                     <Badge key={reason} variant="outline" className="border-amber-300 text-amber-800">
@@ -3525,7 +4826,7 @@ function App() {
                   <div className="mt-2 space-y-1 text-amber-800">
                     {generatorSkipExamples.map((item, idx) => (
                       <div key={`${item.reason ?? 'skip'}-${idx}`}>
-                        {(item.title || '—')}: {item.reason || 'unknown'}
+                        {(item.title || '—')}: {item.reason || 'nieznany'}
                       </div>
                     ))}
                   </div>
@@ -3542,17 +4843,17 @@ function App() {
           <div className="rounded-2xl border border-stone-200/70 bg-white/70 p-4 text-sm text-stone-600">
             <div className="text-sm font-semibold text-stone-900">Jak to dziala</div>
             <ul className="mt-2 list-disc space-y-2 pl-4 text-xs text-stone-600">
-              <li>LLM: generuje wiele propozycji na podstawie promptu.</li>
-              <li>Text: jedna propozycja na bazie wlasnego opisu.</li>
-              <li>File: wczytanie wielu pomyslow z pliku.</li>
+              <li>LLM: generuje propozycje na bazie promptu (w single-video domyślnie 1 pomysł).</li>
+              <li>Text: jedna propozycja na bazie własnego opisu.</li>
+              <li>File: wczytanie wielu pomysłów z pliku.</li>
             </ul>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-stone-500">
-          <span>Generator dostepny z UI oraz CLI: `make idea-generate`.</span>
-          <span>Legacy DSL verification (opcjonalnie): `make idea-verify-capability`.</span>
-          <span>Similarity: porównanie kandydata do historii idei (embedding + cosine similarity).</span>
+          <span>Generator dostępny z UI oraz CLI: `make idea-generate`.</span>
+          <span>Weryfikacja legacy DSL (opcjonalnie): `make idea-verify-capability`.</span>
+          <span>Similarity: porównanie kandydatów z historią pomysłów (embedding + cosine similarity).</span>
         </div>
       </section>
 
@@ -3561,19 +4862,19 @@ function App() {
       <section id="dsl-capability-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">DSL Capability</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Możliwości DSL</h2>
             <p className="text-sm text-stone-600">
               Weryfikacja kandydatów i zarządzanie listą `dsl_gap`.
             </p>
           </div>
           <div className="text-xs text-stone-500">
-            <div>Updated: {dslGapsUpdatedAt ? dslGapsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            <div>Zaktualizowano: {dslGapsUpdatedAt ? dslGapsUpdatedAt.toLocaleTimeString() : 'brak danych'}</div>
             {verifierInfo ? (
               <div>
-                Verifier: {verifierInfo.fallbackUsed ? 'fallback' : 'LLM'}
+                Weryfikator: {verifierInfo.fallbackUsed ? 'tryb awaryjny' : 'LLM'}
                 {verifierInfo.provider ? ` / ${verifierInfo.provider}` : ''}
                 {verifierInfo.model ? ` / ${verifierInfo.model}` : ''}
-                {verifierInfo.verified ? ` (verified: ${verifierInfo.verified})` : ''}
+                {verifierInfo.verified ? ` (zweryfikowano: ${verifierInfo.verified})` : ''}
               </div>
             ) : null}
           </div>
@@ -3581,7 +4882,7 @@ function App() {
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Verify limit
+            Limit weryfikacji
             <input
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
               value={verifyLimit}
@@ -3590,10 +4891,10 @@ function App() {
           </label>
           <div className="flex flex-wrap gap-2">
             <Button className="rounded-full" onClick={handleVerifyCandidates} disabled={verifyLoading}>
-              {verifyLoading ? 'Verifying…' : 'Verify candidates'}
+              {verifyLoading ? 'Weryfikacja…' : 'Zweryfikuj kandydatów'}
             </Button>
             <Button variant="outline" className="rounded-full" onClick={fetchDslGaps} disabled={dslGapsLoading}>
-              Refresh gaps
+              Odśwież braki
             </Button>
           </div>
         </div>
@@ -3601,13 +4902,13 @@ function App() {
         {blockedCandidates.length > 0 ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
             <div className="font-semibold">
-              {blockedCandidates.length} candidate(s) blocked by DSL gaps and excluded from sampling.
+              {blockedCandidates.length} kandydat(ów) zablokowanych przez braki DSL i wykluczonych z losowania.
             </div>
             <div className="mt-2 space-y-1">
               {blockedCandidates.map((candidate) => (
                 <div key={candidate.id}>
                   {candidate.title}:{' '}
-                  {(candidate.gaps ?? []).map((gap) => gap.feature).filter(Boolean).join(', ') || 'gap'}
+                  {(candidate.gaps ?? []).map((gap) => gap.feature).filter(Boolean).join(', ') || 'brak'}
                 </div>
               ))}
             </div>
@@ -3625,30 +4926,30 @@ function App() {
         <div className="mt-4 overflow-x-auto">
           {dslGapsLoading ? (
             <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading DSL gaps…
+              Ładowanie braków DSL…
             </div>
           ) : dslGapsError ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-              <div className="font-semibold">Failed to load</div>
+              <div className="font-semibold">Nie udało się wczytać</div>
               <div>{dslGapsError}</div>
             </div>
           ) : (
             <table className="min-w-[900px] w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                 <tr>
-                  <th className="px-2 py-3">Feature</th>
+                  <th className="px-2 py-3">Funkcja</th>
                   <th className="px-2 py-3">Status</th>
-                  <th className="px-2 py-3">Introduced</th>
-                  <th className="px-2 py-3">Implemented</th>
-                  <th className="px-2 py-3">Reason</th>
-                  <th className="px-2 py-3">Actions</th>
+                  <th className="px-2 py-3">Wprowadzonie</th>
+                  <th className="px-2 py-3">Wdrożonie</th>
+                  <th className="px-2 py-3">Powód</th>
+                  <th className="px-2 py-3">Akcje</th>
                 </tr>
               </thead>
               <tbody>
                 {dslGaps.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
-                      No DSL gaps yet.
+                      Brak braków DSL.
                     </td>
                   </tr>
                 ) : (
@@ -3671,7 +4972,7 @@ function App() {
                             onClick={() => handleGapStatus(gap.id, 'accepted')}
                             disabled={gapActionLoading[gap.id]}
                           >
-                            Accept
+                            Akceptuj
                           </Button>
                           <Button
                             variant="outline"
@@ -3679,14 +4980,14 @@ function App() {
                             onClick={() => handleGapStatus(gap.id, 'in_progress')}
                             disabled={gapActionLoading[gap.id]}
                           >
-                            In progress
+                            W toku
                           </Button>
                           <Button
                             className="rounded-full"
                             onClick={() => handleGapStatus(gap.id, 'implemented')}
                             disabled={gapActionLoading[gap.id]}
                           >
-                            Implemented
+                            Wdrożonie
                           </Button>
                           <Button
                             variant="outline"
@@ -3695,7 +4996,7 @@ function App() {
                               setDslGapPromptId((prev) => (prev === gap.id ? null : gap.id))
                             }
                           >
-                            AI prompt
+                            Prompt AI
                           </Button>
                         </div>
                       </td>
@@ -3710,7 +5011,7 @@ function App() {
           <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-sm font-semibold text-stone-800">
-                Prompt do wdrozenia GAP: {selectedGap.feature ?? 'gap'}
+                Prompt do wdrożenia GAP: {selectedGap.feature ?? 'gap'}
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -3723,14 +5024,14 @@ function App() {
                     }
                   }}
                 >
-                  Copy prompt
+                  Kopiuj prompt
                 </Button>
                 <Button
                   variant="ghost"
                   className="rounded-full"
                   onClick={() => setDslGapPromptId(null)}
                 >
-                  Close
+                  Zamknij
                 </Button>
               </div>
             </div>
@@ -3749,17 +5050,17 @@ function App() {
       <section className="mt-6 rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">DSL Versions</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Wersje DSL</h2>
             <p className="text-sm text-stone-600">Historia wersji DSL oraz gapy wprowadzone w wersjach.</p>
           </div>
           <div className="text-xs text-stone-500">
-            <div>Updated: {dslVersionsUpdatedAt ? dslVersionsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            <div>Zaktualizowano: {dslVersionsUpdatedAt ? dslVersionsUpdatedAt.toLocaleTimeString() : 'brak danych'}</div>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="outline" className="rounded-full" onClick={fetchDslVersions} disabled={dslVersionsLoading}>
-            {dslVersionsLoading ? 'Refreshing…' : 'Refresh versions'}
+            {dslVersionsLoading ? 'Odświeżanie…' : 'Odśwież wersje'}
           </Button>
           {dslVersionsError ? <span className="text-xs text-rose-600">{dslVersionsError}</span> : null}
         </div>
@@ -3767,25 +5068,25 @@ function App() {
         <div className="mt-4 overflow-x-auto">
           {dslVersionsLoading ? (
             <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading DSL versions…
+              Ładowanie wersji DSL…
             </div>
           ) : (
             <table className="min-w-[820px] w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                 <tr>
-                  <th className="px-2 py-3">Version</th>
-                  <th className="px-2 py-3">Active</th>
-                  <th className="px-2 py-3">Introduced gaps</th>
-                  <th className="px-2 py-3">Implemented gaps</th>
-                  <th className="px-2 py-3">Notes</th>
-                  <th className="px-2 py-3">Created</th>
+                  <th className="px-2 py-3">Wersja</th>
+                  <th className="px-2 py-3">Aktywna</th>
+                  <th className="px-2 py-3">Wprowadzone braki</th>
+                  <th className="px-2 py-3">Wdrożone braki</th>
+                  <th className="px-2 py-3">Notatki</th>
+                  <th className="px-2 py-3">Utworzenie</th>
                 </tr>
               </thead>
               <tbody>
                 {dslVersions.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
-                      No DSL versions yet.
+                      Brak wersji DSL.
                     </td>
                   </tr>
                 ) : (
@@ -3793,7 +5094,7 @@ function App() {
                     <tr key={row.id} className="border-t border-stone-200/70">
                       <td className="px-2 py-4 text-stone-800">{row.version}</td>
                       <td className="px-2 py-4 text-stone-600">
-                        {row.is_active ? 'yes' : 'no'}
+                        {row.is_active ? 'tak' : 'nie'}
                       </td>
                       <td className="px-2 py-4 text-stone-600">{row.introduced_gaps ?? 0}</td>
                       <td className="px-2 py-4 text-stone-600">{row.implemented_gaps ?? 0}</td>
@@ -3812,28 +5113,36 @@ function App() {
       <section id="idea-gate-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Idea Gate</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Bramka pomysłu</h2>
             <p className="text-sm text-stone-600">
-              Losuj propozycje z repozytorium i sklasifikuj każdą z nich.
+              {singleVideoMode
+                ? 'Pobierz jedną propozycję i zdecyduj: akceptuj / później / kosz.'
+                : 'Pobierz propozycje z repozytorium i sklasyfikuj każdą.'}
             </p>
           </div>
           <div className="text-xs text-stone-500">
-            <div>Updated: {ideaUpdatedAt ? ideaUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            <div>Zaktualizowano: {ideaUpdatedAt ? ideaUpdatedAt.toLocaleTimeString() : 'brak danych'}</div>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
-          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Liczba propozycji
-            <input
-              className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
-              value={ideaSampleCount}
-              onChange={(event) => setIdeaSampleCount(event.target.value)}
-            />
-          </label>
+          {singleVideoMode ? (
+            <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-3 py-2 text-xs text-sky-800">
+              Tryb single-video: losowanie 1 propozycji.
+            </div>
+          ) : (
+            <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+              Liczba propozycji
+              <input
+                className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+                value={ideaSampleCount}
+                onChange={(event) => setIdeaSampleCount(event.target.value)}
+              />
+            </label>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button className="rounded-full" onClick={fetchIdeaCandidates} disabled={ideaLoading}>
-              Losuj propozycje
+              {singleVideoMode ? 'Pobierz 1 propozycję' : 'Pobierz propozycje'}
             </Button>
             <Button
               variant="ghost"
@@ -3847,7 +5156,7 @@ function App() {
               }}
               disabled={ideaLoading}
             >
-              Wyczyść
+              Resetuj
             </Button>
           </div>
         </div>
@@ -3886,7 +5195,7 @@ function App() {
             <div className="mt-2 text-xs text-rose-600">{manualPickError}</div>
           ) : null}
           <div className="mt-2 text-xs text-stone-500">
-            Lista obejmuje kandydatów o statusie new/later oraz capability = feasible.
+            Lista zawiera kandydatów ze statusem `new/later` i capability = `feasible`.
           </div>
         </div>
 
@@ -3905,16 +5214,16 @@ function App() {
           <div className="space-y-3">
             {ideaLoading ? (
               <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-                Loading ideas…
+                Ładowanie pomysłów…
               </div>
             ) : ideaError ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-                <div className="font-semibold">Failed to load</div>
+                <div className="font-semibold">Nie udało się wczytać</div>
                 <div>{ideaError}</div>
               </div>
             ) : ideaCandidates.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-                No ideas sampled yet. Click “Losuj propozycje”.
+                {singleVideoMode ? 'Nie pobranie jeszcze propozycji. Kliknij „Pobierz 1 propozycję”.' : 'Nie pobranie jeszcze pomysłów. Kliknij „Pobierz propozycje”.'}
               </div>
             ) : (
               ideaCandidates.map((idea) => {
@@ -3931,7 +5240,7 @@ function App() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="text-base font-semibold text-stone-900">
-                          {idea.title ?? 'Untitled'}
+                          {idea.title ?? 'Bez tytułu'}
                         </div>
                         <div className="mt-1 text-sm text-stone-600">
                           {idea.summary ?? '—'}
@@ -3947,7 +5256,7 @@ function App() {
                       </div>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                      <span>Source: {idea.generator_source ?? '—'}</span>
+                      <span>Źródło: {idea.generator_source ?? '—'}</span>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Button
@@ -3957,7 +5266,7 @@ function App() {
                           setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'picked' }))
                         }
                       >
-                        Do generowania
+                        Akceptuj
                       </Button>
                       <Button
                         variant={decision === 'later' ? 'default' : 'outline'}
@@ -3966,7 +5275,7 @@ function App() {
                           setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'later' }))
                         }
                       >
-                        Na później
+                        Później
                       </Button>
                       <Button
                         variant={decision === 'rejected' ? 'destructive' : 'outline'}
@@ -3975,7 +5284,7 @@ function App() {
                           setIdeaDecisions((prev) => ({ ...prev, [idea.id]: 'rejected' }))
                         }
                       >
-                        Odrzuć
+                        Kosz
                       </Button>
                     </div>
                   </div>
@@ -3987,8 +5296,8 @@ function App() {
           <div className="rounded-2xl border border-stone-200/70 bg-stone-50/60 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-stone-900">Idea detail</h3>
-                <p className="text-xs text-stone-500">Selection signal and narrative preview.</p>
+                <h3 className="text-lg font-semibold text-stone-900">Szczegóły pomysłu</h3>
+                <p className="text-xs text-stone-500">Sygnały selekcji i podgląd narracji.</p>
               </div>
               {selectedIdea?.similarity_status && (
                 <Badge variant="outline" className={cn('border', similarityTone(selectedIdea.similarity_status))}>
@@ -3999,30 +5308,30 @@ function App() {
 
             {!selectedIdea ? (
               <div className="mt-4 rounded-xl border border-dashed border-stone-200 bg-white/70 p-4 text-sm text-stone-500">
-                Select an idea candidate to preview details.
+                Wybierz kandydata, aby zobaczyć szczegóły.
               </div>
             ) : (
               <div className="mt-4 space-y-4 text-sm text-stone-700">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Title</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Tytuł</div>
                   <div className="mt-1 text-base font-semibold text-stone-900">
-                    {selectedIdea.title ?? 'Untitled'}
+                    {selectedIdea.title ?? 'Bez tytułu'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Summary</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Podsumowanie</div>
                   <div className="mt-1 text-sm text-stone-700">
                     {selectedIdea.summary ?? '—'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">What to expect</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Czego się spodziewać</div>
                   <div className="mt-1 text-sm text-stone-700">
                     {selectedIdea.what_to_expect ?? '—'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Preview</div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-stone-400">Podgląd</div>
                   <div className="mt-1 text-sm text-stone-700">
                     {selectedIdea.preview ?? '—'}
                   </div>
@@ -4035,7 +5344,7 @@ function App() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Decision at</span>
+                    <span>Decyzja</span>
                     <span className="font-semibold text-stone-800">
                       {formatDate(selectedIdea.decision_at)}
                     </span>
@@ -4048,15 +5357,16 @@ function App() {
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-stone-500">
-            Wymagana klasyfikacja wszystkich propozycji. Decyzje:{' '}
-            {Object.values(ideaDecisions).filter(Boolean).length}/{ideaCandidates.length}
+            {singleVideoMode
+              ? `Ustaw decyzję dla bieżącej propozycji: ${Object.values(ideaDecisions).filter(Boolean).length}/${ideaCandidates.length}`
+              : `Wszystkie propozycje muszą zostać sklasyfikowane. Decyzje: ${Object.values(ideaDecisions).filter(Boolean).length}/${ideaCandidates.length}`}
           </div>
           <Button
             className="rounded-full"
             onClick={submitIdeaDecisions}
             disabled={ideaDecisionLoading || ideaCandidates.length === 0}
           >
-            {ideaDecisionLoading ? 'Zapisywanie…' : 'Zatwierdź wybór i uruchom'}
+            {ideaDecisionLoading ? 'Zapisywanie…' : singleVideoMode ? 'Potwierdź decyzję' : 'Potwierdź wybór i uruchom'}
           </Button>
         </div>
       </section>
@@ -4064,9 +5374,12 @@ function App() {
       <section id="flow-animations-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Animations (Flow)</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Animacje (Przepływ)</h2>
             <p className="text-sm text-stone-600">
-              Skrócony podgląd dla procesu operatora. Pełna lista w zakładce Repositories.
+              Mini lista operatora: szybki podgląd najnowszych animacji do podjęcia decyzji.
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              Mini podgląd: {Math.min(animationData.length, FLOW_ANIMATION_PREVIEW_LIMIT)} / {animationData.length}. Pełna lista i szczegóły są w Repozytoriach.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -4074,19 +5387,50 @@ function App() {
               Odśwież listę
             </Button>
             <Button variant="outline" className="rounded-full" onClick={() => setActiveView('repositories')}>
-              Otwórz Repositories
+              Otwórz repozytoria
             </Button>
           </div>
+        </div>
+        <div className="mt-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-sm font-semibold text-stone-900">Polityka czyszczenia `later`</div>
+              <div className="text-xs text-stone-500">Usuwa kandydatów `later` starszych niż wybrany maksymalny wiek.</div>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex min-w-[120px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                Maksymalny wiek (dni)
+                <input
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
+                  value={laterCleanupMaxAgeDays}
+                  onChange={(event) => setLaterCleanupMaxAgeDays(event.target.value)}
+                />
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
+                <input
+                  type="checkbox"
+                  checked={laterCleanupDryRun}
+                  onChange={(event) => setLaterCleanupDryRun(event.target.checked)}
+                />
+                Próba na sucho
+              </label>
+              <Button className="rounded-full" onClick={handleCleanupLaterCandidates} disabled={laterCleanupLoading}>
+                {laterCleanupLoading ? 'Czyszczenie…' : 'Wyczyść `later`'}
+              </Button>
+            </div>
+          </div>
+          {laterCleanupMessage ? <div className="mt-2 text-xs text-emerald-700">{laterCleanupMessage}</div> : null}
+          {laterCleanupError ? <div className="mt-2 text-xs text-rose-700">{laterCleanupError}</div> : null}
         </div>
 
         <div className="mt-4 overflow-x-auto">
           {animationLoading ? (
             <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading animations…
+              Ładowanie animacji…
             </div>
           ) : animationError ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-              <div className="font-semibold">Failed to load</div>
+              <div className="font-semibold">Nie udało się wczytać</div>
               <div>{animationError}</div>
             </div>
           ) : (
@@ -4094,21 +5438,21 @@ function App() {
               <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                 <tr>
                   <th className="px-2 py-3">Status</th>
-                  <th className="px-2 py-3">Stage</th>
-                  <th className="px-2 py-3">Animation</th>
+                  <th className="px-2 py-3">Etap</th>
+                  <th className="px-2 py-3">Animacja</th>
                   <th className="px-2 py-3">Render</th>
-                  <th className="px-2 py-3">Updated</th>
+                  <th className="px-2 py-3">Aktualizacja</th>
                 </tr>
               </thead>
               <tbody>
                 {animationData.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
-                      No animations yet.
+                      Brak animacji.
                     </td>
                   </tr>
                 ) : (
-                  animationData.slice(0, 8).map((row) => (
+                  animationData.slice(0, FLOW_ANIMATION_PREVIEW_LIMIT).map((row) => (
                     <tr key={row.id} className="border-t border-stone-200/70">
                       <td className="px-2 py-4">
                         <Badge variant="outline" className={cn('border', chipTone(row.status))}>
@@ -4120,7 +5464,7 @@ function App() {
                           {row.pipeline_stage ?? '—'}
                         </Badge>
                       </td>
-                      <td className="px-2 py-4 font-mono text-xs text-stone-600">{row.id}</td>
+                      <td className="px-2 py-4 font-monie text-xs text-stone-600">{row.id}</td>
                       <td className="px-2 py-4 text-stone-600">{row.render?.status ?? '—'}</td>
                       <td className="px-2 py-4 text-stone-600">{formatDate(row.updated_at)}</td>
                     </tr>
@@ -4133,16 +5477,17 @@ function App() {
       </section>
 
       
+      {(!singleVideoMode || showAdvancedFlowPanels) ? (
       <section id="operations-panel" className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Operations</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Operacje</h2>
             <p className="text-sm text-stone-600">
-              Trigger pipeline actions (enqueue, rerun, cleanup) directly from the panel.
+              Uruchamiaj akcje pipeline (enqueue, rerun, cleanup) bezpośrednio z panelu.
             </p>
           </div>
           <Badge variant="outline" className="border border-amber-200 text-amber-800">
-            operator-only
+            tylko operator
           </Badge>
         </div>
 
@@ -4159,11 +5504,11 @@ function App() {
 
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
           <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <div className="text-sm font-semibold text-stone-900">Enqueue pipeline</div>
-            <div className="text-xs text-stone-500">Start a fresh pipeline run.</div>
+            <div className="text-sm font-semibold text-stone-900">Uruchom pipeline</div>
+            <div className="text-xs text-stone-500">Rozpocznij nowy przebieg pipeline.</div>
             <div className="mt-3 space-y-2 text-sm">
               <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                DSL template
+                Szablon DSL
                 <input
                   className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                   value={enqueueDsl}
@@ -4171,7 +5516,7 @@ function App() {
                 />
               </label>
               <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                Output root
+                Katalog wyjściowy
                 <input
                   className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                   value={enqueueOutRoot}
@@ -4179,17 +5524,17 @@ function App() {
                 />
               </label>
               <Button className="w-full rounded-full" onClick={handleEnqueue} disabled={opsEnqueueLoading}>
-                {opsEnqueueLoading ? 'Enqueuing…' : 'Enqueue'}
+                {opsEnqueueLoading ? 'Dodawanie do kolejki…' : 'Dodaj do kolejki'}
               </Button>
             </div>
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <div className="text-sm font-semibold text-stone-900">Rerun render</div>
-            <div className="text-xs text-stone-500">Requeue a render for a chosen animation.</div>
+            <div className="text-sm font-semibold text-stone-900">Uruchom render ponownie</div>
+            <div className="text-xs text-stone-500">Ponownie zakolejkuj render dla wybranej animacji.</div>
             <div className="mt-3 space-y-2 text-sm">
               <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                Animation ID
+                ID animacji
                 <input
                   className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                   placeholder="UUID"
@@ -4198,7 +5543,7 @@ function App() {
                 />
               </label>
               <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                Output root
+                Katalog wyjściowy
                 <input
                   className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                   value={rerunOutRoot}
@@ -4206,17 +5551,17 @@ function App() {
                 />
               </label>
               <Button className="w-full rounded-full" onClick={handleRerun} disabled={opsRerunLoading}>
-                {opsRerunLoading ? 'Requeuing…' : 'Rerun render'}
+                {opsRerunLoading ? 'Ponowne kolejkowanie…' : 'Uruchom render ponownie'}
               </Button>
             </div>
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-            <div className="text-sm font-semibold text-stone-900">Cleanup jobs</div>
-            <div className="text-xs text-stone-500">Mark stale running jobs as failed.</div>
+            <div className="text-sm font-semibold text-stone-900">Czyszczenie zadań</div>
+            <div className="text-xs text-stone-500">Oznacz przestarzałe zadania `running` jako `failed`.</div>
             <div className="mt-3 space-y-2 text-sm">
               <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.18em] text-stone-500">
-                Older than (min)
+                Starsze niż (min)
                 <input
                   className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                   value={cleanupOlderMin}
@@ -4224,12 +5569,13 @@ function App() {
                 />
               </label>
               <Button className="w-full rounded-full" onClick={handleCleanup} disabled={opsCleanupLoading}>
-                {opsCleanupLoading ? 'Cleaning…' : 'Cleanup jobs'}
+                {opsCleanupLoading ? 'Czyszczenie…' : 'Czyszczenie zadań'}
               </Button>
             </div>
           </div>
         </div>
       </section>
+      ) : null}
 
 </>
       ) : null}
@@ -4241,9 +5587,9 @@ function App() {
 <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Idea Candidates</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Kandydaci na pomysł</h2>
             <p className="text-sm text-stone-600">
-              Repozytorium kandydatow wraz ze statusem decyzji i capability.
+              Repozytorium kandydatów ze statusami decyzji i możliwości.
             </p>
           </div>
         </div>
@@ -4256,7 +5602,7 @@ function App() {
               value={candidateFilterStatus}
               onChange={(event) => setCandidateFilterStatus(event.target.value)}
             >
-              <option value="">All</option>
+              <option value="">Wszystkie</option>
               {CANDIDATE_STATUS_ORDER.map((status) => (
                 <option key={status} value={status}>
                   {status}
@@ -4265,13 +5611,13 @@ function App() {
             </select>
           </label>
           <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Capability
+            Możliwość
             <select
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
               value={candidateFilterCapability}
               onChange={(event) => setCandidateFilterCapability(event.target.value)}
             >
-              <option value="">All</option>
+              <option value="">Wszystkie</option>
               {CANDIDATE_CAPABILITY_ORDER.map((status) => (
                 <option key={status} value={status}>
                   {status}
@@ -4280,13 +5626,13 @@ function App() {
             </select>
           </label>
           <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Similarity
+            Podobieństwo
             <select
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
               value={candidateFilterSimilarity}
               onChange={(event) => setCandidateFilterSimilarity(event.target.value)}
             >
-              <option value="">All</option>
+              <option value="">Wszystkie</option>
               {['ok', 'too_similar', 'unknown'].map((status) => (
                 <option key={status} value={status}>
                   {status}
@@ -4304,7 +5650,7 @@ function App() {
           </label>
           <div className="flex flex-wrap gap-2">
             <Button className="rounded-full" onClick={fetchCandidateList} disabled={candidateListLoading}>
-              Apply filters
+              Zastosuj filtry
             </Button>
             <Button
               variant="ghost"
@@ -4317,7 +5663,7 @@ function App() {
               }}
               disabled={candidateListLoading}
             >
-              Reset
+              Resetuj
             </Button>
           </div>
         </div>
@@ -4325,11 +5671,11 @@ function App() {
         <div className="mt-4 overflow-x-auto">
           {candidateListLoading ? (
             <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading candidates…
+              Ładowanie kandydatów…
             </div>
           ) : candidateListError ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-              <div className="font-semibold">Failed to load</div>
+              <div className="font-semibold">Nie udało się wczytać</div>
               <div>{candidateListError}</div>
             </div>
           ) : (
@@ -4337,18 +5683,18 @@ function App() {
               <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                 <tr>
                   <th className="px-2 py-3">Status</th>
-                  <th className="px-2 py-3">Capability</th>
-                  <th className="px-2 py-3">Similarity</th>
-                  <th className="px-2 py-3">Title / Details</th>
-                  <th className="px-2 py-3">Created</th>
-                  <th className="px-2 py-3">Actions</th>
+                  <th className="px-2 py-3">Możliwość</th>
+                  <th className="px-2 py-3">Podobieństwo</th>
+                  <th className="px-2 py-3">Tytuł / Szczegóły</th>
+                  <th className="px-2 py-3">Utworzenie</th>
+                  <th className="px-2 py-3">Akcje</th>
                 </tr>
               </thead>
               <tbody>
                 {candidateList.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
-                      No candidates matched. Adjust filters or generate new ideas.
+                      Brak kandydatów dla filtrów. Zmień filtry lub wygeneruj nowe pomysły.
                     </td>
                   </tr>
                 ) : (
@@ -4369,9 +5715,9 @@ function App() {
                         <div className="font-medium text-stone-900">{row.title ?? '—'}</div>
                         <details className="mt-1 text-xs text-stone-600">
                           <summary className="cursor-pointer text-stone-500">Pokaż treść</summary>
-                          {row.summary ? <div className="mt-2">Summary: {row.summary}</div> : null}
-                          {row.what_to_expect ? <div className="mt-1">What to expect: {row.what_to_expect}</div> : null}
-                          {row.preview ? <div className="mt-1">Preview: {row.preview}</div> : null}
+                          {row.summary ? <div className="mt-2">Podsumowanie: {row.summary}</div> : null}
+                          {row.what_to_expect ? <div className="mt-1">Czego się spodziewać: {row.what_to_expect}</div> : null}
+                          {row.preview ? <div className="mt-1">Podgląd: {row.preview}</div> : null}
                         </details>
                       </td>
                       <td className="px-2 py-4 text-stone-600">{formatDate(row.created_at)}</td>
@@ -4383,7 +5729,7 @@ function App() {
                             onClick={() => handleResetCandidateCapability(row.id)}
                             disabled={candidateActionLoading[row.id]}
                           >
-                            Reset verify
+                            Resetuj weryfikację
                           </Button>
                           <Button
                             variant="outline"
@@ -4391,7 +5737,7 @@ function App() {
                             onClick={() => handleOverrideCandidateCapability(row.id, 'feasible', 'manual')}
                             disabled={candidateActionLoading[row.id]}
                           >
-                            Mark feasible
+                            Oznacz jako feasible
                           </Button>
                           <Button
                             variant="outline"
@@ -4399,7 +5745,7 @@ function App() {
                             onClick={() => handleOverrideCandidateCapability(row.id, 'blocked_by_gaps', 'manual')}
                             disabled={candidateActionLoading[row.id]}
                           >
-                            Mark blocked
+                            Oznacz jako blocked
                           </Button>
                           <Button
                             variant="outline"
@@ -4407,7 +5753,7 @@ function App() {
                             onClick={() => handleUndoCandidateDecision(row.id)}
                             disabled={candidateActionLoading[row.id] || row.status === 'new'}
                           >
-                            Undo decision
+                            Cofnij decyzję
                           </Button>
                           <Button
                             variant="destructive"
@@ -4415,7 +5761,7 @@ function App() {
                             onClick={() => handleDeleteCandidate(row.id)}
                             disabled={candidateActionLoading[row.id] || row.status === 'picked'}
                           >
-                            Delete
+                            Kosz (trwałe usunięcie)
                           </Button>
                         </div>
                       </td>
@@ -4431,13 +5777,16 @@ function App() {
 <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Animations</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Animacje</h2>
             <p className="text-sm text-stone-600">
-              Filter by status, stage, or idea ID to drill into the latest renders.
+              Pełna lista animacji: filtry, podgląd renderu, QC i historia publikacji.
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              Widok diagnostyczny. `Przepływ` pokazuje tylko mini listę.
             </p>
           </div>
           <div className="text-xs text-stone-500">
-            <div>Updated: {animationUpdatedAt ? animationUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            <div>Zaktualizowano: {animationUpdatedAt ? animationUpdatedAt.toLocaleTimeString() : 'brak danych'}</div>
           </div>
         </div>
 
@@ -4449,7 +5798,7 @@ function App() {
               value={animationStatus}
               onChange={(event) => setAnimationStatus(event.target.value)}
             >
-              <option value="">All</option>
+              <option value="">Wszystkie</option>
               {ANIMATION_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {status}
@@ -4458,13 +5807,13 @@ function App() {
             </select>
           </label>
           <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Stage
+            Etap
             <select
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
               value={pipelineStage}
               onChange={(event) => setPipelineStage(event.target.value)}
             >
-              <option value="">All</option>
+              <option value="">Wszystkie</option>
               {PIPELINE_STAGES.map((stage) => (
                 <option key={stage} value={stage}>
                   {stage}
@@ -4473,7 +5822,7 @@ function App() {
             </select>
           </label>
           <label className="flex min-w-[240px] flex-1 flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Idea ID
+            ID pomysłu
             <input
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
               placeholder="UUID"
@@ -4483,7 +5832,10 @@ function App() {
           </label>
           <div className="flex flex-wrap gap-2">
             <Button className="rounded-full" onClick={fetchAnimations} disabled={animationLoading}>
-              Apply filters
+              Odśwież
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={fetchAnimations} disabled={animationLoading}>
+              Zastosuj filtry
             </Button>
             <Button
               variant="ghost"
@@ -4496,7 +5848,7 @@ function App() {
               }}
               disabled={animationLoading}
             >
-              Reset
+              Resetuj
             </Button>
           </div>
         </div>
@@ -4505,11 +5857,11 @@ function App() {
           <div className="overflow-x-auto">
             {animationLoading ? (
               <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-                Loading animations…
+                Ładowanie animacji…
               </div>
             ) : animationError ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-                <div className="font-semibold">Failed to load</div>
+                <div className="font-semibold">Nie udało się wczytać</div>
                 <div>{animationError}</div>
               </div>
             ) : (
@@ -4517,18 +5869,18 @@ function App() {
                 <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                   <tr>
                     <th className="px-2 py-3">Status</th>
-                    <th className="px-2 py-3">Stage</th>
-                    <th className="px-2 py-3">Animation</th>
+                    <th className="px-2 py-3">Etap</th>
+                    <th className="px-2 py-3">Animacja</th>
                     <th className="px-2 py-3">Render</th>
                     <th className="px-2 py-3">QC</th>
-                    <th className="px-2 py-3">Updated</th>
+                    <th className="px-2 py-3">Aktualizacja</th>
                   </tr>
                 </thead>
                 <tbody>
                   {animationData.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-2 py-6 text-center text-stone-500">
-                        No animations matched. Adjust filters or run the pipeline.
+                        Brak animacji dla filtrów. Zmień filtry albo uruchom pipeline.
                       </td>
                     </tr>
                   ) : (
@@ -4551,7 +5903,7 @@ function App() {
                             {row.pipeline_stage ?? '—'}
                           </Badge>
                         </td>
-                        <td className="px-2 py-4 font-mono text-xs text-stone-600">{row.id}</td>
+                        <td className="px-2 py-4 font-monie text-xs text-stone-600">{row.id}</td>
                         <td className="px-2 py-4 text-stone-600">{row.render?.status ?? '—'}</td>
                         <td className="px-2 py-4 text-stone-600">{row.qc?.result ?? '—'}</td>
                         <td className="px-2 py-4 text-stone-600">{formatDate(row.updated_at)}</td>
@@ -4566,8 +5918,8 @@ function App() {
           <div className="rounded-2xl border border-stone-200/70 bg-stone-50/60 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-stone-900">Render preview</h3>
-                <p className="text-xs text-stone-500">Selected animation detail & QC status.</p>
+                <h3 className="text-lg font-semibold text-stone-900">Preview renderu</h3>
+                <p className="text-xs text-stone-500">Szczegóły wybranej animacji i status QC.</p>
               </div>
               {selectedAnimation?.status && (
                 <Badge variant="outline" className={cn('border', chipTone(selectedAnimation.status))}>
@@ -4578,7 +5930,7 @@ function App() {
 
             {!selectedAnimation ? (
               <div className="mt-4 rounded-xl border border-dashed border-stone-200 bg-white/70 p-4 text-sm text-stone-500">
-                Select an animation row to preview render details.
+                Wybierz wiersz animacji, aby zobaczyć szczegóły renderu.
               </div>
             ) : (
               <div className="mt-4 space-y-4">
@@ -4587,26 +5939,26 @@ function App() {
                     <video className="h-full w-full object-cover" controls src={previewUrl} />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-sm text-stone-300">
-                      No video artifact found.
+                      Nie znalezionie artefaktu wideo.
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-2 text-xs text-stone-600">
                   <div className="flex items-center justify-between">
-                    <span>Pipeline stage</span>
+                    <span>Etap pipeline</span>
                     <span className="font-semibold text-stone-800">
                       {selectedAnimation.pipeline_stage ?? '—'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>QC result</span>
+                    <span>Wynik QC</span>
                     <span className="font-semibold text-stone-800">
                       {selectedAnimation.qc?.result ?? '—'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Render status</span>
+                    <span>Status renderu</span>
                     <span className="font-semibold text-stone-800">
                       {selectedAnimation.render?.status ?? '—'}
                     </span>
@@ -4630,7 +5982,7 @@ function App() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Duration</span>
+                    <span>Czas</span>
                     <span className="font-semibold text-stone-800">
                       {selectedAnimation.render?.duration_ms ?? '—'} ms
                     </span>
@@ -4645,14 +5997,14 @@ function App() {
 
                 <div className="rounded-xl border border-stone-200 bg-white/80 p-3 text-xs text-stone-600">
                   <div className="mb-2 text-[0.65rem] uppercase tracking-[0.2em] text-stone-400">
-                    Artifacts
+                    Artefakty
                   </div>
                   {artifactsLoading ? (
-                    <div>Loading artifacts…</div>
+                    <div>Ładowanie artefaktów…</div>
                   ) : artifactsError ? (
                     <div className="text-rose-600">{artifactsError}</div>
                   ) : artifacts.length === 0 ? (
-                    <div>No artifacts available.</div>
+                    <div>Brak dostępnych artefaktów.</div>
                   ) : (
                     <ul className="space-y-1">
                       {artifacts.map((item) => (
@@ -4669,20 +6021,20 @@ function App() {
 
                 <div className="rounded-xl border border-stone-200 bg-white/80 p-3 text-xs text-stone-600">
                   <div className="mb-2 text-[0.65rem] uppercase tracking-[0.2em] text-stone-400">
-                    Publish history
+                    Historia publikacji
                   </div>
                   {publishRecordsLoading ? (
-                    <div>Loading publish records…</div>
+                    <div>Ładowanie rekordów publikacji…</div>
                   ) : publishRecordsError ? (
                     <div className="text-rose-600">{publishRecordsError}</div>
                   ) : publishRecords.length === 0 ? (
-                    <div>No publish records yet.</div>
+                    <div>Brak rekordów publikacji.</div>
                   ) : (
                     <ul className="space-y-2">
                       {publishRecords.map((item) => (
                         <li key={item.id} className="rounded-lg border border-stone-200 bg-stone-50/70 p-2">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-stone-700">{item.platform_type ?? 'unknown'}</span>
+                            <span className="font-semibold text-stone-700">{item.platform_type ?? 'nieznana'}</span>
                             <Badge
                               variant="outline"
                               className={cn(
@@ -4694,7 +6046,7 @@ function App() {
                                     : 'border-stone-200 bg-stone-100 text-stone-700',
                               )}
                             >
-                              {item.status ?? 'unknown'}
+                              {item.status ?? 'nieznany'}
                             </Badge>
                             <span className="text-[0.7rem] text-stone-500">
                               {item.created_at ? new Date(item.created_at).toLocaleString() : '—'}
@@ -4704,7 +6056,7 @@ function App() {
                           {item.url ? <div className="truncate text-[0.75rem]">url: {item.url}</div> : null}
                           {typeof item.error_payload === 'object' && item.error_payload && 'message' in item.error_payload ? (
                             <div className="text-[0.75rem] text-rose-700">
-                              error: {String((item.error_payload as { message?: unknown }).message ?? '')}
+                              błąd: {String((item.error_payload as { message?: unknown }).message ?? '')}
                             </div>
                           ) : null}
                         </li>
@@ -4727,11 +6079,11 @@ function App() {
                 <div className="grid gap-3">
                   <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-                      QC Action
+                      Akcja QC
                     </div>
                     <div className="mt-3 grid gap-2">
                       <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                        Result
+                        Wynik
                         <select
                           className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                           value={qcResultInput}
@@ -4745,15 +6097,41 @@ function App() {
                         </select>
                       </label>
                       <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                        Notes
+                        Notatki
                         <textarea
                           className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                           rows={3}
                           value={qcNotesInput}
                           onChange={(event) => setQcNotesInput(event.target.value)}
-                          placeholder="Opcjonalna notatka QC"
+                          placeholder="Opcjonalna nietatka QC"
                         />
                       </label>
+                      <div className="grid gap-2 rounded-xl border border-stone-200 bg-stone-50/70 p-3 text-xs text-stone-700">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={qcIdeaIntentOk}
+                            onChange={(event) => setQcIdeaIntentOk(event.target.checked)}
+                          />
+                          Idea intent OK
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={qcIntroReadabilityOk}
+                            onChange={(event) => setQcIntroReadabilityOk(event.target.checked)}
+                          />
+                          Intro readability OK
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={qcAudioQualityOk}
+                            onChange={(event) => setQcAudioQualityOk(event.target.checked)}
+                          />
+                          Audio quality OK
+                        </label>
+                      </div>
                       <Button
                         className="rounded-full"
                         onClick={handleQcDecision}
@@ -4766,12 +6144,50 @@ function App() {
 
                   <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">
-                      Publish Record (manual)
+                      Rekord publikacji (manualny)
+                    </div>
+                    <div className="mt-2 rounded-xl border border-stone-200 bg-stone-50/70 p-3 text-xs text-stone-600">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold uppercase tracking-[0.15em] text-stone-500">Preflight connectorów</div>
+                        <button
+                          type="button"
+                          className="rounded-full border border-stone-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-600 transition hover:border-stone-400 hover:text-stone-800"
+                          onClick={fetchPublishConnectorStatus}
+                        >
+                          Odśwież
+                        </button>
+                      </div>
+                      {publishConnectorStatusError ? (
+                        <div className="mt-2 text-rose-600">{publishConnectorStatusError}</div>
+                      ) : (
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                          {(['youtube', 'tiktok'] as const).map((platform) => {
+                            const connector = publishConnectorStatus?.connectors?.[platform]
+                            const ready = connector?.ready === true
+                            const mode = connector?.mode ?? 'nieznany'
+                            return (
+                              <div
+                                key={platform}
+                                className={cn(
+                                  'rounded-lg border px-3 py-2',
+                                  ready
+                                    ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
+                                    : 'border-amber-200 bg-amber-50/70 text-amber-800',
+                                )}
+                              >
+                                <div className="font-semibold">{platform}</div>
+                                <div>gotowy: {ready ? 'tak' : 'nie'}</div>
+                                <div>tryb: {mode}</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                     <div className="mt-3 grid gap-2">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                          Platform
+                        Platforma
                           <select
                             className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                             value={publishPlatformInput}
@@ -4808,12 +6224,12 @@ function App() {
                         </label>
                       </div>
                       <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                        Content ID
+                        ID treści
                         <input
                           className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                           value={publishContentIdInput}
                           onChange={(event) => setPublishContentIdInput(event.target.value)}
-                          placeholder="yt/tiktok content id"
+                          placeholder="yt/tiktok ID treści"
                         />
                       </label>
                       <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
@@ -4826,7 +6242,7 @@ function App() {
                         />
                       </label>
                       <label className="text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-                        Error (optional)
+                        Błąd (opcjonalnie)
                         <input
                           className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700"
                           value={publishErrorInput}
@@ -4840,7 +6256,7 @@ function App() {
                         onClick={handlePublishRecord}
                         disabled={publishActionLoading || !selectedAnimation.render?.id}
                       >
-                        {publishActionLoading ? 'Zapisywanie publish…' : 'Zapisz Publish Record'}
+                        {publishActionLoading ? 'Zapisywanie publikacji…' : 'Zapisz rekord publikacji'}
                       </Button>
                     </div>
                   </div>
@@ -4855,17 +6271,17 @@ function App() {
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Audit log</h2>
-            <p className="text-sm text-stone-600">Chronological stream of system actions with filters.</p>
+            <h2 className="text-2xl font-semibold text-stone-900">Log audytu</h2>
+            <p className="text-sm text-stone-600">Chronielogiczny strumień akcji systemu z filtrami.</p>
           </div>
           <div className="text-xs text-stone-500">
-            <div>Updated: {auditUpdatedAt ? auditUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
+            <div>Zaktualizowano: {auditUpdatedAt ? auditUpdatedAt.toLocaleTimeString() : 'brak danych'}</div>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Event type
+            Typ zdarzenia
             <input
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
               placeholder="qc_decision / publish_record"
@@ -4874,7 +6290,7 @@ function App() {
             />
           </label>
           <label className="flex min-w-[200px] flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Source
+            Źródło
             <input
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
               placeholder="pipeline / api"
@@ -4883,7 +6299,7 @@ function App() {
             />
           </label>
           <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-xs font-semibold uppercase tracking-[0.15em] text-stone-500">
-            Actor user ID
+            ID użytkownika (actor)
             <input
               className="rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 focus:border-stone-400 focus:outline-none"
               placeholder="UUID"
@@ -4893,7 +6309,7 @@ function App() {
           </label>
           <div className="flex flex-wrap gap-2">
             <Button className="rounded-full" onClick={fetchAuditEvents} disabled={auditLoading}>
-              Apply filters
+              Zastosuj filtry
             </Button>
             <Button
               variant="ghost"
@@ -4906,7 +6322,7 @@ function App() {
               }}
               disabled={auditLoading}
             >
-              Reset
+              Resetuj
             </Button>
           </div>
         </div>
@@ -4914,21 +6330,21 @@ function App() {
         <div className="mt-4 overflow-x-auto">
           {auditLoading ? (
             <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading audit events…
+              Ładowanie zdarzeń audytu…
             </div>
           ) : auditError ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-sm text-rose-700">
-              <div className="font-semibold">Failed to load</div>
+              <div className="font-semibold">Nie udało się wczytać</div>
               <div>{auditError}</div>
             </div>
           ) : (
             <table className="min-w-[780px] w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                 <tr>
-                  <th className="px-2 py-3">Type</th>
-                  <th className="px-2 py-3">Source</th>
-                  <th className="px-2 py-3">Actor</th>
-                  <th className="px-2 py-3">Occurred</th>
+                  <th className="px-2 py-3">Typ</th>
+                  <th className="px-2 py-3">Źródło</th>
+                  <th className="px-2 py-3">Aktor</th>
+                  <th className="px-2 py-3">Wystąpiło</th>
                   <th className="px-2 py-3">Payload</th>
                 </tr>
               </thead>
@@ -4936,7 +6352,7 @@ function App() {
                 {auditEvents.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-2 py-6 text-center text-stone-500">
-                      No audit events matched. Trigger actions to populate the log.
+                      Brak zdarzeń audytu dla filtrów. Wykonaj akcje, aby zapełnić log.
                     </td>
                   </tr>
                 ) : (
@@ -4944,7 +6360,7 @@ function App() {
                     <tr key={event.id} className="border-t border-stone-200/70">
                       <td className="px-2 py-4 text-stone-800">{event.event_type ?? '—'}</td>
                       <td className="px-2 py-4 text-stone-600">{event.source ?? '—'}</td>
-                      <td className="px-2 py-4 font-mono text-xs text-stone-600">
+                      <td className="px-2 py-4 font-monie text-xs text-stone-600">
                         {event.actor_user_id ?? '—'}
                       </td>
                       <td className="px-2 py-4 text-stone-600">{formatDate(event.occurred_at)}</td>
@@ -4969,29 +6385,29 @@ function App() {
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">LLM usage</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Użycie LLM</h2>
             <p className="text-sm text-stone-600">
               Tokeny i koszt per task/provider/model z mediatora LLM.
             </p>
           </div>
           <div className="text-xs text-stone-500">
-            <div>Updated: {llmMetricsUpdatedAt ? llmMetricsUpdatedAt.toLocaleTimeString() : 'waiting for data'}</div>
-            <div>State backend: {llmMetrics?.state_backend ?? '—'}</div>
+            <div>Zaktualizowano: {llmMetricsUpdatedAt ? llmMetricsUpdatedAt.toLocaleTimeString() : 'brak danych'}</div>
+            <div>Backend stanu: {llmMetrics?.state_backend ?? '—'}</div>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button variant="outline" className="rounded-full" onClick={fetchLLMMetrics} disabled={llmMetricsLoading}>
-            {llmMetricsLoading ? 'Refreshing…' : 'Refresh usage'}
+            {llmMetricsLoading ? 'Odświeżanie…' : 'Odśwież użycie'}
           </Button>
           {llmMetricsError ? <span className="text-xs text-rose-600">{llmMetricsError}</span> : null}
         </div>
 
         {tokenBudgetAlerts.length > 0 ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
-            <div className="font-semibold">Token budget warning</div>
+            <div className="font-semibold">Ostrzeżenie budżetu tokenów</div>
             <div className="mt-1 text-xs text-amber-700">
-              Usage is above {Math.round(TOKEN_BUDGET_ALERT_THRESHOLD * 100)}% of the configured limit.
+              Zużycie przekracza {Math.round(TOKEN_BUDGET_ALERT_THRESHOLD * 100)}% skonfigurowanego limitu.
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {tokenBudgetAlerts.map((alert) => (
@@ -5009,25 +6425,25 @@ function App() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Calls</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Wywołania</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">{llmTotals.calls}</div>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Total tokens</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Tokeny łącznie</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">{llmTotals.tokensTotal.toLocaleString()}</div>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Estimated cost</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Szacowany koszt</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">${llmTotals.costTotal.toFixed(4)}</div>
             </CardContent>
           </Card>
           <Card className="border border-stone-200 bg-stone-50/60 shadow-none">
             <CardContent className="pt-4">
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Daily budget</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Budżet dzienny</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">
                 ${(llmMetrics?.budget?.daily_budget_usd ?? 0).toFixed(2)}
               </div>
@@ -5038,29 +6454,29 @@ function App() {
         <div className="mt-4 overflow-x-auto">
           {llmMetricsLoading && llmRouteRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-              Loading usage metrics…
+              Ładowanie metryk użycia…
             </div>
           ) : (
             <table className="min-w-[960px] w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-[0.18em] text-stone-500">
                 <tr>
-                  <th className="px-2 py-3">Task</th>
-                  <th className="px-2 py-3">Provider</th>
+                  <th className="px-2 py-3">Zadanie</th>
+                  <th className="px-2 py-3">Dostawca</th>
                   <th className="px-2 py-3">Model</th>
-                  <th className="px-2 py-3">Calls</th>
-                  <th className="px-2 py-3">Success</th>
-                  <th className="px-2 py-3">Errors</th>
-                  <th className="px-2 py-3">Retries</th>
-                  <th className="px-2 py-3">Tokens</th>
-                  <th className="px-2 py-3">Avg latency</th>
-                  <th className="px-2 py-3">Cost</th>
+                  <th className="px-2 py-3">Wywołania</th>
+                  <th className="px-2 py-3">Sukces</th>
+                  <th className="px-2 py-3">Błędy</th>
+                  <th className="px-2 py-3">Retry</th>
+                  <th className="px-2 py-3">Tokeny</th>
+                  <th className="px-2 py-3">Śr. opóźnienie</th>
+                  <th className="px-2 py-3">Koszt</th>
                 </tr>
               </thead>
               <tbody>
                 {llmRouteRows.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="px-2 py-6 text-center text-stone-500">
-                      No LLM calls yet.
+                      Brak wywołań LLM.
                     </td>
                   </tr>
                 ) : (
@@ -5068,7 +6484,7 @@ function App() {
                     <tr key={row.routeKey} className="border-t border-stone-200/70">
                       <td className="px-2 py-4 text-stone-800">{row.taskType}</td>
                       <td className="px-2 py-4 text-stone-600">{row.provider}</td>
-                      <td className="px-2 py-4 font-mono text-xs text-stone-600">{row.model}</td>
+                      <td className="px-2 py-4 font-monie text-xs text-stone-600">{row.model}</td>
                       <td className="px-2 py-4 text-stone-700">{row.calls}</td>
                       <td className="px-2 py-4 text-stone-700">{row.success}</td>
                       <td className="px-2 py-4 text-stone-700">{row.errors}</td>
@@ -5088,19 +6504,19 @@ function App() {
       <section className="rounded-[28px] border border-stone-200/80 bg-white/90 p-6 shadow-2xl shadow-stone-900/10">
         <div className="flex flex-col gap-4 border-b border-stone-200/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-stone-900">Settings snapshot</h2>
+            <h2 className="text-2xl font-semibold text-stone-900">Snapshot ustawień</h2>
             <p className="text-sm text-stone-600">
-              Read-only view of environment flags and timeouts used by the pipeline.
+              Widok tylko do odczytu flag środowiskowych i timeoutów używanych przez pipeline.
             </p>
           </div>
           <Badge variant="outline" className="border border-stone-300 text-stone-600">
-            read-only
+            tylko odczyt
           </Badge>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button variant="outline" className="rounded-full" onClick={fetchSettings} disabled={settingsLoading}>
-            {settingsLoading ? 'Refreshing…' : 'Refresh settings'}
+            {settingsLoading ? 'Odświeżanie…' : 'Odśwież ustawienia'}
           </Button>
           {settingsError ? (
             <span className="text-xs text-rose-600">{settingsError}</span>
@@ -5109,23 +6525,23 @@ function App() {
 
         {settingsLoading ? (
           <div className="mt-4 rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-            Loading settings…
+            Ładowanie ustawień…
           </div>
         ) : settings ? (
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-              <div className="text-sm font-semibold text-stone-900">Core services</div>
-              <div className="text-xs text-stone-500">Live runtime configuration.</div>
+              <div className="text-sm font-semibold text-stone-900">Usługi bazowe</div>
+              <div className="text-xs text-stone-500">Bieżąca konfiguracja runtime.</div>
               <div className="mt-3 space-y-2 text-sm">
                 <SettingRow label="DATABASE_URL" value={settings.database_url} />
                 <SettingRow label="REDIS_URL" value={settings.redis_url} />
                 <SettingRow label="ARTIFACTS_BASE_DIR" value={settings.artifacts_base_dir} />
-                <SettingRow label="OPERATOR_GUARD" value={settings.operator_guard ? 'enabled' : 'disabled'} />
+                <SettingRow label="OPERATOR_GUARD" value={settings.operator_guard ? 'włączone' : 'wyłączone'} />
               </div>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-              <div className="text-sm font-semibold text-stone-900">Pipeline timeouts</div>
-              <div className="text-xs text-stone-500">Worker and render thresholds.</div>
+              <div className="text-sm font-semibold text-stone-900">Timeouty pipeline</div>
+              <div className="text-xs text-stone-500">Progi worker/render.</div>
               <div className="mt-3 space-y-2 text-sm">
                 <SettingRow label="RQ_JOB_TIMEOUT" value={settings.rq_job_timeout} />
                 <SettingRow label="RQ_RENDER_TIMEOUT" value={settings.rq_render_timeout} />
@@ -5133,19 +6549,23 @@ function App() {
               </div>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-              <div className="text-sm font-semibold text-stone-900">Idea Gate</div>
-              <div className="text-xs text-stone-500">Similarity and selection settings.</div>
+              <div className="text-sm font-semibold text-stone-900">Bramka pomysłu</div>
+              <div className="text-xs text-stone-500">Ustawienia podobieństwa i selekcji.</div>
               <div className="mt-3 space-y-2 text-sm">
                 <SettingRow label="IDEA_GATE_ENABLED" value={settings.idea_gate_enabled} />
                 <SettingRow label="IDEA_GATE_COUNT" value={settings.idea_gate_count} />
                 <SettingRow label="IDEA_GATE_THRESHOLD" value={settings.idea_gate_threshold} />
                 <SettingRow label="IDEA_GATE_AUTO" value={settings.idea_gate_auto} />
                 <SettingRow label="DEV_MANUAL_FLOW" value={settings.dev_manual_flow} />
+                <SettingRow label="OPERATOR_SINGLE_VIDEO_MODE" value={settings.operator_single_video_mode} />
+                <SettingRow label="OPERATOR_TARGET_RUNTIME_S" value={settings.operator_target_runtime_s} />
+                <SettingRow label="OPERATOR_INTRO_LANGUAGE" value={settings.operator_intro_language} />
+                <SettingRow label="OPERATOR_LATER_MAX_AGE_DAYS" value={settings.operator_later_max_age_days} />
               </div>
             </div>
             <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-              <div className="text-sm font-semibold text-stone-900">OpenAI generator</div>
-              <div className="text-xs text-stone-500">LLM provider runtime config.</div>
+              <div className="text-sm font-semibold text-stone-900">Generator OpenAI</div>
+              <div className="text-xs text-stone-500">Konfiguracja runtime providera LLM.</div>
               <div className="mt-3 space-y-2 text-sm">
                 <SettingRow label="OPENAI_MODEL" value={settings.openai_model} />
                 <SettingRow label="OPENAI_BASE_URL" value={settings.openai_base_url} />
@@ -5156,12 +6576,12 @@ function App() {
           </div>
         ) : (
           <div className="mt-4 rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 p-6 text-sm text-stone-600">
-            Settings are not available.
+            Ustawienia są niedostępne.
           </div>
         )}
 
         <p className="mt-4 text-xs text-stone-500">
-          Values are fetched from the backend runtime via <code>/settings</code>.
+          Wartości są pobierane z runtime backendu przez <code>/settings</code>.
         </p>
       </section>
       </>

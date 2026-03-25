@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "project": "shortlab",
+    "scope": "MCP publish/analytics trial",
+    "reviewed_by": "codex",
+    "reviewed_at": "2026-03-24",
+    "notes": "Initial technical compliance pass completed. ToS/legal approval and final scope confirmation still pending."
+  },
+  "servers": [
+    {
+      "name": "io.github.wmarceau/youtube-creator",
+      "decision": "pending",
+      "items": [
+        {
+          "id": "tos_allowed_usage",
+          "title": "Platform ToS allows planned automation scope",
+          "status": "pending",
+          "evidence": "https://developers.google.com/youtube/terms/api-services-terms-of-service; https://developers.google.com/youtube/terms/developer-policies",
+          "notes": "Requires explicit legal/compliance sign-off for planned automation scope."
+        },
+        {
+          "id": "oauth_token_storage",
+          "title": "Token storage and rotation policy defined",
+          "status": "passed",
+          "evidence": "docs/publish-token-policy.md",
+          "notes": "Policy defined; operational execution still requires secret owner."
+        },
+        {
+          "id": "least_privilege_scopes",
+          "title": "OAuth scopes are least-privilege for required operations",
+          "status": "passed",
+          "evidence": "docs/publish-oauth-scope-matrix.md; https://developers.google.com/youtube/v3/guides/uploading_a_video; https://developers.google.com/youtube/analytics/reference/reports/query",
+          "notes": "Scope matrix prepared for current publish/analytics flow; enforce only listed scopes in OAuth consent."
+        },
+        {
+          "id": "incident_fallback",
+          "title": "Manual fallback and rollback are documented and tested",
+          "status": "passed",
+          "evidence": "docs/publish-rollback-playbook.md; README.md (manual_confirmed flow)",
+          "notes": "Rollback path documented; execution can be triggered without API publish automation."
+        }
+      ]
+    },
+    {
+      "name": "io.github.wmarceau/tiktok-creator",
+      "decision": "pending",
+      "items": [
+        {
+          "id": "tos_allowed_usage",
+          "title": "Platform ToS allows planned automation scope",
+          "status": "pending",
+          "evidence": "https://www.tiktok.com/legal/page/global/tik-tok-developer-terms-of-service/en; https://developers.tiktok.com/doc/our-guidelines-developer-guidelines/",
+          "notes": "Requires explicit legal/compliance sign-off for planned automation scope."
+        },
+        {
+          "id": "oauth_token_storage",
+          "title": "Token storage and rotation policy defined",
+          "status": "passed",
+          "evidence": "docs/publish-token-policy.md",
+          "notes": "Policy defined; operational execution still requires secret owner."
+        },
+        {
+          "id": "least_privilege_scopes",
+          "title": "OAuth scopes are least-privilege for required operations",
+          "status": "passed",
+          "evidence": "docs/publish-oauth-scope-matrix.md; https://developers.tiktok.com/doc/content-posting-api-get-started/; https://developers.tiktok.com/doc/login-kit-manage-user-access-tokens",
+          "notes": "Scope matrix prepared for current publish flow; keep OAuth consent limited to `video.publish` (+`user.info.basic` only when needed)."
+        },
+        {
+          "id": "incident_fallback",
+          "title": "Manual fallback and rollback are documented and tested",
+          "status": "passed",
+          "evidence": "docs/publish-rollback-playbook.md; README.md (manual_confirmed flow)",
+          "notes": "Rollback path documented; execution can be triggered without API publish automation."
+        }
+      ]
+    }
+  ]
+}

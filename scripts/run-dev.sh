@@ -22,6 +22,9 @@ UI_PORT="${UI_PORT:-5173}"
 REDIS_URL="${REDIS_URL:-redis://localhost:6379/1}"
 VENV_DIR="${VENV_DIR:-.venv}"
 OPERATOR_TOKEN="${OPERATOR_TOKEN:-sekret}"
+RUN_DEV_HEALTHCHECK_RETRIES="${RUN_DEV_HEALTHCHECK_RETRIES:-30}"
+RUN_DEV_HEALTHCHECK_INTERVAL_S="${RUN_DEV_HEALTHCHECK_INTERVAL_S:-1}"
+RUN_DEV_HEALTHCHECK_URL="${RUN_DEV_HEALTHCHECK_URL:-http://localhost:${API_PORT}/health}"
 
 API_LOG="${TMPDIR:-/tmp}/shortlab-api.log"
 UI_LOG="${TMPDIR:-/tmp}/shortlab-ui.log"
@@ -31,6 +34,25 @@ start_bg() {
   local cmd="$1"
   local log="$2"
   nohup bash -lc "${cmd}" >"${log}" 2>&1 &
+}
+
+wait_for_healthcheck() {
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "Skipping healthcheck wait: curl not found."
+    return 0
+  fi
+  local attempt=1
+  while [ "${attempt}" -le "${RUN_DEV_HEALTHCHECK_RETRIES}" ]; do
+    if curl -fsS --max-time 2 "${RUN_DEV_HEALTHCHECK_URL}" >/dev/null 2>&1; then
+      echo "API healthcheck passed (${RUN_DEV_HEALTHCHECK_URL}) on attempt ${attempt}/${RUN_DEV_HEALTHCHECK_RETRIES}."
+      return 0
+    fi
+    sleep "${RUN_DEV_HEALTHCHECK_INTERVAL_S}"
+    attempt=$((attempt + 1))
+  done
+  echo "API healthcheck failed after ${RUN_DEV_HEALTHCHECK_RETRIES} retries: ${RUN_DEV_HEALTHCHECK_URL}"
+  echo "See API log: ${API_LOG}"
+  return 1
 }
 
 kill_port() {
@@ -110,3 +132,4 @@ printf "pid:%s\npid:%s\npid:%s\n" "${API_PID}" "${UI_PID}" "${WORKER_PID}" >"${P
 
 echo "Started API:${API_PORT} UI:${UI_PORT} worker (REDIS=${REDIS_URL})"
 echo "Logs: ${API_LOG}, ${UI_LOG}, ${WORKER_LOG}"
+wait_for_healthcheck

@@ -61,10 +61,17 @@ Dokument opisuje stack faktycznie używany w repozytorium oraz elementy planowan
 - **Discovery**:
   - katalog: `https://github.com/modelcontextprotocol/servers`
   - registry: `https://registry.modelcontextprotocol.io/`
-- **Kandydaci do ewaluacji**:
-  - community YouTube MCP (zarządzanie + analytics),
-  - Metricool MCP (cross-platform analytics),
-  - Supadata MCP (YouTube/TikTok enrichment).
+- **Zweryfikowani kandydaci (2026-03-24)**:
+  - `io.github.wmarceau/youtube-creator` (upload + analytics),
+  - `io.github.wmarceau/tiktok-creator` (publish + analytics),
+  - `io.github.kirbah/mcp-youtube` (YouTube data/search, read-centric),
+  - `io.github.jkawamoto/mcp-youtube-transcript` (transcripts, read-only).
+- **Formalny audyt**:
+  - `make mcp-publish-audit` uruchamia kontrolę registry/repo/license/utrzymania/env-contract i generuje raport do `out/reports`.
+- **Smoke OAuth**:
+  - `make publish-oauth-smoke` sprawdza gotowość/refresh tokenów YouTube/TikTok (offline/online) i generuje raport.
+- **Compliance gate**:
+  - `make mcp-compliance-check` waliduje checklistę (`docs/mcp-compliance-checklist.json`) i failuje w trybie strict bez pełnego `pass`.
 - **Warunek wdrożenia MCP**: audyt bezpieczeństwa, limity, fallback na oficjalne API.
 
 ## 8. QC, audit i wersjonowanie design systemu

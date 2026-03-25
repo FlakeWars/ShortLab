@@ -142,14 +142,40 @@ DoD:
 ### 7.3 MCP server discovery
 - Katalog referencyjny: https://github.com/modelcontextprotocol/servers
 - Registry: https://registry.modelcontextprotocol.io/
-- Kandydaci do ewaluacji (niezależna weryfikacja bezpieczeństwa wymagana):
-  - YouTube MCP (community variants)
-  - Metricool MCP (cross-platform analytics)
-  - Supadata (YouTube/TikTok data)
+- Zweryfikowane wpisy w Official MCP Registry (stan na 2026-03-24):
+  - `io.github.wmarceau/youtube-creator` (opis: upload Shorts/videos + analytics, pakiet `youtube-creator-mcp`)
+  - `io.github.wmarceau/tiktok-creator` (opis: post videos + analytics, pakiet `tiktok-creator-mcp`)
+  - `io.github.kirbah/mcp-youtube` (YouTube Data API read/search, token-optimized data)
+  - `io.github.jkawamoto/mcp-youtube-transcript` (transcripts, read-only)
+- Dodatkowo poza Registry: `fmd-labs/viral-app-mcp` (hostowany zdalnie, model kredytowy; read analytics TikTok, bez publish).
+
+Wniosek po przeglądzie:
+- Dostępne MCP-y są użyteczne dla research/insights, ale dla krytycznego flow publikacji wymagają dodatkowego audytu (w tym: source repo, licencja, utrzymanie, token handling, ToS platform).
 
 Decyzja architektoniczna:
 - Core publish/metrics zostaje na oficjalnych API platform.
 - MCP używamy jako warstwę wspierającą (insights/assist), nie jako jedyne źródło krytycznego publish flow.
+
+Plan wdrożeniowy MCP (bez łamania krytycznego flow):
+1. Etap `assist-only`:
+   - podłączyć 1 read-only MCP do benchmarków trendów i transcriptów (bez upload/publish),
+   - wyniki zapisywać jako pomocniczy kontekst QC/insights, bez wpływu na status publikacji.
+2. Etap `creator MCP trial`:
+   - uruchomić trial `youtube-creator`/`tiktok-creator` tylko w środowisku testowym,
+   - porównać skuteczność i stabilność z natywnymi endpointami API.
+3. Gate produkcyjny:
+   - wymagany pozytywny audyt bezpieczeństwa i compliance ToS,
+   - fallback `manual_confirmed` musi pozostać aktywny.
+
+Stan implementacji gate (2026-03-24):
+- `make mcp-publish-audit`:
+  - audyt registry/repo/license/utrzymania/env-contract,
+  - raport JSON/MD w `out/reports`.
+- `make publish-oauth-smoke`:
+  - smoke OAuth refresh (offline/online) dla YouTube/TikTok,
+  - policy gate (`OAUTH_SMOKE_REQUIRE`).
+- `make mcp-compliance-check`:
+  - formalna checklista compliance (`docs/mcp-compliance-checklist.json`) + walidator strict.
 
 ## 8) Porządkowanie i usuwanie "nietrafionych" elementów
 - Idea `trash` jest terminalna (domyślnie ukryta w UI, opcjonalny auto-delete po TTL).

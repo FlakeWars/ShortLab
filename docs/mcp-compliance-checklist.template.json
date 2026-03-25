@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "project": "shortlab",
+    "scope": "MCP publish/analytics trial",
+    "reviewed_by": "",
+    "reviewed_at": "",
+    "notes": ""
+  },
+  "servers": [
+    {
+      "name": "io.github.wmarceau/youtube-creator",
+      "decision": "pending",
+      "items": [
+        {
+          "id": "tos_allowed_usage",
+          "title": "Platform ToS allows planned automation scope",
+          "status": "pending",
+          "evidence": "",
+          "notes": ""
+        },
+        {
+          "id": "oauth_token_storage",
+          "title": "Token storage and rotation policy defined",
+          "status": "pending",
+          "evidence": "",
+          "notes": ""
+        },
+        {
+          "id": "least_privilege_scopes",
+          "title": "OAuth scopes are least-privilege for required operations",
+          "status": "pending",
+          "evidence": "",
+          "notes": ""
+        },
+        {
+          "id": "incident_fallback",
+          "title": "Manual fallback and rollback are documented and tested",
+          "status": "pending",
+          "evidence": "",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "name": "io.github.wmarceau/tiktok-creator",
+      "decision": "pending",
+      "items": [
+        {
+          "id": "tos_allowed_usage",
+          "title": "Platform ToS allows planned automation scope",
+          "status": "pending",
+          "evidence": "",
+          "notes": ""
+        },
+        {
+          "id": "oauth_token_storage",
+          "title": "Token storage and rotation policy defined",
+          "status": "pending",
+          "evidence": "",
+          "notes": ""
+        },
+        {
+          "id": "least_privilege_scopes",
+          "title": "OAuth scopes are least-privilege for required operations",
+          "status": "pending",
+          "evidence": "",
+          "notes": ""
+        },
+        {
+          "id": "incident_fallback",
+          "title": "Manual fallback and rollback are documented and tested",
+          "status": "pending",
+          "evidence": "",
+          "notes": ""
+        }
+      ]
+    }
+  ]
+}
