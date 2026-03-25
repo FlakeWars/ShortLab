@@ -1,6 +1,113 @@
 # TODO
 
 ## Now (W toku)
+- [ ] Operator-first v2: prosty flow 1 film co 1-2 dni (branch: feat/operator-flow-v2)
+  - [x] [P1] Runtime policy: domyślnie 60s + override per film, gdy scaling powoduje nienaturalny efekt (dokumentacja)
+  - [x] [P1] Intro policy: język domyślny EN (dokumentacja)
+  - [x] [P1] Idea lifecycle: `trash` = natychmiastowy hard-delete (dokumentacja + API)
+  - [x] [P1] Backend: `POST /idea-candidates/{id}/delete` wykonuje hard-delete zamiast soft-delete (`rejected`)
+  - [x] [P1] Testy: dodany regresyjny test API dla hard-delete idei
+  - [x] [P1] UI: tryb `single-video cadence` wymusza `1` propozycję dla generatora i sample w Idea Gate
+  - [x] [P1] UI: copy/operator actions pod flow `accept / later / trash`
+  - [x] Test/Smoke (2026-03-24): `pytest tests/test_api_manual_review_actions.py` (20/20), `npm run lint`, `npm run build` dla UI po zmianach operator-first
+  - [x] Krytyczna analiza (2026-03-24): uproszczenie `single-video` działa bez regresji build/test; domyślna nawigacja operatora prowadzi przez `Today -> Flow -> Insights`, ale zawartość `Flow` nadal wymaga odchudzenia
+  - [x] Ryzyko/uzupełnienie: odchudzić zawartość `Flow` do jednego aktywnego kroku i przenieść sekcje techniczne do `Repositories/Settings`
+  - [x] [P1] UI: w trybie single-video `Manual Flow` pokazuje jeden aktywny krok (pozostałe kroki blokowane do czasu sukcesu poprzednich)
+  - [x] Krytyczna analiza (2026-03-24): redukcja do jednego aktywnego kroku upraszcza obsługę operatora, ale warto dodać dedykowany ekran historii ukończonych kroków dla audytu sesji
+  - [x] [P1] UI: tryb `single-video cadence` jako domyślny (`Today -> Flow -> Insights`)
+  - [x] [P1] Backend/UI: ustawienia operatora odsłaniają `OPERATOR_TARGET_RUNTIME_S` i `OPERATOR_INTRO_LANGUAGE`
+  - [x] [P1] Estymacja: payload zawiera sygnały `intent_reached`, `intent_reached_at_s`, `target_runtime_s` jako podstawa pod etap `intent_check`
+  - [x] [P1] Pipeline: `intent_check` + raport `intent_reached_at_s` + skalowanie czasu do runtime publikacyjnego
+  - [x] [P1] Backend: dodany endpoint `POST /ops/godot/intent-check` (status `pass/blocked`, `recommended_sim_duration_s`, `recommended_speed_factor`, runtime override)
+  - [x] [P1] UI: Godot Manual Run rozszerzony o krok `Intent check` między `preview` a `final render`
+  - [x] [P1] Testy: regresja API dla `intent_check` (scenariusz pass i blocked) + rozszerzony kontrakt historii manual runs
+  - [x] Test/Smoke (2026-03-24): `OPENAI_API_KEY=dummy PYTHONPATH=. .venv/bin/pytest -q tests/test_api_manual_review_actions.py` (30/30), `npm --prefix frontend run lint`, `npm --prefix frontend run build`
+  - [x] Krytyczna analiza (2026-03-24): `intent_check` domyka formalny gate jakości idei przed finalnym renderem, ale nadal wymaga kalibracji progów `threshold/hold/tail` per typ animacji i odchudzenia widoku `Flow` do jednego aktywnego kroku
+  - [x] [P1] UI: dodano presety `intent_check` (`zbalansowany/szybki hook/wolne ujawnianie/pętla`) + akcję `Zastosuj preset` dla `threshold/hold/tail`
+  - [x] [P1] UI: poprawiono payload manual run (`max_nodes` zamiast błędnego `max_niedes`) oraz literówki operatorowe w `Flow/Repositories`
+  - [x] Test/Smoke (2026-03-24): frontend `npm --prefix frontend run lint` + `npm --prefix frontend run build` po dodaniu presetów `intent_check` i poprawce kontraktu payloadu
+  - [x] Krytyczna analiza (2026-03-24): presety zamykają podstawową kalibrację operatorową bez wchodzenia w ręczne strojenie przy każdym filmie, ale wymagają oceny na realnych publikacjach (retention/watch-time) zanim którykolwiek preset stanie się „domyślnym per typ contentu”.
+  - [ ] Ryzyko/uzupełnienie: zebrać min. 10 realnych publikacji per preset `intent_check` i porównać wpływ na `intent_reached_at_s` + retencję 14d przed finalnym zamrożeniem presetów
+  - [x] [P1] Postprodukcja: krok `intro overlay` (krótki tekst hook/rules)
+  - [x] [P1] Backend: dodany endpoint `POST /ops/overlay/intro` (FFmpeg drawtext, walidacja długości, domyślny język z `OPERATOR_INTRO_LANGUAGE`)
+  - [x] [P1] UI: Godot Manual Run rozszerzony o akcję `Intro overlay` po `final render`
+  - [x] Krytyczna analiza (2026-03-24): intro overlay jest już wykonywalny end-to-end (API+UI), ale wymaga kalibracji presetów typografii/pozycji oraz ewentualnej translacji tytułów idei do EN przy auto-tekście
+  - [x] [P1] Postprodukcja: krok `audio mix` (SFX + opcjonalna muzyka)
+  - [x] [P1] Backend: dodany endpoint `POST /ops/audio/mix` (miks source audio + opcjonalny music/sfx przez FFmpeg)
+  - [x] [P1] UI: Godot Manual Run rozszerzony o akcję `Audio mix` po `intro overlay`
+  - [x] Krytyczna analiza (2026-03-24): audio mix działa manual-first bez CLI, ale wymaga docelowej normalizacji głośności (LUFS) i biblioteki/tagowania SFX/music dla jakości powtarzalnej
+  - [x] [P1] QC: rozszerzyć checklistę o `idea intent`, `intro readability`, `audio quality`
+  - [x] [P1] Backend/UI: `QC accepted` wymaga pełnych flag jakości (`idea_intent_ok`, `intro_readability_ok`, `audio_quality_ok`)
+  - [x] Krytyczna analiza (2026-03-24): walidacja QC ogranicza publikację słabych materiałów, ale nadal potrzebne są automatyczne metryki jakości (np. readability/audio clipping), żeby ograniczyć subiektywność manualnego odhaczania
+  - [x] [P1] Audio mix: dodano automatyczny `loudnorm` (target LUFS + true peak) i clipping guard (`alimiter`) po miksie
+  - [x] Test/Smoke (2026-03-24): `OPENAI_API_KEY=dummy PYTHONPATH=. .venv/bin/pytest -q tests/test_api_manual_review_actions.py` -> `38/38` po rozszerzeniu kontraktu `audio_mix`; frontend `npm --prefix frontend run lint` + `npm --prefix frontend run build`
+  - [x] Krytyczna analiza (2026-03-24): domyślna normalizacja audio zmniejsza ryzyko publikacji z nierównym poziomem głośności i clippingiem, ale wymaga kalibracji presetów LUFS/TP per typ materiału (voice-heavy vs music-heavy).
+  - [x] [P1] Audio mix: dodano profile presetów (`balanced/speech/music/sfx_heavy`) w UI + przekazywanie `audio_profile` do API/audytu
+  - [x] Krytyczna analiza (2026-03-24): profile skracają obsługę operatora i zmniejszają ryzyko przypadkowych ustawień, ale wymagają walidacji na realnych uploadach pod YouTube/TikTok.
+  - [x] [P2] Metrics/Insights: dodano zbieranie `audio_profile` w `POST /ops/metrics-daily` + rollup `audio_profiles_14d` w `GET /insights/summary`
+  - [x] [P2] UI: ręczny import metryk rozszerzony o pole `Profil audio`, a panel Insights pokazuje porównanie profili audio (14d)
+  - [x] Test/Smoke (2026-03-24): `OPENAI_API_KEY=dummy PYTHONPATH=. .venv/bin/pytest -q tests/test_api_manual_review_actions.py` -> `39/39`; frontend `npm --prefix frontend run lint` + `npm --prefix frontend run build`
+  - [x] [P2] Metrics/Insights: dodano rollup `intro_translate_14d` (translated/fallback/disabled + fallback share) na bazie audit eventów `intro_overlay_generate`
+  - [x] [P2] UI: panel Insights pokazuje blok `Intro translate (14d)` z fallback rate względem prób tłumaczenia
+  - [x] Test/Smoke (2026-03-24): `OPENAI_API_KEY=dummy PYTHONPATH=. .venv/bin/pytest -q tests/test_api_manual_review_actions.py` -> `45/45`; frontend `npm --prefix frontend run lint` + `npm --prefix frontend run build`
+  - [x] Krytyczna analiza (2026-03-24): monitoring fallback rate dla intro tłumaczeń daje obiektywny sygnał do rewizji decyzji o fallbacku offline i zamienia wcześniejsze ryzyko jakościowe na mierzalny KPI operacyjny.
+  - [ ] Ryzyko/uzupełnienie: zebrać realne dane porównawcze retention/watch-time per `audio_profile` (14d) i na ich bazie ustalić domyślny preset per content type
+  - [x] [P1] Intro overlay: sanitizacja EN dla auto-tekstu (`/ops/overlay/intro`) + transliteracja PL znaków + mapowanie prefiksów `Zasada animacji`/`Co zobaczysz`
+  - [x] Test/Smoke (2026-03-24): `OPENAI_API_KEY=dummy PYTHONPATH=. .venv/bin/pytest -q tests/test_api_manual_review_actions.py` -> `38/38` po testach sanitizacji intro
+  - [x] Krytyczna analiza (2026-03-24): sanitizacja EN usuwa najczęstsze przypadki mieszanego języka i znaki problematyczne dla overlay, ale nie jest pełnym tłumaczem treści domenowej.
+  - [x] [P1] Intro overlay: dodano pełniejsze tłumaczenie EN dla `intro_text` (LLM task `intro_translate`) z fallbackiem do sanitizacji heurystycznej
+  - [x] Test/Smoke (2026-03-24): `OPENAI_API_KEY=dummy PYTHONPATH=. .venv/bin/pytest -q tests/test_api_manual_review_actions.py` -> `41/41`; frontend `npm --prefix frontend run lint` + `npm --prefix frontend run build`
+  - [x] Krytyczna analiza (2026-03-24): tłumaczenie LLM poprawia jakość EN overlay dla treści custom i tytułów PL, a fallback utrzymuje ciągłość działania bez blokowania produkcji.
+  - [x] Usprawnienie (2026-03-24): dodano domyślny profil routingu LLM dla `intro_translate` (`structured`) oraz dokumentację `INTRO_EN_TRANSLATE_ENABLED` w README
+  - [x] [P2] Intro overlay: doprecyzowano routing taska `intro_translate` (env `LLM_TASK_PROFILE_INTRO_TRANSLATE` + `LLM_ROUTE_INTRO_TRANSLATE_*`) i zaktualizowano `.env.example`/README
+  - [x] Krytyczna analiza (2026-03-24): jawny routing `intro_translate` pozwala stroić koszt/jakość niezależnie od pozostałych tasków LLM i ogranicza ryzyko przypadkowego driftu modelu po zmianach globalnego `OPENAI_MODEL`.
+  - [x] [P2] Intro overlay: decyzja architektoniczna v2 — brak dodatkowego offline translatora, fallback pozostaje `sanitize` (udokumentowano w `docs/intro-translate-fallback-decision.md`)
+  - [x] Krytyczna analiza (2026-03-24): decyzja „sanitize fallback only” utrzymuje prostotę i stabilność stacku bez nowych zależności, a jakość EN dla przypadków awaryjnych pozostaje akceptowalna dla krótkich overlayów.
+  - [ ] Ryzyko/uzupełnienie: monitorować udział fallbacku sanitizacyjnego `intro_translate` (cel <10% w oknie 14d) i wrócić do decyzji, jeśli jakość EN będzie raportowana jako niewystarczająca
+  - [x] [P2] Publish connectors: hardening YouTube/TikTok + fallback manual_confirmed
+  - [x] [P2] Backend: dodany endpoint `GET /publish/connectors/status` (ready/mode dla `youtube` i `tiktok`)
+  - [x] [P2] UI: panel `Connector preflight` w `Publish Record (manual)` + ręczny refresh statusu
+  - [x] Krytyczna analiza (2026-03-24): operator widzi gotowość integracji przed zapisem publikacji, ale nadal brakuje pełnego auto-upload flow i obsługi token lifecycle (rotacja/expiry/re-auth)
+  - [x] [P2] Publish hardening (walidacja): API odrzuca jawny mismatch URL<->platform (np. TikTok URL dla YouTube)
+  - [x] [P2] Metrics: dashboard 24h/72h/7d/14d + raport rekomendacji dla kolejnego filmu
+  - [x] [P2] Backend: dodany endpoint `GET /insights/summary` (okna 24h/72h/7d/14d, top content 14d, rekomendacja)
+  - [x] [P2] UI: sekcja `Insights summary` w widoku `Plan/Insights` + ręczny refresh
+  - [x] Krytyczna analiza (2026-03-24): dashboard daje szybki sygnał jakości i trendu, ale rekomendacja jest heurystyczna i wymaga dalszej kalibracji po realnych danych produkcyjnych
+  - [x] [P2] Cleanup: polityka kasowania `trash` i limit wieku `later`
+  - [x] [P2] Backend: dodany endpoint `POST /ops/idea-candidates/cleanup-later` (max_age_days + dry_run + audit)
+  - [x] [P2] UI: panel `Later cleanup policy` w `Repositories` (max age, dry-run, execute)
+  - [x] Krytyczna analiza (2026-03-24): cleanup `later` działa przewidywalnie i daje bezpieczny dry-run, ale warto dodać scheduler cykliczny oraz osobne raportowanie trendu „later backlog age”
+  - [x] Ryzyko/uzupełnienie: oceniono MCP serwery wspierające publish/analytics (Official MCP Registry + community); decyzja: core publish zostaje na oficjalnych API, MCP tylko assist-layer
+  - [x] [P2] Dodano formalny audit MCP: `scripts/mcp-publish-audit.py` + `make mcp-publish-audit` + raport `out/reports/mcp-publish-audit-*.{json,md}`
+  - [x] Test/Smoke (2026-03-24): `make mcp-publish-audit` generuje raport i decyzje trialowe; `MCP_AUDIT_FAIL_ON_RISK_LEVEL=medium make mcp-publish-audit` zwraca exit code `2` (gate działa)
+  - [x] Krytyczna analiza (2026-03-24): audyt MCP redukuje ryzyko „integracji na ślepo” i daje powtarzalny gate trialu, ale nadal nie pokrywa dynamicznych testów OAuth/token refresh na realnych kontach sandbox.
+  - [x] [P2] Dodano smoke test OAuth sandbox: `scripts/publish-oauth-smoke.py` + `make publish-oauth-smoke` + raport `out/reports/publish-oauth-smoke-*.{json,md}`
+  - [x] Test/Smoke (2026-03-24): `make publish-oauth-smoke` (offline, bez sekretów) generuje raport `skipped` dla providerów bez env i nie failuje w `passed_if_configured`
+  - [x] Krytyczna analiza (2026-03-24): smoke OAuth daje szybki sygnał gotowości tokenów, ale pełny audyt compliance nadal wymaga checklisty prawno-bezpieczeństwowej i potwierdzenia ToS dla docelowej automatyzacji publikacji.
+  - [x] [P2] Dodano formalny gate compliance: `scripts/mcp-compliance-check.py` + template/checklist + `make mcp-compliance-check`
+  - [x] Test/Smoke (2026-03-24): `make mcp-compliance-check` (strict) zwraca exit code `2` dla checklisty `pending`; `MCP_COMPLIANCE_REQUIRE=none` generuje raport bez failowania pipeline
+  - [x] [P2] Dodano zbiorczy gate readiness: `make publish-readiness-check` (MCP audit + compliance + OAuth smoke)
+  - [x] [P2] Dodano agregację stanu gate: `scripts/publish-readiness-summary.py` + `make publish-readiness-summary`
+  - [x] [P2] API: dodano `GET /publish/readiness-summary` (operator-only) do odczytu latest readiness summary z `out/reports`
+  - [x] [P2] UI: dodano kartę `Publish readiness gate` w `Plan / Calendar` (overall + komponenty + refresh)
+  - [x] [P2] API/UI: dodano `POST /ops/publish/readiness-refresh` + przycisk `Run gate checks` w `Plan / Calendar` (one-click refresh checków)
+  - [x] Test/Smoke (2026-03-24): `make publish-readiness-summary` generuje `overall_pass=false`; `PUBLISH_READINESS_REQUIRE_PASS=1` zwraca exit code `2` gdy gate nie jest domknięty
+  - [x] Test/Smoke (2026-03-24): `OPENAI_API_KEY=dummy PYTHONPATH=. .venv/bin/pytest -q tests/test_api_manual_review_actions.py` -> `35/35` po dodaniu testów readiness summary + readiness refresh
+  - [x] Test/Smoke (2026-03-24): frontend `npm --prefix frontend run lint` (8 warningów baseline) i `npm --prefix frontend run build` po dodaniu karty `Publish readiness gate`
+  - [x] Uzupełnienie (2026-03-24): checklista compliance ma wypełnione evidence dla `oauth_token_storage` i `incident_fallback` (4/8 itemów `passed`)
+  - [x] Uzupełnienie (2026-03-24): checklista compliance ma podpięte źródła ToS/policy i auth docs dla pozycji `pending` (YouTube/TikTok)
+  - [x] Uzupełnienie (2026-03-24): dodano matrycę scope OAuth least-privilege (`docs/publish-oauth-scope-matrix.md`) i podpięto evidence dla `least_privilege_scopes` w checklistach YouTube/TikTok
+  - [x] Uzupełnienie (2026-03-24): dodano szablon formalnego sign-off ToS/legal (`docs/publish-legal-signoff-template.md`) jako ścieżkę domknięcia pozycji `tos_allowed_usage`
+  - [x] Test/Smoke (2026-03-24): `make mcp-compliance-check MCP_COMPLIANCE_REQUIRE=none` -> `fail_medium`, ale postęp checklisty: `6/8 passed`, `2/8 pending` (pozostały tylko ToS/legal + decyzje serwerów)
+  - [x] Krytyczna analiza (2026-03-24): formalna matryca scope ogranicza ryzyko nadmiernych uprawnień OAuth i domyka część techniczną compliance; dalszy blocker ma charakter procesowo-prawny, nie implementacyjny.
+  - [x] Krytyczna analiza (2026-03-24): compliance gate wymusza ustrukturyzowane decyzje i evidence, ale nadal wymaga ręcznego uzupełnienia checklisty przez operatora/ownerów kont platformowych.
+  - [ ] Ryzyko/uzupełnienie: uzupełnić `docs/mcp-compliance-checklist.json` i uzyskać verdict `pass` przed trialem MCP
+  - [ ] Ryzyko/uzupełnienie: wykonać online smoke (`OAUTH_SMOKE_ONLINE=1`) na kontach sandbox i udokumentować wynik (bez sekretów) przed zgodą na trial auto-publish przez MCP
+  - [x] Test/Smoke (2026-03-25): `make test-operator-flow-e2e` przechodzi pełny flow operatorski `idea -> compile -> validate -> estimate -> preview -> render -> intro -> audio -> qc -> publish -> metrics -> insights`
+  - [x] Krytyczna analiza (2026-03-25): dodano fallback `intro overlay` bez `drawtext` (ImageMagick + ffmpeg overlay) oraz dedykowany skrypt E2E uruchamiany przez `Makefile`; flow jest powtarzalny krok-po-kroku i zatrzymuje się na pierwszym błędzie z czytelną diagnozą
+  - [ ] Ryzyko/uzupełnienie: `POST /ops/enqueue` z `idea_id` nadal bywa wrażliwy na walidację DSL przy części szablonów/kompilacji; wymaga osobnego hardeningu, bo w E2E DB bootstrap jest wykonywany obecnie bez `idea_id`
+
+## Next (Kolejne)
 - [ ] Godot Manual Run: automatyczna estymacja czasu symulacji (branch: feat/godot-estimate-duration)
   - [x] Dodać krok `estimate_duration` w API (`POST /ops/godot/estimate-duration`) oparty o scout-run i sygnał progresu efektu
   - [x] Rozszerzyć `scripts/godot-run.py` i `renderer/godot/runner.gd` o tryb `estimate` i telemetry hook (`effect_progress`)
@@ -11,25 +118,13 @@
   - [x] Test/Smoke (2026-03-24): pełny manual flow E2E po API (`idea_generate -> idea_gate(picked) -> compile_gdscript -> validate -> estimate_duration -> preview -> final_render`) przeszedł z artefaktami `preview.mp4` i `final.mp4`
   - [x] Krytyczna analiza (2026-03-24): krok `preview` był blokowany przez parse error w Godot 4.6 (`Warning treated as error`) na inferencji typu `Variant` w `renderer/godot/runner.gd`; naprawiono przez jawne typowanie (`var ...: Variant`)
   - [x] Dokumentacja (2026-03-24): opracowano plan operator-first `single-video cadence` i modułów `intent coverage + intro + audio + insights` w `.ai/operator-flow-v2.md`
-  - [ ] Ryzyko/uzupełnienie: dodać regresyjny smoke test (API/CLI) dla `preview/render`, który failuje przy ostrzeżeniach parsera Godot 4.6 (żeby wychwycić podobne regresje `runner.gd` wcześniej)
-  - [ ] Ryzyko/uzupełnienie: dodać gotowość/retry gate do skryptu E2E (`run-dev` cold start), bo pojedynczy health-check zaraz po starcie daje fałszywe negatywy
-  - [ ] Krytyczna analiza po smoke lokalnym: skalibrować domyślne `threshold/hold/tail` dla różnych typów animacji
-
-## Next (Kolejne)
-- [ ] Operator-first v2: prosty flow 1 film co 1-2 dni (branch: feat/operator-flow-v2)
-  - [ ] [P1] UI: tryb `single-video cadence` jako domyślny (`Today -> Flow -> Insights`)
-  - [ ] [P1] UI: generator 1 pomysłu + akcje `accept/later/trash` bez batchu
-  - [ ] [P1] Pipeline: `intent_check` + raport `intent_reached_at_s` + skalowanie czasu do runtime publikacyjnego
-  - [ ] [P1] Postprodukcja: krok `intro overlay` (krótki tekst hook/rules)
-  - [ ] [P1] Postprodukcja: krok `audio mix` (SFX + opcjonalna muzyka)
-  - [ ] [P1] QC: rozszerzyć checklistę o `idea intent`, `intro readability`, `audio quality`
-  - [ ] [P2] Publish connectors: hardening YouTube/TikTok + fallback manual_confirmed
-  - [ ] [P2] Metrics: dashboard 24h/72h/7d/14d + raport rekomendacji dla kolejnego filmu
-  - [ ] [P2] Cleanup: polityka kasowania `trash` i limit wieku `later`
-  - [ ] [P1] Runtime policy: domyślnie 60s + override per film, gdy scaling powoduje nienaturalny efekt
-  - [ ] [P1] Intro policy: język domyślny EN
-  - [ ] [P1] Idea lifecycle: `trash` = natychmiastowy hard-delete
-  - [ ] Ryzyko/uzupełnienie: ocenić i wybrać MCP serwer wspierający publish/analytics (po audycie bezpieczeństwa)
+  - [x] Usprawnienie (2026-03-24): dodano regresyjny smoke CLI `scripts/godot-smoke-preview-render.sh` + target `make godot-smoke-preview-render` (validate + preview + render + gate na parser warning)
+  - [x] Test/Smoke (2026-03-24): `make godot-smoke-preview-render` -> sukces, artefakty `out/manual-godot/smoke/{preview.mp4,final.mp4}`
+  - [x] Usprawnienie (2026-03-24): `scripts/run-dev.sh` ma retry gate dla healthcheck API (`RUN_DEV_HEALTHCHECK_URL`, `RUN_DEV_HEALTHCHECK_RETRIES`, `RUN_DEV_HEALTHCHECK_INTERVAL_S`)
+  - [x] Usprawnienie (2026-03-24): dodano rytuał `make run-dev-preflight` (`run-dev` + smoke `godot-smoke-preview-render`)
+  - [x] Test/Smoke (2026-03-24): walidacja składni `bash -n scripts/run-dev.sh` po dodaniu retry gate
+  - [x] Krytyczna analiza (2026-03-24): połączenie retry gate (`run-dev`) i smoke `preview/render` daje stabilniejszy sygnał gotowości toru Godot; `run-dev-preflight` domyka ten smoke jako codzienny preflight operatorski.
+  - [x] Krytyczna analiza po smoke lokalnym (2026-03-24): wdrożono presety `threshold/hold/tail` w GUI manual run jako bazową kalibrację per typ animacji (`fast_hook/gradual_reveal/loop_pattern`)
 - [ ] Godot pivot: pełny GDScript + kontrakt błędów (branch: chore/godot-gdscript-contract)
   - [x] [P1] Utworzyć minimalny runner (project.godot + main.tscn) pod skrypty LLM
  - [x] [P1] Zdefiniować ograniczoną pulę node/shape + Godot 4.x only (ban API 3.x)
@@ -59,7 +154,8 @@
     - [x] Usprawnienie (2026-02-24): dodano prostą rotację/przycinanie historii JSONL Etapu B po liczbie rekordów (`MANUAL_GODOT_HISTORY_MAX_LINES`)
     - [ ] Ryzyko/uzupełnienie: rozważyć migrację historii Etapu B do DB po ustabilizowaniu kontraktu pól (np. tabela `manual_run_record`)
     - [ ] Smoke UI lokalny (uzupełnienie): potwierdzić, że panel `Publish history` odświeża się po zapisie `Publish Record`
-    - [ ] Ryzyko/uzupełnienie: endpoint `/publish-records` może wymagać paginacji/filtrów po platformie/statusie przy większej skali
+    - [x] Usprawnienie (2026-03-24): endpoint `/publish-records` obsługuje filtry `platform_type/status`, a widok `Plan` korzysta z filtrowania serwerowego dla tych pól
+    - [x] Test/Smoke (2026-03-24): `OPENAI_API_KEY=dummy PYTHONPATH=. .venv/bin/pytest -q tests/test_api_manual_review_actions.py` -> `42/42` (test filtra publish records); frontend `npm --prefix frontend run lint` + `npm --prefix frontend run build`
     - [x] Test/Smoke (2026-02-23): potwierdzono `preview/final_render` z panelu UI poza sandboxem (lokalny macOS) — `validate`, `preview`, `render` zakończone sukcesem (`exit 0`)
     - [x] Usprawnienie (2026-02-23): ujednolicono autodetekcję lokalnej binarki Godot we wszystkich głównych skryptach/targetach korzystających z Godota
     - [x] Usprawnienie (2026-02-23): UX Etapu B — domyślne `out_path` dla `preview/render` trafia do `out/manual-godot/...`, a UI pokazuje czytelny błąd API zamiast `[object Object]`
@@ -123,12 +219,49 @@
   - [x] Przeprojektowanie z "długiej strony" na app-shell z nawigacją zakładkową (MVP)
   - [x] Wdrożenie kolejności: `Home/Control Tower` -> `Plan/Calendar` -> `Flow` -> `Repositories` -> `Settings`
   - [x] Dodać klarowne CTA-linki między widokami (bez ręcznego przełączania zakładki) — MVP
-  - [ ] UX review paneli (czytelność, hierarchia, skrócenie tekstów)
+  - [x] UX review paneli (czytelność, hierarchia, skrócenie tekstów) — etap v1 domknięty (2026-03-25)
+  - [x] UX: w `single-video` domyślnie ukryte panele zaawansowane (`Logi operacyjne`, `Operations`) z jednym przełącznikiem odsłaniania
   - [x] Utrwalać aktywną zakładkę w URL/query-param, żeby odświeżenie nie resetowało kontekstu
-  - [ ] Dodać mapę przyjaznych slugów + tytułów (np. `view=flow` -> "Flow operatora")
+  - [x] Dodać mapę przyjaznych slugów + tytułów (np. `view=flow` -> "Flow operatora")
   - [x] Flow board: karty etapów z licznikami + CTA do odpowiednich sekcji
   - [x] Flow tab zawiera mini‑listę Animations (bez skoku do Repositories)
-  - [ ] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
+  - [x] Wydzielić pełną listę animacji do Repositories i dopisać jasno w UI różnicę "mini vs full"
+  - [x] Test/Smoke (2026-03-24): frontend `npm --prefix frontend run lint` i `npm --prefix frontend run build` po zmianach slugów + copy mini/full
+  - [x] Krytyczna analiza (2026-03-24): przyjazne slugi (`today`/`insights`) i breadcrumb widoku poprawiają orientację operatora, jasny podział mini/full list animacji ogranicza błędne kliknięcia, a domyślne ukrycie paneli zaawansowanych odchudza ekran `Flow` dla codziennej pracy 1 film.
+  - [x] Korekta (2026-03-24): wycofano EN-only copy w UI zgodnie z decyzją produktową (aplikacja i pomysły po PL, tylko napisy/overlay filmu po EN)
+  - [x] Usprawnienie (2026-03-24): przywrócono PL copy w głównym app-shell oraz kluczowych sekcjach `Flow/Plan/Repositories`
+  - [x] Usprawnienie (2026-03-24): dokończono pełny przegląd `frontend/src/App.tsx` (PL UI copy + korekta kluczy kontraktu API planera: `local_day/published_today/pending_jobs_today`)
+  - [x] Test/Smoke (2026-03-24): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po finalnym przeglądzie copy i naprawie kontraktu planera
+  - [x] Krytyczna analiza (2026-03-24): masowe podmiany stringów mogą naruszyć tokeny techniczne (`unknown`, `none`, `notes`, `blocking_reason`), dlatego kolejne korekty copy powinny iść przez selektywne patche + obowiązkowy lint/build po każdej partii
+  - [x] Usprawnienie (2026-03-24): refaktor nazewnictwa/typo w `frontend/src/App.tsx` (spójne identyfikatory EN w kodzie, PL copy w UI; usunięte literówki w `Plan/Insights` i akcjach QC/Publish)
+  - [x] Test/Smoke (2026-03-24): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po refaktorze identyfikatorów i copy cleanup
+  - [x] Krytyczna analiza (2026-03-24): utrzymywanie ASCII-owych nazw technicznych w kodzie (`fetchAnimations`, `reviewAction*`, `normalize*`) ogranicza ryzyko przypadkowych regresji przy kolejnych zmianach tłumaczeń UI
+  - [x] Usprawnienie (2026-03-24): w `Manual Flow` dodano presety `intent_check` (`balanced/fast_hook/gradual_reveal/loop_pattern`) oraz przeniesiono `Profil audio` z sekcji intro do sekcji `Miks audio` (spójniejsza kolejność kroków)
+  - [x] Test/Smoke (2026-03-24): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po korekcie układu `Manual Flow`
+  - [x] Usprawnienie (2026-03-24): uproszczono etykiety kroków `Manual Flow` (PL, action-oriented) i komunikat błędu brakującej ścieżki skryptu
+  - [x] Test/Smoke (2026-03-24): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po korektach copy kroków `Manual Flow`
+  - [x] Usprawnienie (2026-03-24): panel `Insights` ma spójny polski copy (okna metryk i statystyki) oraz alert dla `intro fallback share > 10%`
+  - [x] Test/Smoke (2026-03-24): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po korektach copy i alercie fallback rate
+  - [x] Krytyczna analiza (2026-03-24): lokalny alert 10% przenosi ryzyko jakości tłumaczeń intro do codziennego monitoringu operatorskiego i skraca czas reakcji na degradację routingu/modelu.
+  - [x] Usprawnienie (2026-03-24): skrócono komunikaty potwierdzające akcje operatorskie (tick/metrics/enqueue/rerun/cleanup/QC/publish) przez `summarizePayload` zamiast pełnych dumpów JSON
+  - [x] Test/Smoke (2026-03-24): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po skróceniu komunikatów operatorskich
+  - [x] Krytyczna analiza (2026-03-24): krótsze komunikaty znacząco poprawiają czytelność codziennej pracy i ograniczają „szum”, ale debug full payload nadal powinien pozostać dostępny w audycie.
+  - [x] Usprawnienie (2026-03-25): manualny stepper używa etykiet operatorskich PL (`Kompilacja/Walidacja/...`) zamiast kluczy technicznych (`intent_check`, `success/fail`)
+  - [x] Test/Smoke (2026-03-25): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po mapowaniu etykiet steppera/manual statusów
+  - [x] Krytyczna analiza (2026-03-25): zastąpienie surowych nazw technicznych etykietami operatorskimi zmniejsza koszt poznawczy i ryzyko błędnej interpretacji kroku przez użytkownika nietechnicznego.
+  - [x] Usprawnienie (2026-03-25): w `Manual Flow` dodano domyślnie zwinięte `Parametry techniczne (opcjonalne)` z przełącznikiem `Pokaż/Ukryj`, żeby ekran startował od samych akcji kroków
+  - [x] Test/Smoke (2026-03-25): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po dodaniu zwijanego panelu parametrów technicznych
+  - [x] Krytyczna analiza (2026-03-25): domyślne ukrycie parametrów technicznych porządkuje hierarchię `Flow` pod codzienny use-case 1 filmu, a jednocześnie zachowuje pełną kontrolę dla operatora po rozwinięciu sekcji.
+  - [x] Usprawnienie (2026-03-25): poprawiono copy błędów/komunikatów operatorskich (mismatch backend/UI i komunikaty wyboru pomysłu) — bez literówek i mieszania EN/PL
+  - [x] Test/Smoke (2026-03-25): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po korektach copy komunikatów
+  - [x] Krytyczna analiza (2026-03-25): spójne, poprawne językowo komunikaty obniżają ryzyko błędnej interpretacji stanu aplikacji i skracają czas reakcji operatora.
+  - [x] Usprawnienie (2026-03-25): pole `Ścieżka GDScript` pozostaje zawsze widoczne przy zwiniętych parametrach technicznych (zwijany jest tylko tuning)
+  - [x] Test/Smoke (2026-03-25): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po wydzieleniu `Ścieżka GDScript` poza sekcję zwijaną
+  - [x] Krytyczna analiza (2026-03-25): stała widoczność ścieżki skryptu utrzymuje prostotę ekranu i jednocześnie nie blokuje ręcznych przebiegów operatora na gotowych skryptach.
+  - [x] Usprawnienie (2026-03-25): karty wyników manualnego steppera mają szybkie podsumowanie kroku (`n/8`, status i krótki wynik), bez konieczności czytania całego payloadu
+  - [x] Test/Smoke (2026-03-25): `npm --prefix frontend run lint` + `npm --prefix frontend run build` po dodaniu `manualStepQuickSummary`
+  - [x] Krytyczna analiza (2026-03-25): szybkie podsumowania kroków redukują czas skanowania postępu i poprawiają decyzje operatora przy iteracjach renderu.
+  - [x] Krytyczna analiza (2026-03-24): rozdzielenie konfiguracji intro i audio obniża obciążenie poznawcze operatora i zmniejsza ryzyko błędnej konfiguracji, ale pełny UX review paneli nadal wymaga skrócenia części opisów i uproszczenia etykiet technicznych.
 - [ ] Audit/Debug Log (branch: feat/ui-audit-log)
   - [ ] Centralny log zdarzeń w UI (akcje operatora + system events)
   - [ ] Logi wywołań LLM (provider/model/latency/status, bez pełnych promptów w UI)
@@ -160,27 +293,32 @@
   - [ ] Rozszerzony opis propozycji (what_to_expect/preview)
   - [ ] Akcja wyboru propozycji zapisywana w DB
 - [ ] UI: auto‑refresh i ergonomia (branch: feat/ui-refresh)
-  - [ ] Automatyczne odświeżanie listy animacji/jobów (polling)
-  - [ ] Wyraźny przycisk „Odśwież” obok filtrów
+  - [x] Automatyczne odświeżanie listy animacji/jobów (polling)
+  - [x] Wyraźny przycisk „Odśwież” obok filtrów
+  - [x] Test/Smoke (2026-03-24): frontend `lint/build` po dodaniu polling (`ANIMATION_POLL_MS=20s`) i przycisku `Odśwież` przy filtrach animacji
 - [ ] UI: panel stanu systemu jako pierwszy ekran (branch: feat/ui-system-status)
   - [x] Sekcja health serwisów (API, worker, Redis, Postgres, storage) z lampkami green/red
   - [x] Sekcja liczników repozytoriów (idee, dsl_gap, animacje, rendery, artefakty; docelowo SFX/music)
   - [x] Rozbicie liczników per status (np. idee: unverified/ready_for_gate/blocked)
-  - [ ] Linki CTA z panelu statusu do widoków szczegółowych repozytoriów
-  - [ ] Definicja SLO panelu (czas odświeżania, timeouty, fallback przy częściowej niedostępności)
+  - [x] Linki CTA z panelu statusu do widoków szczegółowych repozytoriów
+  - [x] Definicja SLO panelu (czas odświeżania, timeouty, fallback przy częściowej niedostępności)
   - [x] UX: panel statusu jako domyślny pierwszy panel po wejściu do UI
-  - [ ] Lepsza obsługa niezgodności wersji API/UI (gdy działa stary backend bez `/system/status`, pokazać czytelny komunikat i hint restartu)
+  - [x] Lepsza obsługa niezgodności wersji API/UI (gdy działa stary backend bez `/system/status`, pokazać czytelny komunikat i hint restartu)
   - [x] Opisy IDEA_CANDIDATES vs IDEAS + kolejność zgodna z flow
+  - [x] Test/Smoke (2026-03-24): frontend `lint/build` po dodaniu CTA z panelu statusu do `Flow/Repositories`
+  - [x] Test/Smoke (2026-03-24): status panel ma timeout/fallback/stale hint; przy braku `/system/status` pokazuje komunikat o mismatch i sugeruje restart `make run-dev`
 - [ ] API: agregaty dla panelu stanu systemu (branch: feat/api-system-status)
   - [x] Endpoint zbiorczy health + repo counters (jedno źródło dla UI status)
   - [x] Standaryzacja kontraktu: `service_status[]`, `repo_counts`, `updated_at`, `partial_failures[]`
   - [x] Liczniki dla repozytoriów istniejących + placeholdery dla przyszłych (SFX/music)
 - [ ] UI: ograniczyć warningi hooków (`react-hooks/exhaustive-deps`) w `frontend/src/App.tsx` (branch: fix/ui-hook-warnings)
-  - [ ] Ustabilizować funkcje fetch przez `useCallback` albo celowy disable z uzasadnieniem
-  - [ ] Lint bez narastających warningów
+  - [x] Ustabilizować funkcje fetch przez `useCallback` albo celowy disable z uzasadnieniem
+  - [x] Lint bez narastających warningów
+  - [x] Test/Smoke (2026-03-24): `npm --prefix frontend run lint` przechodzi bez warningów po domknięciu `react-hooks/exhaustive-deps`
 - [ ] Ryzyko: zbyt ciężkie zapytania liczników (branch: fix/status-counters-performance)
-  - [ ] Dodać limity/cache (krótki TTL) dla endpointu agregatów
-  - [ ] Monitoring czasu odpowiedzi endpointu statusowego
+  - [x] Dodać limity/cache (krótki TTL) dla endpointu agregatów
+  - [x] Monitoring czasu odpowiedzi endpointu statusowego
+  - [x] Test/Smoke (2026-03-24): backend `pytest` (`36/36`) po dodaniu `SYSTEM_STATUS_CACHE_TTL_S` + `response_time_ms` w `/system/status`
 - [ ] UX IA v2: Control Tower / Plan / Flow (branch: feat/ui-ia-v2)
   - [ ] `Home / Control Tower`: health + KPI + "co teraz" + alerty z CTA
   - [ ] `Plan / Calendar`: tydzień publikacji, backlog gotowych animacji, statusy `planned/ready/blocked/published`
@@ -188,9 +326,10 @@
   - [x] Usprawnienie (2026-02-24): `Plan / Calendar` ma konfigurowalny harmonogram dzienny (timezone/godzina/okno/target) + licznik realizacji celu 1/dzień na podstawie `publish_record`
   - [x] Usprawnienie (2026-02-24): `Plan / Calendar` umożliwia ręczny import metryk platform do `metrics_daily` (manual-first) i odświeża snapshot metryk po zapisie
   - [x] Usprawnienie (2026-02-24): `Plan / Calendar` ma scheduler MVP (`planner/status` + `planner/tick`) z ręcznym triggerem z GUI i oceną gotowości wg okna publikacji/targetu dziennego
-  - [ ] Ryzyko/uzupełnienie: dodać filtry w UI Plan (platforma/status/zakres dat), bo przy większej historii lista stanie się zbyt długa
+  - [x] Ryzyko/uzupełnienie: dodano filtry w UI Plan (platforma/status/zakres dat), żeby ograniczyć przeładowanie listy publikacji
   - [x] Usprawnienie (2026-02-24): dodano prostą konfigurację harmonogramu dziennego (MVP: settings + UI), co spełnia bazowe wymaganie PRD 1 animacja dziennie na poziomie planowania i monitoringu
-  - [ ] Ryzyko/uzupełnienie: DST i walidacja stref czasowych w UI (obecnie backend waliduje, UI przyjmuje dowolny string)
+  - [x] Ryzyko/uzupełnienie: dodano walidację stref czasowych (IANA) w UI planera + blokadę zapisu dla niepoprawnego timezone
+  - [x] Test/Smoke (2026-03-24): frontend `lint/build` po walidacji timezone przechodzi; UI pokazuje błąd inline dla niepoprawnej strefy
   - [x] Usprawnienie (2026-02-24): dodano manual-first scheduler tick używający ustawień planera (na razie bez cyklicznego joba/cron)
   - [ ] Smoke UI lokalny (uzupełnienie): ręczny import metryk z `Plan / Calendar` + potwierdzenie aktualizacji snapshotu
   - [ ] Ryzyko/uzupełnienie: dodać walidację jednostek/formatu w UI (np. `avg_view_percentage` z przecinkiem vs kropką)

@@ -80,6 +80,20 @@ GODOT_PREVIEW_SECONDS ?= 2
 GODOT_PREVIEW_FPS ?= 12
 GODOT_PREVIEW_SCALE ?= 0.5
 GODOT_PREVIEW_OUT ?= out/godot/preview.mp4
+MCP_AUDIT_SERVERS ?= io.github.wmarceau/youtube-creator,io.github.wmarceau/tiktok-creator
+MCP_AUDIT_OUT_DIR ?= out/reports
+MCP_AUDIT_FAIL_ON_RISK_LEVEL ?= none
+OAUTH_SMOKE_OUT_DIR ?= out/reports
+OAUTH_SMOKE_TIMEOUT_S ?= 20
+OAUTH_SMOKE_ONLINE ?= 0
+OAUTH_SMOKE_REQUIRE ?= none
+MCP_COMPLIANCE_CHECKLIST ?= docs/mcp-compliance-checklist.json
+MCP_COMPLIANCE_TEMPLATE ?= docs/mcp-compliance-checklist.template.json
+MCP_COMPLIANCE_OUT_DIR ?= out/reports
+MCP_COMPLIANCE_REQUIRE ?= strict
+PUBLISH_READINESS_REPORTS_DIR ?= out/reports
+PUBLISH_READINESS_MAX_ALLOWED_RISK ?= medium
+PUBLISH_READINESS_REQUIRE_PASS ?= 0
 
 
 # Optional paths (adjust when code exists)
@@ -211,6 +225,11 @@ godot-render: ## Render final video via Godot Movie Maker
 godot-verify-cli: ## Verify Godot CLI flags (headless + write-movie)
 	@GODOT_BIN="$(GODOT_BIN)" GODOT_SECONDS="$(GODOT_SECONDS)" GODOT_FPS="$(GODOT_FPS)" \
 		GODOT_MAX_NODES="$(GODOT_MAX_NODES)" ./scripts/godot-verify-cli.sh "$(GODOT_SCRIPT)"
+
+.PHONY: godot-smoke-preview-render
+godot-smoke-preview-render: ## CLI smoke: validate + preview + render with warning gate
+	@chmod +x ./scripts/godot-smoke-preview-render.sh
+	@GODOT_BIN="$(GODOT_BIN)" VENV_DIR="$(VENV_DIR)" ./scripts/godot-smoke-preview-render.sh "$(GODOT_SCRIPT)"
 
 .PHONY: scheduler
 scheduler: ## Run scheduler (placeholder)
@@ -352,6 +371,42 @@ publish: ## Publish to platforms (placeholder)
 metrics: ## Pull platform metrics (placeholder)
 	@echo "Pull metrics" 
 
+.PHONY: mcp-publish-audit
+mcp-publish-audit: ## Audit MCP publish/analytics servers (registry + repo metadata)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/mcp-publish-audit.py \
+		--servers "$(MCP_AUDIT_SERVERS)" \
+		--out-dir "$(MCP_AUDIT_OUT_DIR)" \
+		--fail-on-risk-level "$(MCP_AUDIT_FAIL_ON_RISK_LEVEL)"
+
+.PHONY: publish-oauth-smoke
+publish-oauth-smoke: ## Smoke test OAuth refresh for YouTube/TikTok (sandbox)
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/publish-oauth-smoke.py \
+		--out-dir "$(OAUTH_SMOKE_OUT_DIR)" \
+		--timeout-s "$(OAUTH_SMOKE_TIMEOUT_S)" \
+		$(if $(filter 1,$(OAUTH_SMOKE_ONLINE)),--online,) \
+		--require "$(OAUTH_SMOKE_REQUIRE)"
+
+.PHONY: mcp-compliance-check
+mcp-compliance-check: ## Validate MCP compliance checklist and generate audit report
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/mcp-compliance-check.py \
+		--checklist "$(MCP_COMPLIANCE_CHECKLIST)" \
+		--template "$(MCP_COMPLIANCE_TEMPLATE)" \
+		--out-dir "$(MCP_COMPLIANCE_OUT_DIR)" \
+		--require "$(MCP_COMPLIANCE_REQUIRE)"
+
+.PHONY: publish-readiness-check
+publish-readiness-check: ## Run MCP audit + compliance gate + OAuth smoke in one flow
+	@$(MAKE) mcp-publish-audit MCP_AUDIT_FAIL_ON_RISK_LEVEL="$${MCP_AUDIT_FAIL_ON_RISK_LEVEL:-high}"
+	@$(MAKE) mcp-compliance-check MCP_COMPLIANCE_REQUIRE="$${MCP_COMPLIANCE_REQUIRE:-strict}"
+	@$(MAKE) publish-oauth-smoke OAUTH_SMOKE_ONLINE="$${OAUTH_SMOKE_ONLINE:-0}" OAUTH_SMOKE_REQUIRE="$${OAUTH_SMOKE_REQUIRE:-passed_if_configured}"
+
+.PHONY: publish-readiness-summary
+publish-readiness-summary: ## Build aggregated readiness summary from latest report artifacts
+	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/publish-readiness-summary.py \
+		--reports-dir "$(PUBLISH_READINESS_REPORTS_DIR)" \
+		--max-allowed-risk "$(PUBLISH_READINESS_MAX_ALLOWED_RISK)" \
+		$(if $(filter 1,$(PUBLISH_READINESS_REQUIRE_PASS)),--require-pass,)
+
 .PHONY: llm-mediator-retention
 llm-mediator-retention: ## Prune persisted LLM mediator metrics/budget rows
 	@PYTHONPATH="$(PWD)" $(VENV_BIN)/python scripts/llm-mediator-retention.py \
@@ -446,6 +501,11 @@ ui: ## Run review panel (placeholder)
 run-dev: ## Run API + UI + worker with shared dev settings
 	@API_PORT=8016 UI_PORT=5173 REDIS_URL=redis://localhost:6379/1 ./scripts/run-dev.sh
 
+.PHONY: run-dev-preflight
+run-dev-preflight: ## Start dev stack and run Godot smoke preflight
+	@$(MAKE) run-dev
+	@$(MAKE) godot-smoke-preview-render
+
 .PHONY: stop-dev
 stop-dev: ## Stop processes started by run-dev
 	@./scripts/stop-dev.sh
@@ -469,6 +529,11 @@ test-llm-mediator-db: ## Run mediator persistence tests with required Postgres i
 test-idea-compiler-pipeline-e2e: ## Run Idea->DSL compiler pipeline E2E test on canonical DB schema
 	@chmod +x ./scripts/test-idea-compiler-pipeline-e2e.sh
 	@./scripts/test-idea-compiler-pipeline-e2e.sh
+
+.PHONY: test-operator-flow-e2e
+test-operator-flow-e2e: ## Run full operator flow E2E (idea -> render -> intro -> audio -> qc -> publish -> metrics)
+	@chmod +x ./scripts/e2e-operator-flow.sh
+	@./scripts/e2e-operator-flow.sh
 
 .PHONY: test-render
 

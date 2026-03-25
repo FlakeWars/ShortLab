@@ -139,6 +139,7 @@ DEFAULT_TASK_PROFILES: dict[str, str] = {
     "dsl_repair": "structured",
     "gdscript_generate": "structured",
     "gdscript_repair": "structured",
+    "intro_translate": "structured",
 }
 
 ITERATIVE_IDEA_GDSCRIPT_TASKS = {"idea_generate", "gdscript_generate", "gdscript_repair"}
@@ -688,9 +689,9 @@ class LLMMediator:
     def _coerce_json_like(self, content: str) -> str:
         # Best-effort fix for JSON-like responses (single quotes, trailing commas).
         text = content.strip()
-        text = re.sub(r"(?<=\\{|,|\\s)'([^']+?)'\\s*:", r'\"\\1\":', text)
-        text = re.sub(r":\\s*'([^']*?)'", lambda m: ': "' + m.group(1) + '"', text)
-        text = re.sub(r",\\s*([}\\]])", r"\\1", text)
+        text = re.sub(r"(?<=[{,\s])'([^']+?)'\s*:", r'"\1":', text)
+        text = re.sub(r":\s*'([^']*?)'", lambda m: ': "' + m.group(1) + '"', text)
+        text = re.sub(r",\s*([}\]])", r"\1", text)
         return text
 
     def _repair_json_response(

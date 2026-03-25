@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 import hashlib
 import json
 import re
+import tempfile
+import time
+import unicodedata
 from os import getenv
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from typing import List, Optional, Literal
@@ -58,6 +64,9 @@ from llm.mediator import _load_route, _load_routes
 
 app = FastAPI(title="ShortLab API", version="0.1.0")
 
+_SYSTEM_STATUS_CACHE_PAYLOAD: dict | None = None
+_SYSTEM_STATUS_CACHE_EXPIRES_AT: float = 0.0
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -105,6 +114,75 @@ def _planner_settings_file() -> Path:
     return (Path(getenv("PLANNER_SETTINGS_FILE", "out/planner/settings.json")).expanduser().resolve())
 
 
+def _publish_readiness_summary_file() -> Path:
+    return (
+        Path(getenv("PUBLISH_READINESS_SUMMARY_FILE", "out/reports/publish-readiness-summary-latest.json"))
+        .expanduser()
+        .resolve()
+    )
+
+
+def _repo_root_dir() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _local_script_path(script_name: str) -> Path:
+    return (_repo_root_dir() / "scripts" / script_name).resolve()
+
+
+def _run_local_script(script_name: str, args: list[str], timeout_s: int = 120) -> dict:
+    script_path = _local_script_path(script_name)
+    if not script_path.exists():
+        return {
+            "ok": False,
+            "script": script_name,
+            "error": "script_not_found",
+            "script_path": str(script_path),
+        }
+    cmd = [sys.executable, str(script_path), *args]
+    try:
+        completed = subprocess.run(
+            cmd,
+            cwd=str(_repo_root_dir()),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "script": script_name,
+            "error": "timeout",
+            "timeout_s": timeout_s,
+            "stdout": (exc.stdout or "").strip()[-8000:],
+            "stderr": (exc.stderr or "").strip()[-8000:],
+            "cmd": cmd,
+        }
+    return {
+        "ok": completed.returncode == 0,
+        "script": script_name,
+        "cmd": cmd,
+        "exit_code": completed.returncode,
+        "stdout": (completed.stdout or "").strip()[-8000:],
+        "stderr": (completed.stderr or "").strip()[-8000:],
+    }
+
+
+def _read_publish_readiness_summary() -> tuple[dict | None, str | None]:
+    path = _publish_readiness_summary_file()
+    if not path.exists():
+        return None, "missing"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None, "invalid"
+    if not isinstance(payload, dict):
+        return None, "invalid"
+    payload["source_file"] = str(path)
+    return payload, None
+
+
 def _planner_settings_defaults() -> dict:
     return {
         "timezone": getenv("PLANNER_TIMEZONE", "UTC"),
@@ -113,6 +191,15 @@ def _planner_settings_defaults() -> dict:
         "publish_window_minutes": int(getenv("PLANNER_WINDOW_MINUTES", "120")),
         "target_per_day": int(getenv("PLANNER_TARGET_PER_DAY", "1")),
     }
+
+
+def _system_status_cache_ttl_s() -> int:
+    raw = getenv("SYSTEM_STATUS_CACHE_TTL_S", "5") or "5"
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 5
+    return max(0, min(value, 60))
 
 
 def _load_planner_settings() -> dict:
@@ -224,7 +311,7 @@ def _manual_godot_history_max_lines() -> int:
 
 def _manual_godot_history_record(
     *,
-    step: Literal["compile", "validate", "estimate", "preview", "render"],
+    step: Literal["compile", "validate", "estimate", "intent_check", "preview", "render"],
     ok: bool,
     actor_user_id: UUID | None = None,
     idea_id: UUID | None = None,
@@ -247,7 +334,16 @@ def _manual_godot_history_record(
         "script_hash": payload.get("script_hash"),
         "estimate": payload.get("estimate"),
         "recommended_sim_duration_s": payload.get("recommended_sim_duration_s"),
+        "recommended_speed_factor": payload.get("recommended_speed_factor"),
         "target_duration_s": payload.get("target_duration_s"),
+        "target_runtime_s": payload.get("target_runtime_s"),
+        "intent_reached": payload.get("intent_reached"),
+        "intent_reached_at_s": payload.get("intent_reached_at_s"),
+        "intent_progress": payload.get("intent_progress"),
+        "intent_status": payload.get("intent_status"),
+        "blocking_reason": payload.get("blocking_reason"),
+        "confidence": payload.get("confidence"),
+        "method": payload.get("method"),
         "error": error,
     }
 
@@ -357,6 +453,33 @@ def _validate_publish_record_request(request: "PublishRecordCreateRequest") -> N
         )
     if status == "failed" and not error_text:
         raise HTTPException(status_code=400, detail="publish_record_requires_error_for_failed_status")
+    if url:
+        normalized = url.lower()
+        has_youtube = "youtube.com/" in normalized or "youtu.be/" in normalized
+        has_tiktok = "tiktok.com/" in normalized
+        if request.platform == "youtube" and has_tiktok:
+            raise HTTPException(status_code=400, detail="publish_record_url_platform_mismatch")
+        if request.platform == "tiktok" and has_youtube:
+            raise HTTPException(status_code=400, detail="publish_record_url_platform_mismatch")
+
+
+def _validate_qc_decision_request(request: "QcDecisionCreateRequest") -> None:
+    if request.result != "accepted":
+        return
+    payload = request.decision_payload or {}
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="qc_payload_must_be_object")
+    required_true = {
+        "idea_intent_ok",
+        "intro_readability_ok",
+        "audio_quality_ok",
+    }
+    missing = [key for key in sorted(required_true) if payload.get(key) is not True]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"qc_accept_requires_true_flags:{','.join(missing)}",
+        )
 
 
 def _audit_event(session, *, event_type: str, payload: dict, actor_user_id: UUID | None = None) -> None:
@@ -681,6 +804,7 @@ class MetricsDailyManualUpsertRequest(BaseModel):
     watch_time_seconds: int = Field(default=0, ge=0)
     avg_view_percentage: float | None = Field(default=None, ge=0.0, le=100.0)
     avg_view_duration_seconds: int | None = Field(default=None, ge=0)
+    audio_profile: Literal["balanced", "speech", "music", "sfx_heavy"] | None = Field(default=None)
     extra_metrics: dict | None = Field(default=None)
     actor: UUID | None = Field(default=None)
 
@@ -698,7 +822,7 @@ class GodotManualCompileRequest(BaseModel):
 
 class GodotManualRunRequest(BaseModel):
     script_path: str
-    seconds: float = Field(default=2.0, ge=0.1, le=30.0)
+    seconds: float = Field(default=2.0, ge=0.1, le=300.0)
     fps: int = Field(default=12, ge=1, le=120)
     max_nodes: int = Field(default=200, ge=10, le=5000)
     out_path: str | None = Field(default=None)
@@ -719,6 +843,52 @@ class GodotEstimateDurationRequest(BaseModel):
     actor: UUID | None = Field(default=None)
 
 
+class GodotIntentCheckRequest(BaseModel):
+    script_path: str
+    runtime_override_s: float | None = Field(default=None, ge=1.0, le=300.0)
+    scout_seconds: float = Field(default=60.0, ge=2.0, le=600.0)
+    fps: int = Field(default=12, ge=1, le=120)
+    max_nodes: int = Field(default=200, ge=10, le=5000)
+    threshold: float = Field(default=0.85, ge=0.1, le=1.0)
+    hold_seconds: float = Field(default=2.0, ge=0.1, le=30.0)
+    sample_seconds: float = Field(default=0.5, ge=0.1, le=10.0)
+    tail_seconds: float = Field(default=2.0, ge=0.0, le=60.0)
+    actor: UUID | None = Field(default=None)
+
+
+class IntroOverlayRequest(BaseModel):
+    input_path: str
+    out_path: str | None = Field(default=None)
+    intro_text: str | None = Field(default=None)
+    idea_id: UUID | None = Field(default=None)
+    language: Literal["pl", "en"] | None = Field(default=None)
+    duration_s: float = Field(default=1.5, ge=0.5, le=4.0)
+    max_chars: int = Field(default=90, ge=20, le=200)
+    font_size: int = Field(default=52, ge=16, le=128)
+    actor: UUID | None = Field(default=None)
+
+
+class AudioMixRequest(BaseModel):
+    input_path: str
+    out_path: str | None = Field(default=None)
+    music_path: str | None = Field(default=None)
+    sfx_path: str | None = Field(default=None)
+    keep_source_audio: bool = Field(default=False)
+    music_gain_db: float = Field(default=-18.0, ge=-60.0, le=12.0)
+    sfx_gain_db: float = Field(default=-6.0, ge=-60.0, le=12.0)
+    normalize_loudness: bool = Field(default=True)
+    target_lufs: float = Field(default=-16.0, ge=-30.0, le=-5.0)
+    true_peak_db: float = Field(default=-1.0, ge=-9.0, le=0.0)
+    audio_profile: str | None = Field(default=None)
+    actor: UUID | None = Field(default=None)
+
+
+class LaterCleanupRequest(BaseModel):
+    max_age_days: int | None = Field(default=None, ge=1, le=3650)
+    dry_run: bool = Field(default=False)
+    actor: UUID | None = Field(default=None)
+
+
 class PlannerSettingsUpdateRequest(BaseModel):
     timezone: str = Field(default="UTC", min_length=1, max_length=64)
     daily_publish_hour: int = Field(default=18, ge=0, le=23)
@@ -734,6 +904,22 @@ class PlannerTickRequest(BaseModel):
     idea_gate: bool = Field(default=False)
 
 
+class PublishReadinessRefreshRequest(BaseModel):
+    run_mcp_audit: bool = Field(default=True)
+    run_compliance_check: bool = Field(default=True)
+    run_oauth_smoke: bool = Field(default=True)
+    oauth_online: bool = Field(default=False)
+    oauth_require: Literal["none", "passed_if_configured", "passed_all"] = Field(
+        default="passed_if_configured"
+    )
+    mcp_audit_fail_on_risk_level: Literal["none", "high", "medium"] = Field(default="none")
+    compliance_require: Literal["none", "strict"] = Field(default="none")
+    summary_max_allowed_risk: Literal["low", "medium", "high"] = Field(default="medium")
+    summary_require_pass: bool = Field(default=False)
+    timeout_s: int = Field(default=120, ge=10, le=1200)
+    actor: UUID | None = Field(default=None)
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -741,6 +927,15 @@ def health() -> dict:
 
 @app.get("/system/status")
 def system_status() -> dict:
+    global _SYSTEM_STATUS_CACHE_PAYLOAD, _SYSTEM_STATUS_CACHE_EXPIRES_AT
+    started = time.perf_counter()
+    now_ts = time.time()
+    cache_ttl_s = _system_status_cache_ttl_s()
+    if cache_ttl_s > 0 and _SYSTEM_STATUS_CACHE_PAYLOAD is not None and now_ts < _SYSTEM_STATUS_CACHE_EXPIRES_AT:
+        payload = dict(_SYSTEM_STATUS_CACHE_PAYLOAD)
+        payload["cache"] = {"hit": True, "ttl_s": cache_ttl_s}
+        return payload
+
     updated_at = datetime.now(timezone.utc)
     partial_failures: list[str] = []
     worker = _worker_state()
@@ -817,14 +1012,20 @@ def system_status() -> dict:
     finally:
         session.close()
 
-    return {
+    payload = {
         "service_status": services,
         "repo_counts": repo_counts,
         "worker": worker,
         "dsl_version_current": current_dsl_version if "current_dsl_version" in locals() else None,
         "updated_at": updated_at,
         "partial_failures": partial_failures,
+        "response_time_ms": int((time.perf_counter() - started) * 1000),
+        "cache": {"hit": False, "ttl_s": cache_ttl_s},
     }
+    if cache_ttl_s > 0:
+        _SYSTEM_STATUS_CACHE_PAYLOAD = payload
+        _SYSTEM_STATUS_CACHE_EXPIRES_AT = now_ts + cache_ttl_s
+    return payload
 
 
 @app.get("/settings")
@@ -843,6 +1044,11 @@ def get_settings() -> dict:
         "idea_gate_threshold": flag("IDEA_GATE_THRESHOLD", "0.85"),
         "idea_gate_auto": flag("IDEA_GATE_AUTO", "0"),
         "dev_manual_flow": flag("DEV_MANUAL_FLOW", "0"),
+        "operator_single_video_mode": flag("OPERATOR_SINGLE_VIDEO_MODE", "1"),
+        "operator_target_runtime_s": flag("OPERATOR_TARGET_RUNTIME_S", "60"),
+        "operator_intro_language": flag("OPERATOR_INTRO_LANGUAGE", "en"),
+        "operator_later_max_age_days": flag("OPERATOR_LATER_MAX_AGE_DAYS", "30"),
+        "system_status_cache_ttl_s": flag("SYSTEM_STATUS_CACHE_TTL_S", "5"),
         "operator_guard": flag("OPERATOR_TOKEN", "") != "",
         "artifacts_base_dir": flag("ARTIFACTS_BASE_DIR", "out"),
         "openai_model": flag("OPENAI_MODEL", ""),
@@ -940,6 +1146,96 @@ def planner_tick(
         )
     finally:
         session.close()
+
+
+@app.post("/ops/publish/readiness-refresh")
+def ops_publish_readiness_refresh(
+    request: PublishReadinessRefreshRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    script_results: list[dict] = []
+    if request.run_mcp_audit:
+        script_results.append(
+            _run_local_script(
+                "mcp-publish-audit.py",
+                ["--fail-on-risk-level", request.mcp_audit_fail_on_risk_level],
+                timeout_s=request.timeout_s,
+            )
+        )
+    if request.run_compliance_check:
+        script_results.append(
+            _run_local_script(
+                "mcp-compliance-check.py",
+                ["--require", request.compliance_require],
+                timeout_s=request.timeout_s,
+            )
+        )
+    if request.run_oauth_smoke:
+        oauth_args = ["--require", request.oauth_require]
+        if request.oauth_online:
+            oauth_args.append("--online")
+        script_results.append(
+            _run_local_script(
+                "publish-oauth-smoke.py",
+                oauth_args,
+                timeout_s=request.timeout_s,
+            )
+        )
+
+    summary_args = [
+        "--max-allowed-risk",
+        request.summary_max_allowed_risk,
+    ]
+    if request.summary_require_pass:
+        summary_args.append("--require-pass")
+    summary_result = _run_local_script(
+        "publish-readiness-summary.py",
+        summary_args,
+        timeout_s=request.timeout_s,
+    )
+    script_results.append(summary_result)
+
+    scripts_ok = all(bool(item.get("ok")) for item in script_results)
+    summary_payload, summary_error = _read_publish_readiness_summary()
+    overall_pass = bool(summary_payload.get("overall_pass")) if summary_payload else False
+    payload = {
+        "ok": scripts_ok and summary_error is None,
+        "scripts_ok": scripts_ok,
+        "summary_available": summary_payload is not None and summary_error is None,
+        "summary_error": summary_error,
+        "overall_pass": overall_pass,
+        "script_results": script_results,
+        "readiness_summary": summary_payload,
+        "updated_at": _utc_now(),
+    }
+
+    session = SessionLocal()
+    try:
+        _audit_event(
+            session,
+            event_type="publish_readiness_refresh",
+            actor_user_id=request.actor,
+            payload={
+                "ok": payload["ok"],
+                "scripts_ok": scripts_ok,
+                "overall_pass": overall_pass,
+                "summary_error": summary_error,
+                "script_results": [
+                    {
+                        "script": str(item.get("script", "")),
+                        "ok": bool(item.get("ok")),
+                        "exit_code": item.get("exit_code"),
+                        "error": item.get("error"),
+                    }
+                    for item in script_results
+                ],
+            },
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    return jsonable_encoder(payload)
 
 
 @app.get("/debug/llm-routes")
@@ -1040,6 +1336,40 @@ def list_metrics_daily(
         session.close()
 
 
+@app.get("/insights/summary")
+def get_insights_summary(
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        now = _utc_now()
+        recent_from = now.date() - timedelta(days=13)
+        metrics_rows = session.execute(
+            select(MetricsDaily).where(MetricsDaily.date >= recent_from)
+        ).scalars().all()
+        publish_rows = session.execute(
+            select(PublishRecord).where(
+                PublishRecord.created_at >= now - timedelta(days=14)
+            )
+        ).scalars().all()
+        intro_audit_rows = session.execute(
+            select(AuditEvent).where(
+                AuditEvent.event_type == "intro_overlay_generate",
+                AuditEvent.occurred_at >= now - timedelta(days=14),
+            )
+        ).scalars().all()
+        return jsonable_encoder(
+            _build_insights_summary(
+                metrics_rows=list(metrics_rows),
+                publish_rows=list(publish_rows),
+                intro_audit_rows=list(intro_audit_rows),
+                now=now,
+            )
+        )
+    finally:
+        session.close()
+
+
 @app.post("/ops/metrics-daily")
 def upsert_metrics_daily_manual(
     request: MetricsDailyManualUpsertRequest,
@@ -1082,7 +1412,12 @@ def upsert_metrics_daily_manual(
         record.watch_time_seconds = request.watch_time_seconds
         record.avg_view_percentage = request.avg_view_percentage
         record.avg_view_duration_seconds = request.avg_view_duration_seconds
-        record.extra_metrics = request.extra_metrics
+        merged_extra_metrics = dict(record.extra_metrics or {})
+        if request.extra_metrics:
+            merged_extra_metrics.update(request.extra_metrics)
+        if request.audio_profile:
+            merged_extra_metrics["audio_profile"] = request.audio_profile
+        record.extra_metrics = merged_extra_metrics or None
         session.add(record)
 
         _audit_event(
@@ -1097,6 +1432,7 @@ def upsert_metrics_daily_manual(
                 "created": created,
                 "publish_record_id": str(request.publish_record_id) if request.publish_record_id else None,
                 "render_id": str(request.render_id) if request.render_id else None,
+                "audio_profile": request.audio_profile,
             },
         )
         session.commit()
@@ -1111,6 +1447,11 @@ def upsert_metrics_daily_manual(
                 "likes": record.likes,
                 "comments": record.comments,
                 "shares": record.shares,
+                "audio_profile": (
+                    record.extra_metrics.get("audio_profile")
+                    if isinstance(record.extra_metrics, dict)
+                    else None
+                ),
             }
         )
     except HTTPException:
@@ -1565,24 +1906,95 @@ def delete_candidate(
             raise HTTPException(status_code=404, detail="idea_candidate_not_found")
         if candidate.status == "picked":
             raise HTTPException(status_code=409, detail="candidate_already_picked")
+        if candidate.idea is not None:
+            animations_count = session.execute(
+                select(func.count()).select_from(Animation).where(Animation.idea_id == candidate.idea.id)
+            ).scalar_one()
+            if animations_count > 0:
+                raise HTTPException(status_code=409, detail="candidate_has_animations")
+            session.delete(candidate.idea)
 
-        candidate.status = "rejected"
-        candidate.selected = False
-        candidate.selected_at = None
-        candidate.decision_at = datetime.now(timezone.utc)
-        candidate.decision_by = None
-        session.add(candidate)
+        deleted_id = candidate.id
+        session.delete(candidate)
 
         session.add(
             AuditEvent(
                 event_type="idea_candidate_delete",
                 source="ui",
                 occurred_at=datetime.now(timezone.utc),
-                payload={"idea_candidate_id": str(candidate.id), "action": "soft_delete"},
+                payload={"idea_candidate_id": str(deleted_id), "action": "hard_delete"},
             )
         )
         session.commit()
-        return jsonable_encoder({"id": candidate.id, "status": candidate.status})
+        return jsonable_encoder({"id": deleted_id, "status": "deleted"})
+    finally:
+        session.close()
+
+
+@app.post("/ops/idea-candidates/cleanup-later")
+def cleanup_later_candidates(
+    request: LaterCleanupRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        max_age_days = request.max_age_days or _later_idea_max_age_days()
+        now = _utc_now()
+        cutoff = now - timedelta(days=max_age_days)
+        candidates = session.execute(
+            select(IdeaCandidate).where(IdeaCandidate.status == "later")
+        ).scalars().all()
+
+        expired: list[IdeaCandidate] = [
+            candidate for candidate in candidates if _candidate_last_activity_at(candidate) < cutoff
+        ]
+        deleted = 0
+        skipped = 0
+        skipped_ids: list[str] = []
+        deleted_ids: list[str] = []
+        for candidate in expired:
+            if candidate.idea is not None:
+                animations_count = session.execute(
+                    select(func.count()).select_from(Animation).where(Animation.idea_id == candidate.idea.id)
+                ).scalar_one()
+                if animations_count > 0:
+                    skipped += 1
+                    skipped_ids.append(str(candidate.id))
+                    continue
+                if not request.dry_run:
+                    session.delete(candidate.idea)
+            if not request.dry_run:
+                session.delete(candidate)
+            deleted += 1
+            deleted_ids.append(str(candidate.id))
+
+        _audit_event(
+            session,
+            event_type="idea_candidate_cleanup_later",
+            actor_user_id=request.actor,
+            payload={
+                "max_age_days": max_age_days,
+                "cutoff": cutoff.isoformat(),
+                "dry_run": request.dry_run,
+                "expired_count": len(expired),
+                "deleted_count": deleted,
+                "skipped_count": skipped,
+                "skipped_ids": skipped_ids[:20],
+            },
+        )
+        session.commit()
+        return jsonable_encoder(
+            {
+                "max_age_days": max_age_days,
+                "cutoff": cutoff,
+                "dry_run": request.dry_run,
+                "expired_count": len(expired),
+                "deleted_count": deleted,
+                "deleted_ids": deleted_ids,
+                "skipped_count": skipped,
+                "skipped_ids": skipped_ids,
+            }
+        )
     finally:
         session.close()
 
@@ -2101,6 +2513,21 @@ def list_publish_records(
         session.close()
 
 
+@app.get("/publish/connectors/status")
+def publish_connectors_status(_guard: None = Depends(_require_operator)) -> dict:
+    return jsonable_encoder({"updated_at": _utc_now(), "connectors": _publish_connector_status()})
+
+
+@app.get("/publish/readiness-summary")
+def publish_readiness_summary(_guard: None = Depends(_require_operator)) -> dict:
+    payload, error = _read_publish_readiness_summary()
+    if error == "missing":
+        raise HTTPException(status_code=404, detail="publish_readiness_summary_missing")
+    if error == "invalid" or payload is None:
+        raise HTTPException(status_code=500, detail="publish_readiness_summary_invalid")
+    return jsonable_encoder(payload)
+
+
 @app.get("/artifacts/{artifact_id}/file")
 def get_artifact_file(artifact_id: UUID):
     session = SessionLocal()
@@ -2221,6 +2648,7 @@ def ops_qc_decide(
         animation = session.get(Animation, request.animation_id)
         if animation is None:
             raise HTTPException(status_code=404, detail="animation_not_found")
+        _validate_qc_decision_request(request)
 
         checklist = _get_or_create_qc_checklist(session)
         now = _utc_now()
@@ -2462,6 +2890,821 @@ def _ops_godot_run_mode(
     return result
 
 
+def _resolve_target_runtime_s(runtime_override_s: float | None = None) -> float:
+    if runtime_override_s is not None:
+        return float(runtime_override_s)
+    raw = getenv("OPERATOR_TARGET_RUNTIME_S", "60") or "60"
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 60.0
+    return max(1.0, min(value, 300.0))
+
+
+def _intent_recommendation(
+    *,
+    estimate: dict | None,
+    target_duration_s: float,
+    scout_seconds: float,
+    tail_seconds: float,
+) -> dict:
+    estimate_payload = estimate if isinstance(estimate, dict) else {}
+    reached = bool(estimate_payload.get("reached")) if estimate_payload else False
+    effect_time = (
+        float(estimate_payload.get("effect_time_s", -1.0) or -1.0) if estimate_payload else -1.0
+    )
+    progress = float(estimate_payload.get("progress", 0.0) or 0.0) if estimate_payload else 0.0
+    support = bool(estimate_payload.get("support")) if estimate_payload else False
+
+    if reached and effect_time >= 0.0:
+        recommended_sim_duration_s = max(1.0, min(scout_seconds, effect_time + tail_seconds))
+        confidence = max(0.2, min(1.0, progress if support else 0.6))
+        method = "progress_threshold"
+        intent_status = "pass"
+        blocking_reason = None
+    else:
+        recommended_sim_duration_s = max(1.0, min(scout_seconds, target_duration_s))
+        confidence = 0.2
+        method = "fallback_target_duration"
+        intent_status = "blocked"
+        blocking_reason = "intent_not_reached_in_scout_horizon"
+
+    speed_factor = recommended_sim_duration_s / target_duration_s if target_duration_s > 0 else 1.0
+    return {
+        "intent_reached": reached,
+        "intent_reached_at_s": effect_time if reached and effect_time >= 0.0 else None,
+        "intent_progress": progress if support else None,
+        "recommended_sim_duration_s": recommended_sim_duration_s,
+        "recommended_speed_factor": speed_factor,
+        "confidence": confidence,
+        "method": method,
+        "intent_status": intent_status,
+        "blocking_reason": blocking_reason,
+    }
+
+
+def _later_idea_max_age_days() -> int:
+    raw = getenv("OPERATOR_LATER_MAX_AGE_DAYS", "30") or "30"
+    try:
+        value = int(raw)
+    except ValueError:
+        value = 30
+    return max(1, min(value, 3650))
+
+
+def _candidate_last_activity_at(candidate: IdeaCandidate) -> datetime:
+    return candidate.decision_at or candidate.created_at or _utc_now()
+
+
+def _publish_connector_status() -> dict:
+    youtube_ready = bool(
+        (getenv("YOUTUBE_CLIENT_ID", "") or "").strip()
+        and (getenv("YOUTUBE_CLIENT_SECRET", "") or "").strip()
+        and (
+            (getenv("YOUTUBE_REFRESH_TOKEN", "") or "").strip()
+            or (getenv("YOUTUBE_ACCESS_TOKEN", "") or "").strip()
+        )
+    )
+    tiktok_ready = bool(
+        (getenv("TIKTOK_CLIENT_KEY", "") or "").strip()
+        and (getenv("TIKTOK_CLIENT_SECRET", "") or "").strip()
+        and (
+            (getenv("TIKTOK_ACCESS_TOKEN", "") or "").strip()
+            or (getenv("TIKTOK_REFRESH_TOKEN", "") or "").strip()
+        )
+    )
+    return {
+        "youtube": {
+            "ready": youtube_ready,
+            "mode": "api" if youtube_ready else "manual_fallback",
+        },
+        "tiktok": {
+            "ready": tiktok_ready,
+            "mode": "api" if tiktok_ready else "manual_fallback",
+        },
+    }
+
+
+def _ffmpeg_timeout_s() -> int:
+    raw = getenv("FFMPEG_TIMEOUT_S", "120") or "120"
+    try:
+        timeout = int(raw)
+    except ValueError:
+        timeout = 120
+    return max(10, min(timeout, 900))
+
+
+def _escape_drawtext_text(text: str) -> str:
+    value = text.replace("\\", "\\\\")
+    for token in [":", "'", "%", ","]:
+        value = value.replace(token, f"\\{token}")
+    return value
+
+
+@lru_cache(maxsize=1)
+def _ffmpeg_supported_filters() -> set[str]:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return set()
+    try:
+        completed = subprocess.run(
+            [ffmpeg, "-hide_banner", "-filters"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except Exception:
+        return set()
+    payload = f"{completed.stdout or ''}\n{completed.stderr or ''}"
+    filters: set[str] = set()
+    for line in payload.splitlines():
+        parts = line.split()
+        if len(parts) >= 4 and parts[0] and all(ch in ".TSC|" for ch in parts[0]):
+            filters.add(parts[1].strip())
+    return filters
+
+
+def _ffmpeg_has_filter(name: str) -> bool:
+    return name in _ffmpeg_supported_filters()
+
+
+def _video_dimensions(input_path: Path) -> tuple[int, int]:
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return 1080, 1920
+    try:
+        completed = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=width,height",
+                "-of",
+                "json",
+                str(input_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        data = json.loads(completed.stdout or "{}")
+        streams = data.get("streams") or []
+        if streams:
+            width = int(streams[0].get("width") or 1080)
+            height = int(streams[0].get("height") or 1920)
+            return max(64, width), max(64, height)
+    except Exception:
+        pass
+    return 1080, 1920
+
+
+def _run_intro_overlay_ffmpeg_image_fallback(
+    *,
+    ffmpeg: str,
+    input_path: Path,
+    out_path: Path,
+    text: str,
+    duration_s: float,
+    font_size: int,
+) -> dict:
+    magick = shutil.which("magick") or shutil.which("convert")
+    if not magick:
+        return {"ok": False, "error": "drawtext_missing_and_magick_not_found"}
+    width, height = _video_dimensions(input_path)
+    overlay_h = max(96, int(height * 0.18))
+    enable_expr = f"between(t\\,0\\,{duration_s:.2f})"
+    font_file = (getenv("INTRO_OVERLAY_FONT_FILE", "") or "").strip()
+
+    with tempfile.TemporaryDirectory(prefix="shortlab-intro-") as tmpdir:
+        text_image_path = Path(tmpdir) / "intro-text.png"
+        magick_cmd = [
+            magick,
+            "-size",
+            f"{width}x{overlay_h}",
+            "-background",
+            "none",
+            "-fill",
+            "white",
+            "-stroke",
+            "black",
+            "-strokewidth",
+            "2",
+            "-gravity",
+            "center",
+            "-pointsize",
+            str(font_size),
+        ]
+        if font_file:
+            magick_cmd.extend(["-font", font_file])
+        magick_cmd.extend([f"caption:{text}", str(text_image_path)])
+        try:
+            magick_run = subprocess.run(
+                magick_cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=_ffmpeg_timeout_s(),
+            )
+        except subprocess.TimeoutExpired as exc:
+            return {
+                "ok": False,
+                "error": "magick_timeout",
+                "stdout": (exc.stdout or "").strip()[-8000:] if isinstance(exc.stdout, str) else "",
+                "stderr": (exc.stderr or "").strip()[-8000:] if isinstance(exc.stderr, str) else "",
+                "out_exists": out_path.exists(),
+                "out_path": str(out_path),
+            }
+        if magick_run.returncode != 0 or not text_image_path.exists():
+            return {
+                "ok": False,
+                "error": "magick_text_image_failed",
+                "exit_code": magick_run.returncode,
+                "stdout": (magick_run.stdout or "").strip()[-8000:],
+                "stderr": (magick_run.stderr or "").strip()[-8000:],
+                "out_exists": out_path.exists(),
+                "out_path": str(out_path),
+            }
+
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-nostdin",
+            "-i",
+            str(input_path),
+            "-loop",
+            "1",
+            "-i",
+            str(text_image_path),
+            "-filter_complex",
+            (
+                f"[0:v]drawbox=x=0:y=0:w=iw:h=ih*0.18:color=black@0.45:t=fill:enable={enable_expr}[base];"
+                f"[base][1:v]overlay=x=(W-w)/2:y=H*0.06:enable={enable_expr}"
+            ),
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a?",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-c:a",
+            "copy",
+            "-shortest",
+            str(out_path),
+        ]
+        try:
+            completed = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=_ffmpeg_timeout_s(),
+            )
+        except subprocess.TimeoutExpired as exc:
+            return {
+                "ok": False,
+                "error": "ffmpeg_timeout",
+                "stdout": (exc.stdout or "").strip()[-8000:] if isinstance(exc.stdout, str) else "",
+                "stderr": (exc.stderr or "").strip()[-8000:] if isinstance(exc.stderr, str) else "",
+                "out_exists": out_path.exists(),
+                "out_path": str(out_path),
+                "fallback": "magick_overlay",
+            }
+        return {
+            "ok": completed.returncode == 0 and out_path.exists(),
+            "exit_code": completed.returncode,
+            "stdout": (completed.stdout or "").strip()[-8000:],
+            "stderr": (completed.stderr or "").strip()[-8000:],
+            "out_exists": out_path.exists(),
+            "out_path": str(out_path),
+            "fallback": "magick_overlay",
+        }
+
+
+def _build_intro_text_from_idea(idea: Idea | None, language: str) -> str:
+    if idea is None:
+        return ""
+    title = (idea.title or "").strip()
+    summary = (idea.summary or "").strip()
+    if language == "pl":
+        if title:
+            return f"Zasada animacji: {title}"
+        if summary:
+            return f"Co zobaczysz: {summary}"
+        return "Krotka animacja z jasna zasada."
+    if title:
+        return f"Animation rule: {title}"
+    if summary:
+        return f"What you will see: {summary}"
+    return "A short animation with a clear rule."
+
+
+def _sanitize_intro_text(*, text: str, language: str, max_chars: int) -> str:
+    value = re.sub(r"\s+", " ", (text or "")).strip()
+    if language == "en":
+        had_ascii = bool(re.search(r"[A-Za-z0-9]", value))
+        rule_match = re.match(r"^\s*zasada animacji\s*:\s*(.+)$", value, flags=re.IGNORECASE)
+        what_match = re.match(r"^\s*co zobaczysz\s*:\s*(.+)$", value, flags=re.IGNORECASE)
+        if rule_match:
+            value = f"Animation rule: {rule_match.group(1).strip()}"
+        elif what_match:
+            value = f"What you will see: {what_match.group(1).strip()}"
+        value = value.translate(str.maketrans({"ł": "l", "Ł": "L"}))
+        value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+        value = re.sub(r"[^A-Za-z0-9 .,!?;:'\"()/+-]", "", value)
+        value = re.sub(r"\s+", " ", value).strip()
+        if not value or (not had_ascii and not rule_match and not what_match):
+            value = "A short animation with a clear rule."
+    if len(value) > max_chars:
+        value = value[:max_chars].rstrip()
+    return value
+
+
+def _translate_intro_text_to_en(
+    *,
+    text: str,
+    max_chars: int,
+) -> tuple[str | None, dict | None]:
+    value = re.sub(r"\s+", " ", (text or "")).strip()
+    if not value:
+        return None, None
+
+    translate_enabled = (getenv("INTRO_EN_TRANSLATE_ENABLED", "1") or "1").strip() == "1"
+    if not translate_enabled:
+        return None, {"attempted": False, "reason": "disabled_by_env"}
+
+    try:
+        payload, meta = get_mediator().generate_json(
+            task_type="intro_translate",
+            system_prompt=(
+                "Translate short video intro overlay text to natural, concise English."
+                " Keep intent, keep it short, and avoid emojis/hashtags."
+            ),
+            user_prompt=(
+                f"Source text:\n{value}\n\n"
+                "Output requirements:\n"
+                "- One sentence.\n"
+                f"- Max {max_chars} characters.\n"
+                "- No extra commentary.\n"
+            ),
+            json_schema={
+                "type": "object",
+                "properties": {
+                    "intro_text_en": {"type": "string"},
+                },
+                "required": ["intro_text_en"],
+                "additionalProperties": False,
+            },
+            max_tokens=120,
+            temperature=0.2,
+        )
+        translated = str(payload.get("intro_text_en", "")).strip()
+        if not translated:
+            return None, {
+                "attempted": True,
+                "status": "empty_result",
+                "provider": meta.get("provider"),
+                "model": meta.get("model"),
+            }
+        if len(translated) > max_chars:
+            translated = translated[:max_chars].rstrip()
+        return translated, {
+            "attempted": True,
+            "status": "translated",
+            "provider": meta.get("provider"),
+            "model": meta.get("model"),
+        }
+    except Exception as exc:
+        return None, {
+            "attempted": True,
+            "status": "fallback",
+            "error": str(exc)[:240],
+        }
+
+
+def _run_intro_overlay_ffmpeg(
+    *,
+    input_path: Path,
+    out_path: Path,
+    text: str,
+    duration_s: float,
+    font_size: int,
+) -> dict:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return {"ok": False, "error": "ffmpeg_not_found"}
+
+    if not _ffmpeg_has_filter("drawtext"):
+        return _run_intro_overlay_ffmpeg_image_fallback(
+            ffmpeg=ffmpeg,
+            input_path=input_path,
+            out_path=out_path,
+            text=text,
+            duration_s=duration_s,
+            font_size=font_size,
+        )
+
+    enable_expr = f"between(t,0,{duration_s:.2f})"
+    escaped_text = _escape_drawtext_text(text)
+    filter_parts = [
+        f"drawbox=x=0:y=0:w=iw:h=ih*0.18:color=black@0.45:t=fill:enable='{enable_expr}'",
+    ]
+    drawtext = (
+        f"drawtext=text='{escaped_text}'"
+        f":x=(w-text_w)/2:y=h*0.06:fontsize={font_size}"
+        ":fontcolor=white:borderw=2:bordercolor=black@0.7"
+        f":enable='{enable_expr}'"
+    )
+    font_file = (getenv("INTRO_OVERLAY_FONT_FILE", "") or "").strip()
+    if font_file:
+        drawtext += f":fontfile='{_escape_drawtext_text(font_file)}'"
+    filter_parts.append(drawtext)
+    vf = ",".join(filter_parts)
+
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-nostdin",
+        "-i",
+        str(input_path),
+        "-vf",
+        vf,
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-c:a",
+        "copy",
+        str(out_path),
+    ]
+
+    try:
+        completed = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_ffmpeg_timeout_s(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "error": "ffmpeg_timeout",
+            "stdout": (exc.stdout or "").strip()[-8000:] if isinstance(exc.stdout, str) else "",
+            "stderr": (exc.stderr or "").strip()[-8000:] if isinstance(exc.stderr, str) else "",
+            "out_exists": out_path.exists(),
+            "out_path": str(out_path),
+        }
+    return {
+        "ok": completed.returncode == 0 and out_path.exists(),
+        "exit_code": completed.returncode,
+        "stdout": (completed.stdout or "").strip()[-8000:],
+        "stderr": (completed.stderr or "").strip()[-8000:],
+        "out_exists": out_path.exists(),
+        "out_path": str(out_path),
+    }
+
+
+def _run_audio_mix_ffmpeg(
+    *,
+    input_path: Path,
+    out_path: Path,
+    music_path: Path | None,
+    sfx_path: Path | None,
+    keep_source_audio: bool,
+    music_gain_db: float,
+    sfx_gain_db: float,
+    normalize_loudness: bool,
+    target_lufs: float,
+    true_peak_db: float,
+) -> dict:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return {"ok": False, "error": "ffmpeg_not_found"}
+
+    cmd = [ffmpeg, "-y", "-nostdin", "-i", str(input_path)]
+    input_index = 1
+    music_index: int | None = None
+    sfx_index: int | None = None
+    if music_path is not None:
+        cmd.extend(["-stream_loop", "-1", "-i", str(music_path)])
+        music_index = input_index
+        input_index += 1
+    if sfx_path is not None:
+        cmd.extend(["-i", str(sfx_path)])
+        sfx_index = input_index
+
+    label_index = 0
+    filters: list[str] = []
+    mix_inputs: list[str] = []
+    if keep_source_audio:
+        label = f"s{label_index}"
+        label_index += 1
+        filters.append(f"[0:a]anull[{label}]")
+        mix_inputs.append(f"[{label}]")
+    if music_index is not None:
+        label = f"m{label_index}"
+        label_index += 1
+        filters.append(f"[{music_index}:a]volume={music_gain_db}dB[{label}]")
+        mix_inputs.append(f"[{label}]")
+    if sfx_index is not None:
+        label = f"x{label_index}"
+        label_index += 1
+        filters.append(f"[{sfx_index}:a]volume={sfx_gain_db}dB[{label}]")
+        mix_inputs.append(f"[{label}]")
+    if not mix_inputs:
+        return {"ok": False, "error": "audio_mix_requires_music_or_sfx_or_source_audio"}
+
+    if len(mix_inputs) == 1:
+        filters.append(f"{mix_inputs[0]}anull[aout]")
+    else:
+        filters.append(
+            f"{''.join(mix_inputs)}amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=2[aout]"
+        )
+    out_audio_label = "[aout]"
+    if normalize_loudness:
+        filters.append(f"[aout]loudnorm=I={target_lufs}:TP={true_peak_db}:LRA=11[norm]")
+        filters.append("[norm]alimiter=limit=0.98[aout_final]")
+        out_audio_label = "[aout_final]"
+
+    cmd.extend(
+        [
+            "-filter_complex",
+            ";".join(filters),
+            "-map",
+            "0:v:0",
+            "-map",
+            out_audio_label,
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-shortest",
+            "-movflags",
+            "+faststart",
+            str(out_path),
+        ]
+    )
+
+    try:
+        completed = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_ffmpeg_timeout_s(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "ok": False,
+            "error": "ffmpeg_timeout",
+            "stdout": (exc.stdout or "").strip()[-8000:] if isinstance(exc.stdout, str) else "",
+            "stderr": (exc.stderr or "").strip()[-8000:] if isinstance(exc.stderr, str) else "",
+            "out_exists": out_path.exists(),
+            "out_path": str(out_path),
+        }
+    return {
+        "ok": completed.returncode == 0 and out_path.exists(),
+        "exit_code": completed.returncode,
+        "stdout": (completed.stdout or "").strip()[-8000:],
+        "stderr": (completed.stderr or "").strip()[-8000:],
+        "out_exists": out_path.exists(),
+        "out_path": str(out_path),
+    }
+
+
+def _build_insights_summary(
+    *,
+    metrics_rows: list[MetricsDaily],
+    publish_rows: list[PublishRecord],
+    intro_audit_rows: list[AuditEvent] | None = None,
+    now: datetime,
+) -> dict:
+    utc_now = now.astimezone(timezone.utc)
+    today = utc_now.date()
+    windows = [
+        ("24h", 1),
+        ("72h", 3),
+        ("7d", 7),
+        ("14d", 14),
+    ]
+
+    def _row_totals(rows: list[MetricsDaily], days: int) -> dict:
+        from_day = today - timedelta(days=days - 1)
+        selected = [row for row in rows if row.date and row.date >= from_day]
+        views = int(sum(int(row.views or 0) for row in selected))
+        likes = int(sum(int(row.likes or 0) for row in selected))
+        comments = int(sum(int(row.comments or 0) for row in selected))
+        shares = int(sum(int(row.shares or 0) for row in selected))
+        watch_time_seconds = int(sum(int(row.watch_time_seconds or 0) for row in selected))
+        avg_view_percentage = None
+        if views > 0:
+            weighted = 0.0
+            for row in selected:
+                row_views = int(row.views or 0)
+                row_pct = row.avg_view_percentage
+                if row_views > 0 and row_pct is not None:
+                    weighted += float(row_pct) * row_views
+            avg_view_percentage = weighted / views if weighted > 0 else None
+        publish_from = utc_now - timedelta(days=days)
+        published = 0
+        for record in publish_rows:
+            if record.status not in {"published", "manual_confirmed"}:
+                continue
+            source_ts = record.published_at or record.created_at
+            if source_ts and source_ts >= publish_from:
+                published += 1
+        interactions = likes + comments + shares
+        engagement_rate = (interactions / views) if views > 0 else None
+        return {
+            "days": days,
+            "from_date": str(from_day),
+            "views": views,
+            "likes": likes,
+            "comments": comments,
+            "shares": shares,
+            "watch_time_seconds": watch_time_seconds,
+            "avg_view_percentage": avg_view_percentage,
+            "engagement_rate": engagement_rate,
+            "published_count": published,
+        }
+
+    by_window = {label: _row_totals(metrics_rows, days) for label, days in windows}
+
+    content_rollup: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"views": 0, "likes": 0, "comments": 0, "shares": 0, "watch_time_seconds": 0}
+    )
+    recent_from = today - timedelta(days=13)
+    for row in metrics_rows:
+        if not row.date or row.date < recent_from:
+            continue
+        key = (str(row.platform_type or "unknown"), str(row.content_id or "unknown"))
+        bucket = content_rollup[key]
+        bucket["views"] += int(row.views or 0)
+        bucket["likes"] += int(row.likes or 0)
+        bucket["comments"] += int(row.comments or 0)
+        bucket["shares"] += int(row.shares or 0)
+        bucket["watch_time_seconds"] += int(row.watch_time_seconds or 0)
+
+    top_content = []
+    for (platform, content_id), agg in content_rollup.items():
+        views = agg["views"]
+        interactions = agg["likes"] + agg["comments"] + agg["shares"]
+        top_content.append(
+            {
+                "platform": platform,
+                "content_id": content_id,
+                "views": views,
+                "engagement_rate": (interactions / views) if views > 0 else None,
+                "watch_time_seconds": agg["watch_time_seconds"],
+            }
+        )
+    top_content.sort(key=lambda item: int(item.get("views") or 0), reverse=True)
+
+    w24 = by_window["24h"]
+    w72 = by_window["72h"]
+    w7 = by_window["7d"]
+    recommendation_code = "insufficient_data"
+    recommendation = "Collect at least 24h metrics to generate recommendations."
+    if int(w24["views"]) > 0 or int(w72["views"]) > 0:
+        retention = w72["avg_view_percentage"]
+        engagement = w72["engagement_rate"]
+        if retention is not None and retention < 35.0:
+            recommendation_code = "improve_pacing"
+            recommendation = "Retention is low. Tighten pacing and show core action earlier."
+        elif engagement is not None and engagement < 0.03:
+            recommendation_code = "improve_hook"
+            recommendation = "Engagement is low. Strengthen intro hook and first 2 seconds."
+        elif int(w24["views"]) < max(100, int(w7["views"] / 7) if int(w7["views"]) > 0 else 100):
+            recommendation_code = "increase_distribution"
+            recommendation = "Recent reach is below weekly baseline. Test stronger title/hashtags and posting slot."
+        else:
+            recommendation_code = "keep_iteration"
+            recommendation = "Current pattern performs acceptably. Keep style and iterate on variants."
+
+    audio_profiles_rollup: dict[str, dict[str, float | int]] = defaultdict(
+        lambda: {
+            "rows": 0,
+            "views": 0,
+            "watch_time_seconds": 0,
+            "avg_view_percentage_weighted": 0.0,
+            "avg_view_duration_seconds_weighted": 0.0,
+            "views_for_avg_pct": 0,
+            "views_for_avg_duration": 0,
+        }
+    )
+    for row in metrics_rows:
+        if not row.date or row.date < recent_from:
+            continue
+        if not isinstance(row.extra_metrics, dict):
+            continue
+        profile = row.extra_metrics.get("audio_profile")
+        if not isinstance(profile, str) or not profile.strip():
+            continue
+        key = profile.strip().lower()
+        bucket = audio_profiles_rollup[key]
+        views = int(row.views or 0)
+        bucket["rows"] += 1
+        bucket["views"] += views
+        bucket["watch_time_seconds"] += int(row.watch_time_seconds or 0)
+        if row.avg_view_percentage is not None and views > 0:
+            bucket["avg_view_percentage_weighted"] += float(row.avg_view_percentage) * views
+            bucket["views_for_avg_pct"] += views
+        if row.avg_view_duration_seconds is not None and views > 0:
+            bucket["avg_view_duration_seconds_weighted"] += float(row.avg_view_duration_seconds) * views
+            bucket["views_for_avg_duration"] += views
+
+    audio_profiles_14d = []
+    for profile, bucket in audio_profiles_rollup.items():
+        pct_den = int(bucket["views_for_avg_pct"])
+        dur_den = int(bucket["views_for_avg_duration"])
+        avg_pct = (float(bucket["avg_view_percentage_weighted"]) / pct_den) if pct_den > 0 else None
+        avg_duration = (float(bucket["avg_view_duration_seconds_weighted"]) / dur_den) if dur_den > 0 else None
+        audio_profiles_14d.append(
+            {
+                "audio_profile": profile,
+                "rows": int(bucket["rows"]),
+                "views": int(bucket["views"]),
+                "watch_time_seconds": int(bucket["watch_time_seconds"]),
+                "avg_view_percentage": avg_pct,
+                "avg_view_duration_seconds": avg_duration,
+            }
+        )
+    audio_profiles_14d.sort(key=lambda item: item["views"], reverse=True)
+
+    intro_rows = intro_audit_rows or []
+    intro_total = 0
+    intro_attempted = 0
+    intro_translated = 0
+    intro_fallback = 0
+    intro_empty_result = 0
+    intro_disabled = 0
+    intro_other = 0
+    for row in intro_rows:
+        payload = row.payload if isinstance(row.payload, dict) else {}
+        translation_meta = payload.get("translation_meta")
+        if not isinstance(translation_meta, dict):
+            continue
+        intro_total += 1
+        attempted = bool(translation_meta.get("attempted", True))
+        if attempted:
+            intro_attempted += 1
+        else:
+            reason = str(translation_meta.get("reason", "")).strip().lower()
+            if reason == "disabled_by_env":
+                intro_disabled += 1
+            else:
+                intro_other += 1
+            continue
+        status = str(translation_meta.get("status", "")).strip().lower()
+        if status == "translated":
+            intro_translated += 1
+        elif status == "fallback":
+            intro_fallback += 1
+        elif status == "empty_result":
+            intro_empty_result += 1
+        else:
+            intro_other += 1
+
+    fallback_numerator = intro_fallback + intro_empty_result
+    intro_translate_14d = {
+        "rows_total": intro_total,
+        "attempted": intro_attempted,
+        "translated": intro_translated,
+        "fallback": intro_fallback,
+        "empty_result": intro_empty_result,
+        "disabled": intro_disabled,
+        "other": intro_other,
+        "fallback_share_attempted": (fallback_numerator / intro_attempted) if intro_attempted > 0 else None,
+    }
+
+    return {
+        "generated_at": utc_now.isoformat(),
+        "windows": by_window,
+        "top_content_14d": top_content[:5],
+        "audio_profiles_14d": audio_profiles_14d,
+        "intro_translate_14d": intro_translate_14d,
+        "recommendation_code": recommendation_code,
+        "recommendation": recommendation,
+    }
+
+
 @app.post("/ops/godot/validate")
 def ops_godot_validate(
     request: GodotManualRunRequest,
@@ -2530,34 +3773,19 @@ def ops_godot_estimate_duration(
             raise HTTPException(status_code=400, detail=result)
 
         estimate = result.get("estimate") if isinstance(result.get("estimate"), dict) else {}
-        reached = bool(estimate.get("reached")) if estimate else False
-        effect_time = float(estimate.get("effect_time_s", -1.0) or -1.0) if estimate else -1.0
-        progress = float(estimate.get("progress", 0.0) or 0.0) if estimate else 0.0
-        support = bool(estimate.get("support")) if estimate else False
-
-        if reached and effect_time >= 0.0:
-            recommended_sim_duration_s = max(1.0, min(request.scout_seconds, effect_time + request.tail_seconds))
-            confidence = max(0.2, min(1.0, progress if support else 0.6))
-            method = "progress_threshold"
-        else:
-            recommended_sim_duration_s = max(1.0, min(request.scout_seconds, request.target_duration_s))
-            confidence = 0.2
-            method = "fallback_target_duration"
-
-        speed_factor = (
-            recommended_sim_duration_s / request.target_duration_s
-            if request.target_duration_s > 0
-            else 1.0
+        intent_payload = _intent_recommendation(
+            estimate=estimate,
+            target_duration_s=request.target_duration_s,
+            scout_seconds=request.scout_seconds,
+            tail_seconds=request.tail_seconds,
         )
         payload = {
             **result,
             "target_duration_s": request.target_duration_s,
             "scout_seconds": request.scout_seconds,
             "tail_seconds": request.tail_seconds,
-            "recommended_sim_duration_s": recommended_sim_duration_s,
-            "recommended_speed_factor": speed_factor,
-            "confidence": confidence,
-            "method": method,
+            "target_runtime_s": _resolve_target_runtime_s(),
+            **intent_payload,
         }
 
         _audit_event(
@@ -2567,9 +3795,9 @@ def ops_godot_estimate_duration(
             payload={
                 "script_path": str(script_path),
                 "target_duration_s": request.target_duration_s,
-                "recommended_sim_duration_s": recommended_sim_duration_s,
-                "confidence": confidence,
-                "method": method,
+                "recommended_sim_duration_s": payload["recommended_sim_duration_s"],
+                "confidence": payload["confidence"],
+                "method": payload["method"],
                 "log_file": result.get("log_file"),
             },
         )
@@ -2645,6 +3873,91 @@ def ops_godot_preview(
         session.close()
 
 
+@app.post("/ops/godot/intent-check")
+def ops_godot_intent_check(
+    request: GodotIntentCheckRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        script_path = Path(request.script_path).expanduser().resolve()
+        if not script_path.exists():
+            raise HTTPException(status_code=404, detail="script_not_found")
+        if script_path.suffix != ".gd":
+            raise HTTPException(status_code=400, detail="script_must_be_gd")
+
+        target_runtime_s = _resolve_target_runtime_s(request.runtime_override_s)
+        result = _run_godot_manual_step(
+            mode="estimate",
+            script_path=script_path,
+            seconds=request.scout_seconds,
+            fps=request.fps,
+            max_nodes=request.max_nodes,
+            estimate_threshold=request.threshold,
+            estimate_hold_seconds=request.hold_seconds,
+            estimate_sample_seconds=request.sample_seconds,
+        )
+        if not result["ok"]:
+            raise HTTPException(status_code=400, detail=result)
+
+        estimate = result.get("estimate") if isinstance(result.get("estimate"), dict) else {}
+        intent_payload = _intent_recommendation(
+            estimate=estimate,
+            target_duration_s=target_runtime_s,
+            scout_seconds=request.scout_seconds,
+            tail_seconds=request.tail_seconds,
+        )
+        payload = {
+            **result,
+            "mode": "intent_check",
+            "scout_seconds": request.scout_seconds,
+            "tail_seconds": request.tail_seconds,
+            "target_runtime_s": target_runtime_s,
+            "runtime_override_s": request.runtime_override_s,
+            "target_duration_s": target_runtime_s,
+            **intent_payload,
+        }
+
+        _audit_event(
+            session,
+            event_type="godot_manual_intent_check",
+            actor_user_id=request.actor,
+            payload={
+                "script_path": str(script_path),
+                "target_runtime_s": target_runtime_s,
+                "intent_status": payload["intent_status"],
+                "recommended_sim_duration_s": payload["recommended_sim_duration_s"],
+                "recommended_speed_factor": payload["recommended_speed_factor"],
+                "log_file": result.get("log_file"),
+            },
+        )
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="intent_check",
+                ok=True,
+                actor_user_id=request.actor,
+                payload=payload,
+            )
+        )
+        session.commit()
+        return jsonable_encoder(payload)
+    except HTTPException as exc:
+        session.rollback()
+        detail = exc.detail if isinstance(exc.detail, dict) else None
+        _append_manual_godot_history(
+            _manual_godot_history_record(
+                step="intent_check",
+                ok=False,
+                actor_user_id=request.actor,
+                payload=detail,
+                error=None if detail else str(exc.detail),
+            )
+        )
+        raise
+    finally:
+        session.close()
+
+
 @app.post("/ops/godot/render")
 def ops_godot_render(
     request: GodotManualRunRequest,
@@ -2685,6 +3998,169 @@ def ops_godot_render(
                 error=None if detail else str(exc.detail),
             )
         )
+        raise
+    finally:
+        session.close()
+
+
+@app.post("/ops/overlay/intro")
+def ops_overlay_intro(
+    request: IntroOverlayRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        input_path = Path(request.input_path).expanduser().resolve()
+        if not input_path.exists():
+            raise HTTPException(status_code=404, detail="input_video_not_found")
+
+        out_path = (
+            Path(request.out_path).expanduser().resolve()
+            if request.out_path
+            else input_path.with_name(f"{input_path.stem}.intro.mp4")
+        )
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        language = (request.language or getenv("OPERATOR_INTRO_LANGUAGE", "en") or "en").strip().lower()
+        if language not in {"pl", "en"}:
+            language = "en"
+        text_value = (request.intro_text or "").strip()
+        if not text_value and request.idea_id is not None:
+            idea = session.get(Idea, request.idea_id)
+            if idea is None:
+                raise HTTPException(status_code=404, detail="idea_not_found")
+            text_value = _build_intro_text_from_idea(idea, language)
+        if not text_value:
+            raise HTTPException(status_code=400, detail="intro_text_or_idea_id_required")
+        translation_meta: dict | None = None
+        if language == "en":
+            translated_value, translation_meta = _translate_intro_text_to_en(
+                text=text_value,
+                max_chars=request.max_chars,
+            )
+            if translated_value:
+                text_value = translated_value
+        text_value = _sanitize_intro_text(text=text_value, language=language, max_chars=request.max_chars)
+
+        result = _run_intro_overlay_ffmpeg(
+            input_path=input_path,
+            out_path=out_path,
+            text=text_value,
+            duration_s=request.duration_s,
+            font_size=request.font_size,
+        )
+        if not result.get("ok"):
+            raise HTTPException(status_code=400, detail=result)
+
+        payload = {
+            **result,
+            "input_path": str(input_path),
+            "intro_text": text_value,
+            "language": language,
+            "duration_s": request.duration_s,
+            "font_size": request.font_size,
+            "idea_id": str(request.idea_id) if request.idea_id else None,
+            "translation_meta": translation_meta,
+        }
+        _audit_event(
+            session,
+            event_type="intro_overlay_generate",
+            actor_user_id=request.actor,
+            payload={
+                "input_path": str(input_path),
+                "out_path": str(out_path),
+                "language": language,
+                "duration_s": request.duration_s,
+                "font_size": request.font_size,
+                "idea_id": str(request.idea_id) if request.idea_id else None,
+                "translation_meta": translation_meta,
+            },
+        )
+        session.commit()
+        return jsonable_encoder(payload)
+    except HTTPException:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+@app.post("/ops/audio/mix")
+def ops_audio_mix(
+    request: AudioMixRequest,
+    _guard: None = Depends(_require_operator),
+) -> dict:
+    session = SessionLocal()
+    try:
+        input_path = Path(request.input_path).expanduser().resolve()
+        if not input_path.exists():
+            raise HTTPException(status_code=404, detail="input_video_not_found")
+        music_path = Path(request.music_path).expanduser().resolve() if request.music_path else None
+        sfx_path = Path(request.sfx_path).expanduser().resolve() if request.sfx_path else None
+        if music_path is not None and not music_path.exists():
+            raise HTTPException(status_code=404, detail="music_path_not_found")
+        if sfx_path is not None and not sfx_path.exists():
+            raise HTTPException(status_code=404, detail="sfx_path_not_found")
+        if music_path is None and sfx_path is None and not request.keep_source_audio:
+            raise HTTPException(status_code=400, detail="audio_mix_requires_music_or_sfx_or_source_audio")
+
+        out_path = (
+            Path(request.out_path).expanduser().resolve()
+            if request.out_path
+            else input_path.with_name(f"{input_path.stem}.audio.mp4")
+        )
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        result = _run_audio_mix_ffmpeg(
+            input_path=input_path,
+            out_path=out_path,
+            music_path=music_path,
+            sfx_path=sfx_path,
+            keep_source_audio=request.keep_source_audio,
+            music_gain_db=request.music_gain_db,
+            sfx_gain_db=request.sfx_gain_db,
+            normalize_loudness=request.normalize_loudness,
+            target_lufs=request.target_lufs,
+            true_peak_db=request.true_peak_db,
+        )
+        if not result.get("ok"):
+            raise HTTPException(status_code=400, detail=result)
+
+        payload = {
+            **result,
+            "input_path": str(input_path),
+            "music_path": str(music_path) if music_path else None,
+            "sfx_path": str(sfx_path) if sfx_path else None,
+            "keep_source_audio": request.keep_source_audio,
+            "music_gain_db": request.music_gain_db,
+            "sfx_gain_db": request.sfx_gain_db,
+            "normalize_loudness": request.normalize_loudness,
+            "target_lufs": request.target_lufs,
+            "true_peak_db": request.true_peak_db,
+            "audio_profile": request.audio_profile,
+        }
+        _audit_event(
+            session,
+            event_type="audio_mix_generate",
+            actor_user_id=request.actor,
+            payload={
+                "input_path": str(input_path),
+                "out_path": str(out_path),
+                "music_path": str(music_path) if music_path else None,
+                "sfx_path": str(sfx_path) if sfx_path else None,
+                "keep_source_audio": request.keep_source_audio,
+                "music_gain_db": request.music_gain_db,
+                "sfx_gain_db": request.sfx_gain_db,
+                "normalize_loudness": request.normalize_loudness,
+                "target_lufs": request.target_lufs,
+                "true_peak_db": request.true_peak_db,
+                "audio_profile": request.audio_profile,
+            },
+        )
+        session.commit()
+        return jsonable_encoder(payload)
+    except HTTPException:
+        session.rollback()
         raise
     finally:
         session.close()

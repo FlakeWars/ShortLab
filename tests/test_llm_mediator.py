@@ -325,3 +325,14 @@ def test_generate_json_skips_primary_when_reservation_would_exceed_limit(monkeyp
     assert parsed["ok"] is True
     assert meta["model"] == "gpt-5.1-codex-mini"
     assert seen_models == ["gpt-5.1-codex-mini"]
+
+
+def test_coerce_json_like_handles_single_quoted_keys_without_regex_error(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("LLM_MEDIATOR_PERSIST_BACKEND", "file")
+    monkeypatch.setenv("LLM_MEDIATOR_STATE_FILE", str(tmp_path / "state.json"))
+    mediator = LLMMediator()
+
+    payload = mediator._coerce_json_like("{'dsl_yaml': 'ok', 'meta': {'k': 'v',},}")
+    parsed = json.loads(payload)
+    assert parsed["dsl_yaml"] == "ok"
+    assert parsed["meta"]["k"] == "v"
