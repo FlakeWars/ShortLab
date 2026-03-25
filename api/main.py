@@ -620,6 +620,7 @@ def _run_godot_manual_step(
         "log_file": str(latest_log) if latest_log else None,
     }
     vertical_error: tuple[int, int] | None = None
+    center_error: tuple[int, int] | None = None
     if out_path is not None:
         payload["out_path"] = str(out_path.resolve())
         payload["out_exists"] = out_path.exists()
@@ -631,6 +632,24 @@ def _run_godot_manual_step(
             payload["is_vertical"] = is_vertical
             if not is_vertical:
                 vertical_error = (width, height)
+            center_samples = max(3, min(int(getenv("GODOT_CENTER_ACTIVITY_SAMPLE_COUNT", "8") or 8), 16))
+            center_unique = _video_center_activity_unique_hashes(out_path, sample_count=center_samples)
+            payload["center_activity_unique_hashes"] = center_unique
+            payload["center_activity_sample_count"] = center_samples
+            min_center_unique = max(2, int(getenv("GODOT_CENTER_ACTIVITY_MIN_UNIQUE", "4") or 4))
+            center_scene_changes = _video_center_scene_change_count(
+                out_path,
+                threshold=float(getenv("GODOT_CENTER_ACTIVITY_SCENE_THRESHOLD", "0.003") or 0.003),
+            )
+            payload["center_activity_scene_changes"] = center_scene_changes
+            min_center_scene_changes = max(
+                1, int(getenv("GODOT_CENTER_ACTIVITY_MIN_SCENE_CHANGES", "8") or 8)
+            )
+            payload["center_activity_min_scene_changes"] = min_center_scene_changes
+            if center_scene_changes is not None and center_scene_changes < min_center_scene_changes:
+                center_error = (center_scene_changes, min_center_scene_changes)
+            elif center_unique is not None and center_unique < min_center_unique:
+                center_error = (center_unique, min_center_unique)
     if mode == "estimate":
         combined = ((completed.stdout or "") + "\n" + (completed.stderr or "")).strip()
         summary = re.search(
@@ -660,6 +679,12 @@ def _run_godot_manual_step(
         payload["ok"] = False
         payload["error"] = "short_format_required_vertical_video"
         payload["error_hint"] = f"video_dimensions={vertical_error[0]}x{vertical_error[1]}"
+    if center_error is not None:
+        payload["ok"] = False
+        payload["error"] = "center_action_outside_safe_area"
+        payload["error_hint"] = (
+            f"center_activity={center_error[0]} min_required={center_error[1]}"
+        )
     return payload
 
 
@@ -3136,6 +3161,113 @@ def _video_dimensions(input_path: Path) -> tuple[int, int]:
     except Exception:
         pass
     return 1080, 1920
+
+
+def _video_center_activity_unique_hashes(input_path: Path, sample_count: int = 8) -> int | None:
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    if not ffmpeg or not ffprobe:
+        return None
+    try:
+        duration_raw = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=nw=1:nk=1",
+                str(input_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        duration_s = float((duration_raw.stdout or "0").strip().splitlines()[0] or 0)
+    except Exception:
+        return None
+    if duration_s <= 0.0:
+        return None
+    width, height = _video_dimensions(input_path)
+    crop_w = max(64, int(width * 0.7))
+    crop_h = max(64, int(height * 0.8))
+    crop_x = max(0, int((width - crop_w) / 2))
+    crop_y = max(0, int((height - crop_h) / 2))
+    samples = max(3, min(sample_count, 16))
+    hashes: set[str] = set()
+    for idx in range(samples):
+        ts = (duration_s * idx) / max(1, samples - 1)
+        with tempfile.NamedTemporaryFile(prefix="shortlab-center-", suffix=".png", delete=False) as tmp:
+            frame_path = Path(tmp.name)
+        try:
+            completed = subprocess.run(
+                [
+                    ffmpeg,
+                    "-v",
+                    "error",
+                    "-ss",
+                    f"{max(0.0, ts):.3f}",
+                    "-i",
+                    str(input_path),
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}",
+                    "-y",
+                    str(frame_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+            if completed.returncode == 0 and frame_path.exists():
+                hashes.add(hashlib.sha256(frame_path.read_bytes()).hexdigest())
+        except Exception:
+            pass
+        finally:
+            frame_path.unlink(missing_ok=True)
+    return len(hashes)
+
+
+def _video_center_scene_change_count(input_path: Path, threshold: float = 0.003) -> int | None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return None
+    width, height = _video_dimensions(input_path)
+    crop_w = max(64, int(width * 0.7))
+    crop_h = max(64, int(height * 0.8))
+    crop_x = max(0, int((width - crop_w) / 2))
+    crop_y = max(0, int((height - crop_h) / 2))
+    filter_graph = (
+        f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},"
+        f"select='gt(scene,{max(0.0001, threshold):.4f})',showinfo"
+    )
+    try:
+        completed = subprocess.run(
+            [
+                ffmpeg,
+                "-v",
+                "info",
+                "-i",
+                str(input_path),
+                "-vf",
+                filter_graph,
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=min(_ffmpeg_timeout_s(), 180),
+        )
+    except Exception:
+        return None
+    payload = f"{completed.stdout or ''}\n{completed.stderr or ''}"
+    return len(re.findall(r"showinfo", payload))
 
 
 def _run_intro_overlay_ffmpeg_image_fallback(

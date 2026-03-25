@@ -111,9 +111,12 @@
   - [x] Usprawnienie (2026-03-25): `/ops/godot/compile-gdscript` zapisuje kontekst idei do katalogu renderu (`idea.json` + `idea.txt`) i zwraca ich ścieżki
   - [x] Usprawnienie (2026-03-25): `/ops/godot/preview|render` egzekwuje pionowy format short (`height > width`) i failuje nieprawidłowe proporcje
   - [x] Usprawnienie (2026-03-25): prompt GDScript doprecyzowuje „safe area” dla shortów (środek kadru, bez krytycznych akcji na krawędziach)
+  - [x] Usprawnienie (2026-03-25): dodano gate `center_action_outside_safe_area` (analiza zmian scen w centralnym obszarze kadru), aby nie przepuszczać animacji z akcją głównie poza ekranem shorta
+  - [x] Usprawnienie (2026-03-25): parser `LLM_ITERATIVE_MODEL_TOKEN_LIMITS` obsługuje także format mapy z `.env` (`{openai:gpt-5.2-codex:..., ...}`), dzięki czemu limity per dzień/per model są faktycznie egzekwowane
   - [ ] Ryzyko/uzupełnienie: ffmpeg zgłasza ostrzeżenie `Broken file, keyframe not correctly marked` dla `.ogv` z Godota; trzeba sprawdzić, czy przejście na sekwencję PNG lub `.avi` jako intermediate poprawi stabilność transkodowania
   - [ ] Ryzyko/uzupełnienie: dobrać progi preview-QC (`IDEA_GDSCRIPT_PREVIEW_QC_*`) na minimum 10 realnych renderach, żeby uniknąć false-positive dla prostych, ale poprawnych animacji
-  - [ ] Ryzyko/uzupełnienie: dodać automatyczny „center-safe action check” (aktywność obiektów w centralnym obszarze klatek), bo sama proporcja 9:16 nie gwarantuje czytelności shorta po overlayach platformy
+  - [ ] Ryzyko/uzupełnienie: skalibrować progi gate `center_action_outside_safe_area` na próbie min. 10 realnych shortów (żeby ograniczyć false-positive/false-negative)
+  - [ ] Ryzyko/uzupełnienie: część odpowiedzi LLM dla GDScript nadal bywa obcinana jako niekompletny JSON (`quoted scalar`); trzeba dodać stabilizację warstwy parse/repair, aby `compile-gdscript` nie padał losowo
   - [ ] Ryzyko/uzupełnienie: `POST /ops/enqueue` z `idea_id` nadal bywa wrażliwy na walidację DSL przy części szablonów/kompilacji; wymaga osobnego hardeningu, bo w E2E DB bootstrap jest wykonywany obecnie bez `idea_id`
 
 ## Next (Kolejne)

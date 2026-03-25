@@ -201,6 +201,21 @@ def _iterative_token_budget_overrides() -> dict[str, int]:
     try:
         data = json.loads(raw)
     except Exception:
+        # Backward-compatible parser for relaxed map syntax used in some .env files:
+        # {openai:gpt-5.2-codex:200000,openai:gpt-5.1-codex-mini:2000000}
+        if raw.startswith("{") and raw.endswith("}"):
+            inner = raw[1:-1].strip()
+            parsed: dict[str, int] = {}
+            if inner:
+                for chunk in [part.strip() for part in inner.split(",") if part.strip()]:
+                    if ":" not in chunk:
+                        continue
+                    model_key, value = chunk.rsplit(":", 1)
+                    try:
+                        parsed[model_key.strip()] = int(value.strip())
+                    except Exception:
+                        continue
+            return parsed
         return {}
     if not isinstance(data, dict):
         return {}

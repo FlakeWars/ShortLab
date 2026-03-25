@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from llm.mediator import _load_route, _load_routes
+from llm.mediator import _iterative_token_budget_overrides, _load_route, _load_routes
 
 
 def test_route_uses_profile_defaults_when_task_route_missing(monkeypatch) -> None:
@@ -60,3 +60,13 @@ def test_iterative_route_override_does_not_change_other_tasks(monkeypatch) -> No
 
     route = _load_route("idea_verify_capability")
     assert route.model == "gpt-5.1-codex-mini"
+
+
+def test_iterative_token_budget_overrides_accepts_relaxed_env_map(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "LLM_ITERATIVE_MODEL_TOKEN_LIMITS",
+        "{openai:gpt-5.2-codex:200000,openai:gpt-5.1-codex-mini:2000000}",
+    )
+    parsed = _iterative_token_budget_overrides()
+    assert parsed["openai:gpt-5.2-codex"] == 200000
+    assert parsed["openai:gpt-5.1-codex-mini"] == 2000000

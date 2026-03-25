@@ -535,6 +535,8 @@ def test_run_godot_manual_step_rejects_non_vertical_video(monkeypatch, tmp_path:
     monkeypatch.setattr(api_main.subprocess, "run", _fake_subprocess_run)
     monkeypatch.setattr(api_main, "_latest_godot_log_file", lambda before=None: None)
     monkeypatch.setattr(api_main, "_video_dimensions", lambda path: (1920, 1080))
+    monkeypatch.setattr(api_main, "_video_center_activity_unique_hashes", lambda *args, **kwargs: 8)
+    monkeypatch.setattr(api_main, "_video_center_scene_change_count", lambda *args, **kwargs: 99)
 
     payload = api_main._run_godot_manual_step(
         mode="render",
@@ -548,6 +550,34 @@ def test_run_godot_manual_step_rejects_non_vertical_video(monkeypatch, tmp_path:
     assert payload["ok"] is False
     assert payload["error"] == "short_format_required_vertical_video"
     assert payload["is_vertical"] is False
+
+
+def test_run_godot_manual_step_rejects_low_center_activity(monkeypatch, tmp_path: Path) -> None:
+    script = tmp_path / "script.gd"
+    script.write_text("extends Node2D\n", encoding="utf-8")
+    out_path = tmp_path / "final.mp4"
+    out_path.write_bytes(b"video")
+
+    def _fake_subprocess_run(*args, **kwargs):
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(api_main.subprocess, "run", _fake_subprocess_run)
+    monkeypatch.setattr(api_main, "_latest_godot_log_file", lambda before=None: None)
+    monkeypatch.setattr(api_main, "_video_dimensions", lambda path: (1080, 1920))
+    monkeypatch.setattr(api_main, "_video_center_activity_unique_hashes", lambda *args, **kwargs: 1)
+    monkeypatch.setattr(api_main, "_video_center_scene_change_count", lambda *args, **kwargs: 0)
+
+    payload = api_main._run_godot_manual_step(
+        mode="render",
+        script_path=script,
+        seconds=10.0,
+        fps=30,
+        max_nodes=200,
+        out_path=out_path,
+    )
+
+    assert payload["ok"] is False
+    assert payload["error"] == "center_action_outside_safe_area"
 
 
 def test_get_manual_godot_file_restricts_to_manual_root(monkeypatch, tmp_path: Path) -> None:
