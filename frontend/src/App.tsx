@@ -1925,7 +1925,7 @@ function App() {
         headers: opsHeaders(),
         body: JSON.stringify({
           idea_id: manualIdeaId.trim(),
-          validate: false,
+          validate: true,
           max_attempts: 3,
           max_repairs: 2,
           max_nodes: Math.max(10, Math.floor(parseNumberInput(godotMaxNodes, 200))),

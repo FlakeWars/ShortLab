@@ -64,6 +64,85 @@ post_json_with_status() {
     -d "${body}"
 }
 
+video_stream_bitrate() {
+  local file="$1"
+  ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of default=nw=1:nk=1 "$file" | head -n1
+}
+
+video_duration_seconds() {
+  local file="$1"
+  ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$file" | head -n1
+}
+
+frame_sha256_at() {
+  local file="$1"
+  local at="$2"
+  local tmp_png
+  tmp_png="$(mktemp "${TMPDIR:-/tmp}/shortlab-e2e-frame-XXXXXX.png")"
+  ffmpeg -v error -ss "${at}" -i "$file" -frames:v 1 -y "$tmp_png" >/dev/null 2>&1 || true
+  if [ ! -f "$tmp_png" ]; then
+    rm -f "$tmp_png"
+    echo ""
+    return
+  fi
+  shasum "$tmp_png" | awk '{print $1}'
+  rm -f "$tmp_png"
+}
+
+assert_video_not_static() {
+  local file="$1"
+  local label="$2"
+  local min_bitrate="${E2E_MIN_VIDEO_BITRATE_BPS:-16000}"
+  local min_duration="${E2E_MIN_VIDEO_DURATION_S:-3}"
+  local max_tail_freeze_window="${E2E_MAX_TAIL_FREEZE_WINDOW_S:-0.5}"
+
+  local bitrate
+  bitrate="$(video_stream_bitrate "$file")"
+  if [ -z "${bitrate}" ]; then
+    bitrate="0"
+  fi
+
+  local duration
+  duration="$(video_duration_seconds "$file")"
+  if [ -z "${duration}" ]; then
+    duration="0"
+  fi
+  local duration_int
+  duration_int="$(printf '%.0f' "${duration}")"
+  if [ "${duration_int}" -lt "${min_duration}" ]; then
+    echo "[e2e][fail] ${label} invalid duration: duration=${duration}s min=${min_duration}s"
+    exit 1
+  fi
+
+  local mid_ts
+  mid_ts="$(awk -v d="${duration}" 'BEGIN { printf "%.3f", d/2.0 }')"
+  local end_ts
+  end_ts="$(awk -v d="${duration}" -v w="${max_tail_freeze_window}" 'BEGIN { t=d-w; if (t<0) t=0; printf "%.3f", t }')"
+
+  local start_hash
+  local mid_hash
+  local end_hash
+  start_hash="$(frame_sha256_at "$file" "0.000")"
+  mid_hash="$(frame_sha256_at "$file" "${mid_ts}")"
+  end_hash="$(frame_sha256_at "$file" "${end_ts}")"
+  if [ -z "${start_hash}" ] || [ -z "${mid_hash}" ] || [ -z "${end_hash}" ]; then
+    echo "[e2e][fail] ${label} cannot compute frame hashes"
+    exit 1
+  fi
+  if [ "${start_hash}" = "${mid_hash}" ] && [ "${mid_hash}" = "${end_hash}" ]; then
+    echo "[e2e][fail] ${label} static frames detected (start==mid==end)"
+    exit 1
+  fi
+  if [ "${mid_hash}" = "${end_hash}" ]; then
+    echo "[e2e][fail] ${label} frozen tail detected (mid==end)"
+    exit 1
+  fi
+  if [ "${bitrate}" -lt "${min_bitrate}" ]; then
+    echo "[e2e][fail] ${label} low bitrate: bitrate=${bitrate}bps min=${min_bitrate}bps"
+    exit 1
+  fi
+}
+
 echo "[e2e] Starting API on ${API_URL}"
 PYTHONPATH="${ROOT_DIR}" REDIS_URL="${REDIS_URL}" DEV_MANUAL_FLOW="${DEV_MANUAL_FLOW}" OPERATOR_TOKEN="${OPERATOR_TOKEN}" \
   FFMPEG_TIMEOUT_S="${FFMPEG_TIMEOUT_S}" \
@@ -128,7 +207,7 @@ if [ -z "${IDEA_ID}" ]; then
 fi
 
 echo "[e2e] Step 4/14: compile gdscript"
-COMPILE="$(post_json "/ops/godot/compile-gdscript" "{\"idea_id\":\"${IDEA_ID}\",\"validate\":false}")"
+COMPILE="$(post_json "/ops/godot/compile-gdscript" "{\"idea_id\":\"${IDEA_ID}\",\"validate\":true}")"
 SCRIPT="$(printf '%s' "${COMPILE}" | jq -r '.script_path // empty')"
 if [ -z "${SCRIPT}" ]; then
   echo "[e2e][fail] compile did not return script_path"
@@ -158,6 +237,7 @@ if [ -z "${FINAL_OUT}" ]; then
   echo "${RENDER}" | jq .
   exit 1
 fi
+assert_video_not_static "${FINAL_OUT}" "final render"
 
 echo "[e2e] Step 10/14: intro overlay (EN captions)"
 INTRO="$(post_json_with_status "/ops/overlay/intro" "{\"input_path\":\"${FINAL_OUT}\",\"idea_id\":\"${IDEA_ID}\",\"language\":\"en\",\"duration_s\":1.5}")"
@@ -187,6 +267,7 @@ if [ "${AUDIO_STATUS}" != "200" ]; then
   fi
   exit 1
 fi
+assert_video_not_static "$(printf '%s' "${AUDIO_BODY}" | jq -r '.out_path // empty')" "final intro+audio render"
 
 echo "[e2e] Step 12/14: enqueue pipeline for DB animation/render"
 ENQUEUE="$(post_json "/ops/enqueue" "{\"dsl_template\":\".ai/examples/dsl-v1-happy.yaml\",\"out_root\":\"out/pipeline\",\"idea_gate\":false}")"

@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import os
+import shutil
 import subprocess
+import tempfile
 import sys
 from pathlib import Path
 from typing import Any
 
 from db.models import Idea
-from llm import get_mediator
+from llm import LLMError, get_mediator
 from .prompting import build_idea_context, read_godot_contract, read_godot_guidelines
 
 
@@ -54,22 +56,33 @@ def compile_idea_to_gdscript(
         )
         try:
             system_prompt = _build_system_prompt(contract=contract, guidelines=guidelines)
-            payload, route_meta = get_mediator().generate_json(
-                task_type=current_task,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                json_schema={
-                    "type": "object",
-                    "properties": {
-                        "gdscript": {"type": "string"},
+            route_meta: dict[str, Any] = {"provider": None, "model": None}
+            try:
+                payload, route_meta = get_mediator().generate_json(
+                    task_type=current_task,
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    json_schema={
+                        "type": "object",
+                        "properties": {
+                            "gdscript": {"type": "string"},
+                        },
+                        "required": ["gdscript"],
+                        "additionalProperties": False,
                     },
-                    "required": ["gdscript"],
-                    "additionalProperties": False,
-                },
-                max_tokens=int(os.getenv("IDEA_GDSCRIPT_MAX_TOKENS", "2400")),
-                temperature=float(os.getenv("IDEA_GDSCRIPT_TEMPERATURE", "0.2")),
-            )
-            gdscript = _extract_gdscript_field(payload)
+                    max_tokens=int(os.getenv("IDEA_GDSCRIPT_MAX_TOKENS", "2400")),
+                    temperature=float(os.getenv("IDEA_GDSCRIPT_TEMPERATURE", "0.2")),
+                )
+                gdscript = _extract_gdscript_field(payload)
+            except LLMError as exc:
+                gdscript = _extract_gdscript_from_raw_llm_content(getattr(exc, "raw_content", "") or "")
+                if not gdscript:
+                    raise
+                route_meta = {
+                    "provider": getattr(exc, "provider", None),
+                    "model": None,
+                    "raw_content_fallback": True,
+                }
             if not gdscript:
                 raise RuntimeError("empty_gdscript")
             last_script = gdscript
@@ -81,6 +94,11 @@ def compile_idea_to_gdscript(
                     seconds=validate_seconds,
                     max_nodes=max_nodes,
                 )
+                if not validation_errors:
+                    validation_errors = _validate_gdscript_quality(
+                        script_path=target_path,
+                        max_nodes=max_nodes,
+                    )
             if validation_errors:
                 raise RuntimeError("validation_failed: " + "; ".join(validation_errors))
             script_hash = hashlib.sha256(target_path.read_bytes()).hexdigest()
@@ -132,6 +150,141 @@ def _validate_gdscript(*, script_path: Path, seconds: float, max_nodes: int) -> 
     return [msg[:8000]]
 
 
+def _validate_gdscript_quality(*, script_path: Path, max_nodes: int) -> list[str]:
+    ffmpeg_bin = shutil.which("ffmpeg")
+    ffprobe_bin = shutil.which("ffprobe")
+    if not ffmpeg_bin or not ffprobe_bin:
+        return []
+
+    preview_seconds = max(2.0, float(os.getenv("IDEA_GDSCRIPT_PREVIEW_QC_SECONDS", "8")))
+    preview_fps = max(6, int(os.getenv("IDEA_GDSCRIPT_PREVIEW_QC_FPS", "12")))
+    min_bitrate = max(0, int(os.getenv("IDEA_GDSCRIPT_PREVIEW_QC_MIN_BITRATE_BPS", "16000")))
+
+    repo_root = Path(__file__).resolve().parents[1]
+    with tempfile.TemporaryDirectory(prefix="gdscript-preview-qc-") as tmpdir:
+        preview_out = Path(tmpdir) / "preview.mp4"
+        cmd = [
+            sys.executable,
+            str(repo_root / "scripts" / "godot-run.py"),
+            "--mode",
+            "preview",
+            "--script",
+            str(script_path),
+            "--seconds",
+            str(preview_seconds),
+            "--fps",
+            str(preview_fps),
+            "--max-nodes",
+            str(max_nodes),
+            "--scale",
+            "0.5",
+            "--out",
+            str(preview_out),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            stderr = (result.stderr or "").strip()
+            stdout = (result.stdout or "").strip()
+            msg = stderr or stdout or "preview_qc_failed"
+            return [f"preview_qc_failed:{msg[:500]}"]
+        if not preview_out.exists():
+            return ["preview_qc_missing_output"]
+
+        duration_s = _probe_duration_seconds(preview_out, ffprobe_bin)
+        if duration_s <= 0.0:
+            return ["preview_qc_invalid_duration"]
+        start_hash = _extract_frame_hash(preview_out, 0.0, ffmpeg_bin)
+        mid_hash = _extract_frame_hash(preview_out, duration_s / 2.0, ffmpeg_bin)
+        end_hash = _extract_frame_hash(preview_out, max(0.0, duration_s - 0.25), ffmpeg_bin)
+        if not start_hash or not mid_hash or not end_hash:
+            return ["preview_qc_frame_hash_failed"]
+        if start_hash == mid_hash == end_hash:
+            return ["preview_qc_static_all_frames"]
+        if mid_hash == end_hash:
+            return ["preview_qc_frozen_tail"]
+
+        bitrate = _probe_video_bitrate(preview_out, ffprobe_bin)
+        if bitrate is not None and bitrate < min_bitrate:
+            return [f"preview_qc_low_bitrate:{bitrate}<{min_bitrate}"]
+    return []
+
+
+def _probe_duration_seconds(video_path: Path, ffprobe_bin: str) -> float:
+    cmd = [
+        ffprobe_bin,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=nw=1:nk=1",
+        str(video_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        return 0.0
+    raw = (result.stdout or "").strip().splitlines()
+    if not raw:
+        return 0.0
+    try:
+        return float(raw[0].strip())
+    except Exception:
+        return 0.0
+
+
+def _probe_video_bitrate(video_path: Path, ffprobe_bin: str) -> int | None:
+    cmd = [
+        ffprobe_bin,
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=bit_rate",
+        "-of",
+        "default=nw=1:nk=1",
+        str(video_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        return None
+    value = (result.stdout or "").strip().splitlines()
+    if not value or not value[0].strip():
+        return None
+    try:
+        return int(float(value[0].strip()))
+    except Exception:
+        return None
+
+
+def _extract_frame_hash(video_path: Path, timestamp_s: float, ffmpeg_bin: str) -> str:
+    with tempfile.NamedTemporaryFile(prefix="gdscript-frame-", suffix=".png", delete=False) as handle:
+        frame_path = Path(handle.name)
+    try:
+        cmd = [
+            ffmpeg_bin,
+            "-v",
+            "error",
+            "-ss",
+            f"{max(0.0, timestamp_s):.3f}",
+            "-i",
+            str(video_path),
+            "-frames:v",
+            "1",
+            "-y",
+            str(frame_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0 or not frame_path.exists():
+            return ""
+        return hashlib.sha256(frame_path.read_bytes()).hexdigest()
+    finally:
+        try:
+            frame_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def _extract_gdscript_field(payload: dict[str, Any]) -> str:
     for key in ("gdscript", "script", "code"):
         value = payload.get(key)
@@ -139,6 +292,61 @@ def _extract_gdscript_field(payload: dict[str, Any]) -> str:
             return value.strip()
     keys = ", ".join(sorted(str(k) for k in payload.keys())) if isinstance(payload, dict) else "non-dict"
     raise RuntimeError(f"missing_gdscript_field:{keys}")
+
+
+def _extract_gdscript_from_raw_llm_content(content: str) -> str:
+    raw = (content or "").strip()
+    if not raw:
+        return ""
+    fenced = _extract_fenced_code(raw)
+    if fenced:
+        return fenced
+    for key in ('"gdscript"', '"script"', '"code"'):
+        idx = raw.find(key)
+        if idx == -1:
+            continue
+        colon_idx = raw.find(":", idx + len(key))
+        if colon_idx == -1:
+            continue
+        fragment = raw[colon_idx + 1 :].lstrip()
+        if fragment.startswith('"'):
+            decoded = _decode_json_string_fragment(fragment[1:])
+            if decoded:
+                return decoded
+    if "extends " in raw:
+        return raw
+    return ""
+
+
+def _extract_fenced_code(content: str) -> str:
+    begin = content.find("```")
+    if begin == -1:
+        return ""
+    end = content.find("```", begin + 3)
+    if end == -1:
+        return ""
+    body = content[begin + 3 : end]
+    lines = body.splitlines()
+    if lines and lines[0].strip().lower() in {"gdscript", "script", "code"}:
+        lines = lines[1:]
+    return "\n".join(lines).strip()
+
+
+def _decode_json_string_fragment(fragment: str) -> str:
+    text = fragment
+    for suffix in ('"}', '",', '" ]', '" }'):
+        if text.endswith(suffix):
+            text = text[: -len(suffix)]
+            break
+    text = text.strip()
+    if not text:
+        return ""
+    text = text.replace("\\r\\n", "\n")
+    text = text.replace("\\n", "\n")
+    text = text.replace("\\t", "\t")
+    text = text.replace('\\"', '"')
+    text = text.replace("\\\\", "\\")
+    return text.strip()
 
 
 def _build_compile_prompt(
@@ -176,7 +384,10 @@ def _build_system_prompt(*, contract: str, guidelines: str) -> str:
         "Return JSON only.\n\n"
         "GOAL:\n"
         "Create short 2D animations with physics (gravity, collisions) and simple geometry.\n"
-        "Keep code minimal and deterministic when possible, but correctness > determinism.\n\n"
+        "Keep code minimal and deterministic when possible, but correctness > determinism.\n"
+        "Animation must stay visibly dynamic across the whole run and should never freeze before the end.\n"
+        "Do not stop physics/process based on elapsed time (no early set_physics_process(false)).\n"
+        "Use high visual contrast and clear moving elements so the frame is not perceived as empty.\n\n"
         "CONTRACT (BEGIN):\n"
         "<<<CONTRACT_BEGIN>>>\n"
         f"{contract}\n"

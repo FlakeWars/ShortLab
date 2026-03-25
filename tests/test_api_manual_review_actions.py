@@ -501,6 +501,24 @@ def test_godot_manual_run_request_allows_60s_runtime() -> None:
     assert req.seconds == 60.0
 
 
+def test_godot_log_has_fatal_errors_detects_parse_error(tmp_path: Path) -> None:
+    log_file = tmp_path / "godot.log"
+    log_file.write_text(
+        'SCRIPT ERROR: Parse Error: Expected end of statement.\n'
+        'ERROR: Failed to load script "res://generated/example.gd" with error "Parse error".\n',
+        encoding="utf-8",
+    )
+
+    has_error, hint = api_main._godot_log_has_fatal_errors(
+        log_file=log_file,
+        stdout="",
+        stderr="",
+    )
+
+    assert has_error is True
+    assert hint is not None
+
+
 def test_get_manual_godot_file_restricts_to_manual_root(monkeypatch, tmp_path: Path) -> None:
     manual_root = tmp_path / "manual-godot"
     manual_root.mkdir()

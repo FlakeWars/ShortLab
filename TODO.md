@@ -105,6 +105,11 @@
   - [ ] Ryzyko/uzupełnienie: wykonać online smoke (`OAUTH_SMOKE_ONLINE=1`) na kontach sandbox i udokumentować wynik (bez sekretów) przed zgodą na trial auto-publish przez MCP
   - [x] Test/Smoke (2026-03-25): `make test-operator-flow-e2e` przechodzi pełny flow operatorski `idea -> compile -> validate -> estimate -> preview -> render -> intro -> audio -> qc -> publish -> metrics -> insights`
   - [x] Krytyczna analiza (2026-03-25): dodano fallback `intro overlay` bez `drawtext` (ImageMagick + ffmpeg overlay) oraz dedykowany skrypt E2E uruchamiany przez `Makefile`; flow jest powtarzalny krok-po-kroku i zatrzymuje się na pierwszym błędzie z czytelną diagnozą
+  - [x] Usprawnienie (2026-03-25): manualny render (`/ops/godot/*`) traktuje parse/script errors z logu Godota jako fail nawet przy `exit_code=0` (koniec fałszywych sukcesów z pustym/szarym wideo)
+  - [x] Usprawnienie (2026-03-25): kompilacja GDScript domyślnie uruchamia walidację (`validate=true`) w API, UI i E2E, aby parser-error wykrywać przed final render
+  - [x] Usprawnienie (2026-03-25): kompilator GDScript ma szybki preview-QC (hash klatek start/środek/koniec + bitrate), który odrzuca skrypty statyczne/zamrożone
+  - [ ] Ryzyko/uzupełnienie: ffmpeg zgłasza ostrzeżenie `Broken file, keyframe not correctly marked` dla `.ogv` z Godota; trzeba sprawdzić, czy przejście na sekwencję PNG lub `.avi` jako intermediate poprawi stabilność transkodowania
+  - [ ] Ryzyko/uzupełnienie: dobrać progi preview-QC (`IDEA_GDSCRIPT_PREVIEW_QC_*`) na minimum 10 realnych renderach, żeby uniknąć false-positive dla prostych, ale poprawnych animacji
   - [ ] Ryzyko/uzupełnienie: `POST /ops/enqueue` z `idea_id` nadal bywa wrażliwy na walidację DSL przy części szablonów/kompilacji; wymaga osobnego hardeningu, bo w E2E DB bootstrap jest wykonywany obecnie bez `idea_id`
 
 ## Next (Kolejne)

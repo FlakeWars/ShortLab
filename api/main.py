@@ -509,6 +509,27 @@ def _latest_godot_log_file(before: set[Path] | None = None) -> Path | None:
     return files[0]
 
 
+def _godot_log_has_fatal_errors(*, log_file: Path | None, stdout: str, stderr: str) -> tuple[bool, str | None]:
+    patterns = [
+        r"\bSCRIPT ERROR\b",
+        r"\bParse Error\b",
+        r'Failed to load script ".+?" with error "Parse error"',
+        r"\bparser error\b",
+    ]
+    sources = [stdout or "", stderr or ""]
+    if log_file is not None and log_file.exists():
+        try:
+            sources.append(log_file.read_text(encoding="utf-8", errors="ignore"))
+        except OSError:
+            pass
+    for text in sources:
+        for pattern in patterns:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if match:
+                return True, match.group(0)
+    return False, None
+
+
 def _run_godot_manual_step(
     *,
     mode: Literal["validate", "preview", "render", "estimate"],
@@ -587,7 +608,16 @@ def _run_godot_manual_step(
                 "progress": float(summary.group(5)),
                 "support": int(float(summary.group(6))) == 1,
             }
-    payload["ok"] = completed.returncode == 0
+    fatal_error, fatal_hint = _godot_log_has_fatal_errors(
+        log_file=latest_log,
+        stdout=completed.stdout or "",
+        stderr=completed.stderr or "",
+    )
+    payload["ok"] = completed.returncode == 0 and not fatal_error
+    if fatal_error:
+        payload["error"] = "godot_script_error_detected"
+        if fatal_hint:
+            payload["error_hint"] = fatal_hint
     return payload
 
 
@@ -814,7 +844,7 @@ class GodotManualCompileRequest(BaseModel):
     out_root: str = Field(default="out/manual-godot")
     max_attempts: int = Field(default=3, ge=1, le=10)
     max_repairs: int = Field(default=2, ge=0, le=10)
-    validate_after_compile: bool = Field(default=False, alias="validate")
+    validate_after_compile: bool = Field(default=True, alias="validate")
     validate_seconds: float = Field(default=2.0, ge=0.1, le=30.0)
     max_nodes: int = Field(default=200, ge=10, le=5000)
     actor: UUID | None = Field(default=None)
